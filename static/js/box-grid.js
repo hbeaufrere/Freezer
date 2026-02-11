@@ -2,8 +2,8 @@
 
 function renderBoxGrid(container, boxData, options = {}) {
     const { grid_rows, grid_cols, tubes, section } = boxData;
-    const rows = grid_rows || 9;
-    const cols = grid_cols || 9;
+    const rows = grid_rows || 10;
+    const cols = grid_cols || 10;
 
     // Build tube lookup: "row,col" -> tube data
     const tubeMap = {};
@@ -38,12 +38,15 @@ function renderBoxGrid(container, boxData, options = {}) {
         grid.appendChild(header);
     }
 
+    // Row labels: A-H, J-K (skip I to avoid confusion with 1)
+    const ROW_LABELS = ['A','B','C','D','E','F','G','H','J','K'];
+
     // Data rows
     for (let r = 1; r <= rows; r++) {
         // Row header (letter)
         const rowHeader = document.createElement('div');
         rowHeader.className = 'grid-header-cell';
-        rowHeader.textContent = String.fromCharCode(64 + r);
+        rowHeader.textContent = ROW_LABELS[r - 1] || String.fromCharCode(64 + r);
         grid.appendChild(rowHeader);
 
         for (let c = 1; c <= cols; c++) {

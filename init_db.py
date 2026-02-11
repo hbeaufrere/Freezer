@@ -37,7 +37,25 @@ def _seed_freezer_structure(conn):
 
     Layout: 3 shelves, 6 racks per shelf, 7 drawers per rack, 4 boxes per drawer.
     Upper shelf is for the raptor biobank, middle and lower are for research.
+
+    Raptor rack designations (upper shelf) group common species together:
+      U1 - Buteo Hawks: RTHA, RSHA, SWHA
+      U2 - Accipiters & Kites: COHA, WTKI
+      U3 - Large Owls: GHOW, ABOW
+      U4 - Small Owls: WESO + other owls
+      U5 - Falcons & Vultures: AMKE, TUVU
+      U6 - Other Species (overflow)
     """
+    # Species-group designations for upper-shelf (raptor) racks
+    raptor_rack_designations = {
+        1: 'RTHA / RSHA / SWHA',
+        2: 'COHA / WTKI',
+        3: 'GHOW / ABOW',
+        4: 'WESO / Other Owls',
+        5: 'AMKE / TUVU',
+        6: 'Other Species',
+    }
+
     shelves = [
         ('Upper Shelf', 1, 'raptor'),
         ('Middle Shelf', 2, 'research'),
@@ -56,9 +74,10 @@ def _seed_freezer_structure(conn):
 
         for rack_pos in range(1, 7):  # 6 racks per shelf
             rack_label = f"Rack {shelf_prefix}{rack_pos}"
+            designation = raptor_rack_designations.get(rack_pos) if section == 'raptor' else None
             conn.execute(
-                "INSERT INTO racks (shelf_id, position, label) VALUES (?, ?, ?)",
-                (shelf_id, rack_pos, rack_label)
+                "INSERT INTO racks (shelf_id, position, label, designation) VALUES (?, ?, ?, ?)",
+                (shelf_id, rack_pos, rack_label, designation)
             )
             rack_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
 
@@ -74,7 +93,7 @@ def _seed_freezer_structure(conn):
                     box_label = f"{shelf_prefix}{rack_pos}-D{drawer_pos}-B{box_pos}"
                     conn.execute(
                         "INSERT INTO boxes (drawer_id, position, label, grid_rows, grid_cols, section) VALUES (?, ?, ?, ?, ?, ?)",
-                        (drawer_id, box_pos, box_label, 9, 9, section)
+                        (drawer_id, box_pos, box_label, 10, 10, section)
                     )
 
 

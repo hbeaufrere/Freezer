@@ -55,8 +55,13 @@ function createRackElement(rack, options = {}) {
     rackEl.className = 'rack';
     rackEl.dataset.rackId = rack.id;
 
+    const designationHtml = rack.designation
+        ? `<div class="rack-designation">${rack.designation}</div>`
+        : '';
+
     rackEl.innerHTML = `
         <div class="rack-label">${rack.label || 'Rack ' + rack.position}</div>
+        ${designationHtml}
         <div class="rack-drawers"></div>
     `;
 

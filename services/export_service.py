@@ -55,9 +55,12 @@ RESEARCH_HEADERS = [
 ]
 
 
+_ROW_LABELS = ['A','B','C','D','E','F','G','H','J','K']
+
 def _format_position(row_pos, col_pos):
-    """Convert 1-based row/col to label like A1, B3."""
-    return f"{chr(64 + row_pos)}{col_pos}"
+    """Convert 1-based row/col to label like A1, B3. Skips I (row 9 = J)."""
+    letter = _ROW_LABELS[row_pos - 1] if row_pos <= len(_ROW_LABELS) else chr(64 + row_pos)
+    return f"{letter}{col_pos}"
 
 
 def _raptor_row(row):

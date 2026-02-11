@@ -1,5 +1,6 @@
 -- Common North American raptors encountered in wildlife rehabilitation
 -- Banding codes follow the Bird Banding Laboratory (BBL) 4-letter alpha codes
+-- Taxonomy updated per AOS 65th/66th Supplements (2024-2025)
 
 -- Hawks (Buteos)
 INSERT OR IGNORE INTO species (common_name, scientific_name, banding_code) VALUES ('Red-tailed Hawk', 'Buteo jamaicensis', 'RTHA');
@@ -13,10 +14,10 @@ INSERT OR IGNORE INTO species (common_name, scientific_name, banding_code) VALUE
 INSERT OR IGNORE INTO species (common_name, scientific_name, banding_code) VALUES ('Gray Hawk', 'Buteo plagiatus', 'GRHA');
 INSERT OR IGNORE INTO species (common_name, scientific_name, banding_code) VALUES ('Short-tailed Hawk', 'Buteo brachyurus', 'STHA');
 
--- Accipiters
-INSERT OR IGNORE INTO species (common_name, scientific_name, banding_code) VALUES ('Cooper''s Hawk', 'Accipiter cooperii', 'COHA');
+-- Accipiters (AOS 65th Supplement: Cooper's Hawk and American Goshawk moved to genus Astur)
+INSERT OR IGNORE INTO species (common_name, scientific_name, banding_code) VALUES ('Cooper''s Hawk', 'Astur cooperii', 'COHA');
 INSERT OR IGNORE INTO species (common_name, scientific_name, banding_code) VALUES ('Sharp-shinned Hawk', 'Accipiter striatus', 'SSHA');
-INSERT OR IGNORE INTO species (common_name, scientific_name, banding_code) VALUES ('Northern Goshawk', 'Accipiter gentilis', 'NOGO');
+INSERT OR IGNORE INTO species (common_name, scientific_name, banding_code) VALUES ('American Goshawk', 'Astur atricapillus', 'AGOS');
 
 -- Harrier
 INSERT OR IGNORE INTO species (common_name, scientific_name, banding_code) VALUES ('Northern Harrier', 'Circus hudsonius', 'NOHA');
@@ -50,9 +51,9 @@ INSERT OR IGNORE INTO species (common_name, scientific_name, banding_code) VALUE
 INSERT OR IGNORE INTO species (common_name, scientific_name, banding_code) VALUES ('Black Vulture', 'Coragyps atratus', 'BLVU');
 INSERT OR IGNORE INTO species (common_name, scientific_name, banding_code) VALUES ('California Condor', 'Gymnogyps californianus', 'CACO');
 
--- Owls
+-- Owls (AOS 66th Supplement: Barn Owl split, now American Barn Owl)
 INSERT OR IGNORE INTO species (common_name, scientific_name, banding_code) VALUES ('Great Horned Owl', 'Bubo virginianus', 'GHOW');
-INSERT OR IGNORE INTO species (common_name, scientific_name, banding_code) VALUES ('Barn Owl', 'Tyto alba', 'BANO');
+INSERT OR IGNORE INTO species (common_name, scientific_name, banding_code) VALUES ('American Barn Owl', 'Tyto furcata', 'ABOW');
 INSERT OR IGNORE INTO species (common_name, scientific_name, banding_code) VALUES ('Barred Owl', 'Strix varia', 'BDOW');
 INSERT OR IGNORE INTO species (common_name, scientific_name, banding_code) VALUES ('Great Gray Owl', 'Strix nebulosa', 'GGOW');
 INSERT OR IGNORE INTO species (common_name, scientific_name, banding_code) VALUES ('Snowy Owl', 'Bubo scandiacus', 'SNOW');

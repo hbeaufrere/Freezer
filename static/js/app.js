@@ -59,8 +59,10 @@ function showToast(message, type = 'success') {
     toastEl.addEventListener('hidden.bs.toast', () => toastEl.remove());
 }
 
+const _ROW_LABELS = ['A','B','C','D','E','F','G','H','J','K'];
 function positionLabel(row, col) {
-    return `${String.fromCharCode(64 + row)}${col}`;
+    const letter = _ROW_LABELS[row - 1] || String.fromCharCode(64 + row);
+    return `${letter}${col}`;
 }
 
 function debounce(fn, ms = 300) {

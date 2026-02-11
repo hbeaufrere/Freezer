@@ -98,7 +98,18 @@
     font-size: 0.8rem;
     text-align: center;
     color: #475569;
-    margin-bottom: 6px;
+    margin-bottom: 2px;
+}
+
+.rack-designation {
+    font-size: 0.65rem;
+    text-align: center;
+    color: #64748b;
+    font-style: italic;
+    margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .rack-drawers {

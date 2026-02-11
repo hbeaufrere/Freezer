@@ -23,7 +23,7 @@ def get_freezer():
     for shelf in shelves:
         shelf_data = dict(shelf)
         racks = db.execute(
-            "SELECT id, position, label FROM racks WHERE shelf_id = ? ORDER BY position",
+            "SELECT id, position, label, designation FROM racks WHERE shelf_id = ? ORDER BY position",
             (shelf['id'],)
         ).fetchall()
 
@@ -69,7 +69,7 @@ def list_shelves():
 def list_racks(shelf_id):
     db = get_db()
     rows = db.execute(
-        "SELECT id, shelf_id, position, label FROM racks WHERE shelf_id = ? ORDER BY position",
+        "SELECT id, shelf_id, position, label, designation FROM racks WHERE shelf_id = ? ORDER BY position",
         (shelf_id,)
     ).fetchall()
     return jsonify([dict(r) for r in rows])
@@ -150,7 +150,7 @@ def create_box():
         db.execute(
             "INSERT INTO boxes (drawer_id, position, label, grid_rows, grid_cols, section) VALUES (?, ?, ?, ?, ?, ?)",
             (data['drawer_id'], data['position'], data.get('label', ''),
-             data.get('grid_rows', 9), data.get('grid_cols', 9), data.get('section', 'research'))
+             data.get('grid_rows', 10), data.get('grid_cols', 10), data.get('section', 'research'))
         )
         db.commit()
         return jsonify({'id': db.execute("SELECT last_insert_rowid()").fetchone()[0]}), 201
@@ -166,7 +166,7 @@ def update_box(box_id):
     try:
         db.execute(
             "UPDATE boxes SET label = ?, grid_rows = ?, grid_cols = ? WHERE id = ?",
-            (data.get('label'), data.get('grid_rows', 9), data.get('grid_cols', 9), box_id)
+            (data.get('label'), data.get('grid_rows', 10), data.get('grid_cols', 10), box_id)
         )
         db.commit()
         return jsonify({'success': True})

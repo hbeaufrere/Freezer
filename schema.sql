@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS racks (
     shelf_id    INTEGER NOT NULL REFERENCES shelves(id) ON DELETE CASCADE,
     position    INTEGER NOT NULL,            -- 1-6 (left to right within shelf)
     label       TEXT,
+    designation TEXT,                        -- species group label (e.g. 'RTHA / SWHA')
     UNIQUE(shelf_id, position)
 );
 
@@ -34,8 +35,8 @@ CREATE TABLE IF NOT EXISTS boxes (
     drawer_id   INTEGER NOT NULL REFERENCES drawers(id) ON DELETE CASCADE,
     position    INTEGER NOT NULL,            -- 1-4 (front/superficial to back/deep)
     label       TEXT,
-    grid_rows   INTEGER NOT NULL DEFAULT 9,
-    grid_cols   INTEGER NOT NULL DEFAULT 9,
+    grid_rows   INTEGER NOT NULL DEFAULT 10,
+    grid_cols   INTEGER NOT NULL DEFAULT 10,
     section     TEXT NOT NULL DEFAULT 'research',
     UNIQUE(drawer_id, position)
 );
