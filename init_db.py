@@ -33,7 +33,7 @@ def init_database():
 
 
 def _seed_freezer_structure(conn):
-    """Create the default Eppendorf CryoCube F101h structure.
+    """Create the default Eppendorf CryoCube F740hi structure.
 
     Layout: 3 shelves, 6 racks per shelf, 7 drawers per rack, 4 boxes per drawer.
     Upper shelf is for the raptor biobank, middle and lower are for research.
