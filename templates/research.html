@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}Research Section - CryoCube Manager{% endblock %}
+
+{% block content %}
+<div class="row mb-3">
+    <div class="col">
+        <h4 class="mb-0"><i class="bi bi-flask me-2"></i>Research Section</h4>
+        <small class="text-muted">Middle and Lower Shelves</small>
+    </div>
+    <div class="col-auto">
+        <div class="position-relative" style="min-width: 300px;">
+            <input type="text" class="form-control" id="research-search" placeholder="Search by sample ID or description...">
+            <div class="search-results-dropdown" id="research-search-results"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick stats -->
+<div class="row g-3 mb-3" id="research-quick-stats">
+    <div class="col-auto">
+        <span class="badge bg-success fs-6" id="research-stat-total">0 tubes</span>
+    </div>
+    <div class="col-auto">
+        <span class="badge bg-secondary fs-6" id="research-stat-boxes">0 boxes in use</span>
+    </div>
+</div>
+
+<div class="section-layout">
+    <!-- Left sidebar: racks -->
+    <div class="rack-sidebar" id="research-rack-sidebar">
+        <h6 class="text-muted mb-2">Select a rack &amp; drawer</h6>
+        <div class="loading-spinner">
+            <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+        </div>
+    </div>
+
+    <!-- Main panel: box grid -->
+    <div class="main-panel">
+        <div class="breadcrumb-nav" id="research-breadcrumb"></div>
+        <div id="research-grid-area">
+            <div class="text-center text-muted py-5">
+                <i class="bi bi-arrow-left fs-1 d-block mb-2"></i>
+                Select a rack and drawer from the sidebar, then click a box to view its tubes.
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add/Edit Tube Modal -->
+<div class="modal fade" id="researchTubeModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="researchTubeModalTitle">Add Research Tube</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="research-tube-id">
+                <input type="hidden" id="research-tube-box-id">
+                <input type="hidden" id="research-tube-row">
+                <input type="hidden" id="research-tube-col">
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Position</label>
+                    <div id="research-tube-position" class="form-control-plaintext fw-bold text-primary"></div>
+                </div>
+                <div class="mb-3">
+                    <label for="research-sample-id" class="form-label">Sample ID</label>
+                    <input type="text" class="form-control" id="research-sample-id" placeholder="e.g., EXP-2026-042">
+                </div>
+                <div class="mb-3">
+                    <label for="research-description" class="form-label">Description</label>
+                    <textarea class="form-control" id="research-description" rows="2" placeholder="Notes about this sample..."></textarea>
+                </div>
+                <div class="mb-3">
+                    <label for="research-date-stored" class="form-label">Date Stored</label>
+                    <input type="date" class="form-control" id="research-date-stored">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-danger me-auto" id="btn-research-delete" style="display:none;">
+                    <i class="bi bi-trash me-1"></i>Delete
+                </button>
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="btn-research-save">
+                    <i class="bi bi-check-lg me-1"></i>Save
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/freezer-view.js"></script>
+<script src="/static/js/box-grid.js"></script>
+<script src="/static/js/research.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        initResearchPage();
+    });
+</script>
+{% endblock %}

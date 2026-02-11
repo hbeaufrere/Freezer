@@ -1,0 +1,10 @@
+db/freezer.db
+node_modules/
+__pycache__/
+*.pyc
+.env
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
