@@ -29,6 +29,11 @@ def create_app():
     app.secret_key = os.environ.get('SECRET_KEY', 'freezer-default-secret-change-me')
     app.teardown_appcontext(close_db)
 
+    # Auto-apply database migrations on startup (idempotent)
+    if os.path.exists(DATABASE):
+        from migrate_taxonomy_and_racks import migrate
+        migrate()
+
     # Password for simple auth (set via environment variable)
     lab_password = os.environ.get('FREEZER_PASSWORD', 'changeme')
 
