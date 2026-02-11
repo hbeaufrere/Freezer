@@ -108,7 +108,8 @@ def get_box(box_id):
 
     box = db.execute("""
         SELECT b.id, b.position, b.label, b.grid_rows, b.grid_cols, b.section,
-               d.label AS drawer_label, r.label AS rack_label, sh.name AS shelf_name
+               d.label AS drawer_label, r.label AS rack_label, r.designation AS rack_designation,
+               sh.name AS shelf_name
         FROM boxes b
         JOIN drawers d ON b.drawer_id = d.id
         JOIN racks r ON d.rack_id = r.id

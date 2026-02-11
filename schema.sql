@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS research_tubes (
     sample_id       TEXT,                    -- free-text researcher-defined ID
     description     TEXT,
     date_stored     TEXT,                    -- ISO 8601 date string
+    freeze_thaw_cycles INTEGER NOT NULL DEFAULT 0,
     created_at      TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at      TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE(box_id, row_pos, col_pos)

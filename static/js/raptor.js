@@ -3,14 +3,23 @@
 let currentRaptorBoxId = null;
 let currentRaptorBoxData = null;
 let speciesList = [];
+let allRackDesignations = []; // all raptor rack designations for computing "Other Species"
 
 async function initRaptorPage() {
     // Load species list first
     speciesList = await API.get('/api/species');
-    populateSpeciesDropdown();
+    populateSpeciesDropdown(null);
 
-    // Load sidebar racks (upper shelf only)
-    await renderSectionSidebar('raptor-rack-sidebar', 'raptor', onRaptorBoxClick);
+    // Load sidebar racks (upper shelf only) and capture rack designations
+    const shelves = await renderSectionSidebar('raptor-rack-sidebar', 'raptor', onRaptorBoxClick);
+    if (shelves) {
+        allRackDesignations = [];
+        shelves.filter(s => s.section === 'raptor').forEach(shelf => {
+            shelf.racks.forEach(rack => {
+                if (rack.designation) allRackDesignations.push(rack.designation);
+            });
+        });
+    }
 
     // Load quick stats
     loadRaptorQuickStats();
@@ -37,25 +46,93 @@ async function initRaptorPage() {
     document.getElementById('btn-add-species').addEventListener('click', addNewSpecies);
 }
 
-function populateSpeciesDropdown() {
+/**
+ * Determine which species are allowed for a given rack designation.
+ * Returns null if no restriction (show all), or an array of allowed species objects.
+ */
+function getAllowedSpecies(designation) {
+    if (!designation) return null; // no restriction
+
+    // "Other Species" rack — show species not explicitly designated to other racks
+    if (designation === 'Other Species') {
+        const designatedCodes = new Set();
+        allRackDesignations.forEach(d => {
+            if (d === 'Other Species') return;
+            parseDesignationCodes(d).forEach(code => designatedCodes.add(code));
+        });
+        // For "Other Owls" racks, also mark all owl species as designated
+        allRackDesignations.forEach(d => {
+            if (d.includes('Other Owls')) {
+                speciesList.forEach(s => {
+                    if (isOwlSpecies(s)) designatedCodes.add(s.banding_code);
+                });
+            }
+        });
+        return speciesList.filter(s => !designatedCodes.has(s.banding_code));
+    }
+
+    // Parse explicit codes from designation like "RTHA / RSHA / SWHA"
+    const codes = parseDesignationCodes(designation);
+    let allowed = speciesList.filter(s => codes.includes(s.banding_code));
+
+    // Handle "Other Owls" keyword — include all owl species not designated to other owl racks
+    if (designation.includes('Other Owls')) {
+        const otherOwlDesignatedCodes = new Set();
+        allRackDesignations.forEach(d => {
+            if (d === designation) return; // skip current rack
+            parseDesignationCodes(d).forEach(code => {
+                const sp = speciesList.find(s => s.banding_code === code);
+                if (sp && isOwlSpecies(sp)) otherOwlDesignatedCodes.add(code);
+            });
+        });
+        const otherOwls = speciesList.filter(s =>
+            isOwlSpecies(s) && !otherOwlDesignatedCodes.has(s.banding_code) && !codes.includes(s.banding_code)
+        );
+        allowed = allowed.concat(otherOwls);
+    }
+
+    return allowed;
+}
+
+function parseDesignationCodes(designation) {
+    return designation.split(' / ')
+        .map(s => s.trim())
+        .filter(s => /^[A-Z]{4}$/.test(s));
+}
+
+function isOwlSpecies(species) {
+    return species.common_name.toLowerCase().includes('owl');
+}
+
+function populateSpeciesDropdown(designation) {
     const select = document.getElementById('raptor-species');
-    // Keep first option
-    select.innerHTML = '<option value="">-- Select Species --</option>';
-    speciesList.forEach(s => {
+    // Remove old change listener by replacing element
+    const newSelect = select.cloneNode(false);
+    select.parentNode.replaceChild(newSelect, select);
+    newSelect.id = 'raptor-species';
+    newSelect.className = select.className;
+
+    newSelect.innerHTML = '<option value="">-- Select Species --</option>';
+
+    const allowed = getAllowedSpecies(designation);
+    const displayList = allowed || speciesList;
+
+    displayList.forEach(s => {
         const opt = document.createElement('option');
         opt.value = s.id;
         opt.textContent = `${s.banding_code} - ${s.common_name} (${s.scientific_name})`;
-        select.appendChild(opt);
+        newSelect.appendChild(opt);
     });
+
     // Add "new species" option
     const addOpt = document.createElement('option');
     addOpt.value = '__new__';
     addOpt.textContent = '+ Add new species...';
-    select.appendChild(addOpt);
+    newSelect.appendChild(addOpt);
 
-    select.addEventListener('change', () => {
-        if (select.value === '__new__') {
-            select.value = '';
+    newSelect.addEventListener('change', () => {
+        if (newSelect.value === '__new__') {
+            newSelect.value = '';
             new bootstrap.Modal(document.getElementById('addSpeciesModal')).show();
         }
     });
@@ -125,6 +202,10 @@ function openRaptorAddModal(row, col) {
     document.getElementById('raptor-tube-position').textContent =
         `${currentRaptorBoxData.label} — Position ${positionLabel(row, col)}`;
     document.getElementById('raptor-tube-id-display').style.display = 'none';
+
+    // Filter species dropdown based on rack designation
+    populateSpeciesDropdown(currentRaptorBoxData.rack_designation || null);
+
     document.getElementById('raptor-species').value = '';
     document.getElementById('raptor-collection-date').value = new Date().toISOString().split('T')[0];
     document.getElementById('raptor-age').value = '';
@@ -154,6 +235,8 @@ function openRaptorEditModal(tube, row, col) {
     document.getElementById('raptor-tube-id-display').style.display = 'block';
     document.getElementById('raptor-tube-id-badge').textContent = tube.tube_id;
 
+    // Show all species in dropdown for edit (species is disabled/immutable anyway)
+    populateSpeciesDropdown(null);
     document.getElementById('raptor-species').value = tube.species_id;
     document.getElementById('raptor-species').disabled = true; // Species immutable after creation
     document.getElementById('raptor-collection-date').value = tube.collection_date || '';
@@ -291,7 +374,7 @@ async function addNewSpecies() {
 
         // Refresh species list
         speciesList = await API.get('/api/species');
-        populateSpeciesDropdown();
+        populateSpeciesDropdown(currentRaptorBoxData ? currentRaptorBoxData.rack_designation : null);
 
         // Clear form
         document.getElementById('new-species-common').value = '';

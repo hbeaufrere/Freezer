@@ -49,7 +49,7 @@ RAPTOR_HEADERS = [
 ]
 
 RESEARCH_HEADERS = [
-    "Sample ID", "Description", "Date Stored",
+    "Sample ID", "Description", "Date Stored", "Freeze-Thaw Cycles",
     "Shelf", "Rack", "Drawer", "Box", "Position",
     "Date Added"
 ]
@@ -132,7 +132,7 @@ def export_raptor_csv(db, filters=None):
 
 def _research_query():
     return """
-        SELECT rt.sample_id, rt.description, rt.date_stored,
+        SELECT rt.sample_id, rt.description, rt.date_stored, rt.freeze_thaw_cycles,
                sh.name AS shelf, r.label AS rack, d.label AS drawer, b.label AS box,
                rt.row_pos, rt.col_pos,
                rt.created_at
@@ -163,10 +163,10 @@ def export_research_xlsx(db):
 
     for row_idx, row in enumerate(rows, 2):
         data = [
-            row[0], row[1], row[2],  # sample_id, description, date_stored
-            row[3], row[4], row[5], row[6],  # shelf, rack, drawer, box
-            _format_position(row[7], row[8]),  # position
-            row[9],  # created_at
+            row[0], row[1], row[2], row[3],  # sample_id, description, date_stored, freeze_thaw_cycles
+            row[4], row[5], row[6], row[7],  # shelf, rack, drawer, box
+            _format_position(row[8], row[9]),  # position
+            row[10],  # created_at
         ]
         for col_idx, value in enumerate(data, 1):
             ws.cell(row=row_idx, column=col_idx, value=value)
@@ -189,10 +189,10 @@ def export_research_csv(db):
     writer.writerow(RESEARCH_HEADERS)
     for row in rows:
         writer.writerow([
-            row[0], row[1], row[2],
-            row[3], row[4], row[5], row[6],
-            _format_position(row[7], row[8]),
-            row[9],
+            row[0], row[1], row[2], row[3],
+            row[4], row[5], row[6], row[7],
+            _format_position(row[8], row[9]),
+            row[10],
         ])
     output.seek(0)
     return output

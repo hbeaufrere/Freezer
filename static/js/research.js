@@ -27,6 +27,7 @@ async function initResearchPage() {
     // Modal buttons
     document.getElementById('btn-research-save').addEventListener('click', saveResearchTube);
     document.getElementById('btn-research-delete').addEventListener('click', deleteResearchTube);
+    document.getElementById('btn-research-thaw').addEventListener('click', recordResearchThaw);
 }
 
 async function loadResearchQuickStats() {
@@ -77,7 +78,9 @@ function openResearchAddModal(row, col) {
     document.getElementById('research-sample-id').value = '';
     document.getElementById('research-description').value = '';
     document.getElementById('research-date-stored').value = new Date().toISOString().split('T')[0];
+    document.getElementById('research-freeze-thaw').value = 0;
     document.getElementById('btn-research-delete').style.display = 'none';
+    document.getElementById('btn-research-thaw').style.display = 'none';
 
     new bootstrap.Modal(document.getElementById('researchTubeModal')).show();
 }
@@ -93,7 +96,9 @@ function openResearchEditModal(tube, row, col) {
     document.getElementById('research-sample-id').value = tube.sample_id || '';
     document.getElementById('research-description').value = tube.description || '';
     document.getElementById('research-date-stored').value = tube.date_stored || '';
+    document.getElementById('research-freeze-thaw').value = tube.freeze_thaw_cycles || 0;
     document.getElementById('btn-research-delete').style.display = 'inline-block';
+    document.getElementById('btn-research-thaw').style.display = 'inline-block';
 
     new bootstrap.Modal(document.getElementById('researchTubeModal')).show();
 }
@@ -107,6 +112,7 @@ async function saveResearchTube() {
         sample_id: document.getElementById('research-sample-id').value.trim(),
         description: document.getElementById('research-description').value.trim(),
         date_stored: document.getElementById('research-date-stored').value || null,
+        freeze_thaw_cycles: parseInt(document.getElementById('research-freeze-thaw').value) || 0,
     };
 
     try {
@@ -120,6 +126,20 @@ async function saveResearchTube() {
         bootstrap.Modal.getInstance(document.getElementById('researchTubeModal')).hide();
         onResearchBoxClick(currentResearchBoxId);
         loadResearchQuickStats();
+    } catch (err) {
+        showToast('Error: ' + err.message, 'error');
+    }
+}
+
+async function recordResearchThaw() {
+    const tubeId = document.getElementById('research-tube-id').value;
+    if (!tubeId) return;
+
+    try {
+        const result = await API.put(`/api/research/tubes/${tubeId}/thaw`);
+        document.getElementById('research-freeze-thaw').value = result.freeze_thaw_cycles;
+        showToast(`Freeze-thaw cycle recorded (now ${result.freeze_thaw_cycles})`);
+        onResearchBoxClick(currentResearchBoxId);
     } catch (err) {
         showToast('Error: ' + err.message, 'error');
     }

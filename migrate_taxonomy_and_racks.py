@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Migration: Update species taxonomy (AOS 65th/66th Supplements), add rack designations,
-and update box grids to 10x10.
+update box grids to 10x10, and add freeze-thaw tracking to research tubes.
 
 Changes:
   - Barn Owl → American Barn Owl (Tyto furcata), BANO → ABOW
@@ -9,6 +9,7 @@ Changes:
   - Add 'designation' column to racks table
   - Set species-group designations on upper-shelf (raptor) racks
   - Update all 9x9 box grids to 10x10 (rows A-H,J-K / cols 1-10)
+  - Add 'freeze_thaw_cycles' column to research_tubes table
 
 Safe to run multiple times (idempotent).
 """
@@ -115,7 +116,15 @@ def migrate():
     else:
         print("No raptor shelf found, skipping rack designations.")
 
-    # --- 4. Update box grids from 9x9 to 10x10 ---
+    # --- 4. Add freeze_thaw_cycles to research_tubes if missing ---
+    rt_cols = [row[1] for row in conn.execute("PRAGMA table_info(research_tubes)").fetchall()]
+    if 'freeze_thaw_cycles' not in rt_cols:
+        conn.execute("ALTER TABLE research_tubes ADD COLUMN freeze_thaw_cycles INTEGER NOT NULL DEFAULT 0")
+        print("Added 'freeze_thaw_cycles' column to research_tubes table.")
+    else:
+        print("'freeze_thaw_cycles' column already exists in research_tubes.")
+
+    # --- 5. Update box grids from 9x9 to 10x10 ---
     updated = conn.execute(
         "UPDATE boxes SET grid_rows = 10, grid_cols = 10 WHERE grid_rows = 9 AND grid_cols = 9"
     ).rowcount

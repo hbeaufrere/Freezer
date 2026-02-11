@@ -74,9 +74,20 @@
                     <label for="research-description" class="form-label">Description</label>
                     <textarea class="form-control" id="research-description" rows="2" placeholder="Notes about this sample..."></textarea>
                 </div>
-                <div class="mb-3">
-                    <label for="research-date-stored" class="form-label">Date Stored</label>
-                    <input type="date" class="form-control" id="research-date-stored">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label for="research-date-stored" class="form-label">Date Stored</label>
+                        <input type="date" class="form-control" id="research-date-stored">
+                    </div>
+                    <div class="col-md-6">
+                        <label for="research-freeze-thaw" class="form-label">Freeze-Thaw Cycles</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" id="research-freeze-thaw" min="0" value="0">
+                            <button class="btn btn-outline-warning" type="button" id="btn-research-thaw" title="Record thaw (+1)" style="display:none;">
+                                <i class="bi bi-thermometer-half"></i> +1
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">
