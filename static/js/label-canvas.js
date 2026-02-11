@@ -18,16 +18,12 @@ function generateRaptorLabel(tubeData) {
     ctx.font = 'bold 16px Arial, sans-serif';
     ctx.fillText(tubeData.tube_id || '', 6, 18);
 
-    // Banding code
-    ctx.font = '12px Arial, sans-serif';
-    ctx.fillText(tubeData.banding_code || '', 6, 36);
-
     // WRMD number
     ctx.font = '11px Arial, sans-serif';
-    ctx.fillText(tubeData.wrmd_number ? 'WRMD: ' + tubeData.wrmd_number : '', 6, 54);
+    ctx.fillText(tubeData.wrmd_number ? 'WRMD: ' + tubeData.wrmd_number : '', 6, 38);
 
     // VMTH number
-    ctx.fillText(tubeData.vmth_number ? 'VMTH: ' + tubeData.vmth_number : '', 6, 72);
+    ctx.fillText(tubeData.vmth_number ? 'VMTH: ' + tubeData.vmth_number : '', 6, 56);
 
     const img = new Image();
     img.src = canvas.toDataURL('image/png');
