@@ -3,7 +3,7 @@
 
 import os
 import sqlite3
-from flask import Flask, g, render_template
+from flask import Flask, g, render_template, session, redirect, url_for, request
 
 DATABASE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'db', 'freezer.db')
 
@@ -26,7 +26,11 @@ def close_db(e=None):
 def create_app():
     app = Flask(__name__)
     app.config['DATABASE'] = DATABASE
+    app.secret_key = os.environ.get('SECRET_KEY', 'freezer-default-secret-change-me')
     app.teardown_appcontext(close_db)
+
+    # Password for simple auth (set via environment variable)
+    lab_password = os.environ.get('FREEZER_PASSWORD', 'changeme')
 
     # Register API blueprints
     from routes.freezer import freezer_bp
@@ -40,6 +44,30 @@ def create_app():
     app.register_blueprint(raptor_bp)
     app.register_blueprint(stats_bp)
     app.register_blueprint(export_bp)
+
+    # Authentication
+    @app.before_request
+    def require_login():
+        allowed = ('login', 'static')
+        if request.endpoint and request.endpoint in allowed:
+            return
+        if not session.get('authenticated'):
+            return redirect(url_for('login'))
+
+    @app.route('/login', methods=['GET', 'POST'])
+    def login():
+        error = None
+        if request.method == 'POST':
+            if request.form.get('password') == lab_password:
+                session['authenticated'] = True
+                return redirect(url_for('index'))
+            error = 'Incorrect password.'
+        return render_template('login.html', error=error)
+
+    @app.route('/logout')
+    def logout():
+        session.clear()
+        return redirect(url_for('login'))
 
     # Page routes
     @app.route('/')
@@ -63,4 +91,4 @@ def create_app():
 
 if __name__ == '__main__':
     app = create_app()
-    app.run(debug=True, port=5000)
+    app.run(host='0.0.0.0', debug=True, port=5000)
