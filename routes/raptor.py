@@ -48,33 +48,115 @@ def create_tube():
     if not species:
         return jsonify({'error': 'Species not found'}), 404
 
+    num_tubes = data.get('num_tubes', 1)
+    if not isinstance(num_tubes, int) or num_tubes < 1 or num_tubes > 20:
+        return jsonify({'error': 'num_tubes must be between 1 and 20'}), 400
+
     try:
-        tube_id = generate_raptor_tube_id(
+        base_tube_id = generate_raptor_tube_id(
             db, species['banding_code'], species['id'], data['collection_date']
         )
 
-        db.execute(
-            """INSERT INTO raptor_tubes
-               (tube_id, box_id, row_pos, col_pos, species_id, collection_date,
-                age, sex, freeze_thaw_cycles, wrmd_number, vmth_number, notes)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (tube_id, data['box_id'], data['row_pos'], data['col_pos'],
-             data['species_id'], data['collection_date'],
-             data.get('age', ''), data.get('sex', ''),
-             data.get('freeze_thaw_cycles', 0),
-             data.get('wrmd_number', ''), data.get('vmth_number', ''),
-             data.get('notes', ''))
-        )
-        db.commit()
+        if num_tubes == 1:
+            # Single tube — no suffix
+            db.execute(
+                """INSERT INTO raptor_tubes
+                   (tube_id, box_id, row_pos, col_pos, species_id, collection_date,
+                    age, sex, freeze_thaw_cycles, wrmd_number, vmth_number, notes)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (base_tube_id, data['box_id'], data['row_pos'], data['col_pos'],
+                 data['species_id'], data['collection_date'],
+                 data.get('age', ''), data.get('sex', ''),
+                 data.get('freeze_thaw_cycles', 0),
+                 data.get('wrmd_number', ''), data.get('vmth_number', ''),
+                 data.get('notes', ''))
+            )
+            db.commit()
 
-        row_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
-        tube = db.execute("""
-            SELECT rt.*, s.banding_code, s.common_name, s.scientific_name
-            FROM raptor_tubes rt
-            JOIN species s ON rt.species_id = s.id
-            WHERE rt.id = ?
-        """, (row_id,)).fetchone()
-        return jsonify(dict(tube)), 201
+            row_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
+            tube = db.execute("""
+                SELECT rt.*, s.banding_code, s.common_name, s.scientific_name
+                FROM raptor_tubes rt
+                JOIN species s ON rt.species_id = s.id
+                WHERE rt.id = ?
+            """, (row_id,)).fetchone()
+            return jsonify(dict(tube)), 201
+        else:
+            # Multiple tubes — find empty positions in the box
+            box = db.execute(
+                "SELECT grid_rows, grid_cols FROM boxes WHERE id = ?",
+                (data['box_id'],)
+            ).fetchone()
+            if not box:
+                return jsonify({'error': 'Box not found'}), 404
+
+            occupied = set()
+            for row in db.execute(
+                "SELECT row_pos, col_pos FROM raptor_tubes WHERE box_id = ?",
+                (data['box_id'],)
+            ).fetchall():
+                occupied.add((row[0], row[1]))
+
+            # Collect empty positions scanning left-to-right, top-to-bottom
+            # starting from the clicked position
+            start_row, start_col = data['row_pos'], data['col_pos']
+            empty_positions = []
+            rows, cols = box['grid_rows'], box['grid_cols']
+            # First pass: from clicked position to end
+            for r in range(1, rows + 1):
+                for c in range(1, cols + 1):
+                    if (r, c) < (start_row, start_col):
+                        continue
+                    if (r, c) not in occupied:
+                        empty_positions.append((r, c))
+                    if len(empty_positions) >= num_tubes:
+                        break
+                if len(empty_positions) >= num_tubes:
+                    break
+            # Second pass: wrap around from beginning if needed
+            if len(empty_positions) < num_tubes:
+                for r in range(1, rows + 1):
+                    for c in range(1, cols + 1):
+                        if (r, c) >= (start_row, start_col):
+                            break
+                        if (r, c) not in occupied:
+                            empty_positions.append((r, c))
+                        if len(empty_positions) >= num_tubes:
+                            break
+                    if len(empty_positions) >= num_tubes:
+                        break
+
+            if len(empty_positions) < num_tubes:
+                return jsonify({
+                    'error': f'Not enough empty positions. Need {num_tubes}, found {len(empty_positions)}.'
+                }), 400
+
+            created_tubes = []
+            for i, (r, c) in enumerate(empty_positions[:num_tubes]):
+                tube_id = f"{base_tube_id}-{i + 1}"
+                db.execute(
+                    """INSERT INTO raptor_tubes
+                       (tube_id, box_id, row_pos, col_pos, species_id, collection_date,
+                        age, sex, freeze_thaw_cycles, wrmd_number, vmth_number, notes)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (tube_id, data['box_id'], r, c,
+                     data['species_id'], data['collection_date'],
+                     data.get('age', ''), data.get('sex', ''),
+                     data.get('freeze_thaw_cycles', 0),
+                     data.get('wrmd_number', ''), data.get('vmth_number', ''),
+                     data.get('notes', ''))
+                )
+                row_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
+                tube = db.execute("""
+                    SELECT rt.*, s.banding_code, s.common_name, s.scientific_name
+                    FROM raptor_tubes rt
+                    JOIN species s ON rt.species_id = s.id
+                    WHERE rt.id = ?
+                """, (row_id,)).fetchone()
+                created_tubes.append(dict(tube))
+
+            db.commit()
+            return jsonify({'tubes': created_tubes}), 201
     except Exception as e:
         db.rollback()
         return jsonify({'error': str(e)}), 400

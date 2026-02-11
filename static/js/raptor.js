@@ -218,6 +218,8 @@ function openRaptorAddModal(row, col) {
     document.getElementById('btn-raptor-delete').style.display = 'none';
     document.getElementById('btn-raptor-thaw').style.display = 'none';
     document.getElementById('btn-raptor-print').style.display = 'none';
+    document.getElementById('raptor-num-tubes-group').style.display = 'block';
+    document.getElementById('raptor-num-tubes').value = 1;
 
     new bootstrap.Modal(document.getElementById('raptorTubeModal')).show();
 }
@@ -253,6 +255,7 @@ function openRaptorEditModal(tube, row, col) {
     document.getElementById('btn-raptor-delete').style.display = 'inline-block';
     document.getElementById('btn-raptor-thaw').style.display = 'inline-block';
     document.getElementById('btn-raptor-print').style.display = 'inline-block';
+    document.getElementById('raptor-num-tubes-group').style.display = 'none';
 
     // Store tube data for printing
     document.getElementById('raptorTubeModal').dataset.tubeData = JSON.stringify(tube);
@@ -278,6 +281,13 @@ async function saveRaptorTube() {
         notes: document.getElementById('raptor-notes').value.trim(),
     };
 
+    if (!dbId) {
+        const numTubes = parseInt(document.getElementById('raptor-num-tubes').value) || 1;
+        if (numTubes > 1) {
+            data.num_tubes = numTubes;
+        }
+    }
+
     if (!data.species_id) {
         showToast('Please select a species', 'error');
         return;
@@ -294,7 +304,11 @@ async function saveRaptorTube() {
             showToast('Sample updated successfully');
         } else {
             result = await API.post('/api/raptor/tubes', data);
-            showToast(`Sample ${result.tube_id} created successfully`);
+            if (result.tubes) {
+                showToast(`${result.tubes.length} tubes created: ${result.tubes[0].tube_id} to ${result.tubes[result.tubes.length - 1].tube_id}`);
+            } else {
+                showToast(`Sample ${result.tube_id} created successfully`);
+            }
         }
         bootstrap.Modal.getInstance(document.getElementById('raptorTubeModal')).hide();
         onRaptorBoxClick(currentRaptorBoxId);

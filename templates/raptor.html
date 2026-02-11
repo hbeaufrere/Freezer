@@ -76,11 +76,11 @@
                 </div>
 
                 <div class="row g-3">
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <label class="form-label fw-bold">Position</label>
                         <div id="raptor-tube-position" class="form-control-plaintext fw-bold text-primary"></div>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <label for="raptor-freeze-thaw" class="form-label">Freeze-Thaw Cycles</label>
                         <div class="input-group">
                             <input type="number" class="form-control" id="raptor-freeze-thaw" min="0" value="0">
@@ -89,9 +89,13 @@
                             </button>
                         </div>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <label for="raptor-collection-date" class="form-label">Collection Date</label>
                         <input type="date" class="form-control" id="raptor-collection-date">
+                    </div>
+                    <div class="col-md-3" id="raptor-num-tubes-group">
+                        <label for="raptor-num-tubes" class="form-label">Number of Tubes</label>
+                        <input type="number" class="form-control" id="raptor-num-tubes" min="1" max="20" value="1">
                     </div>
                 </div>
 

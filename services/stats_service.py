@@ -1,15 +1,23 @@
 """Statistics computation for the freezer dashboard."""
 
+# SQL expression to extract base tube ID (strips "-N" suffix for multi-tube samples).
+# e.g. "RTHA26001-1" → "RTHA26001", "RTHA26001" → "RTHA26001"
+_BASE_ID = """CASE WHEN INSTR(rt.tube_id, '-') > 0
+              THEN SUBSTR(rt.tube_id, 1, INSTR(rt.tube_id, '-') - 1)
+              ELSE rt.tube_id END"""
+
 
 def get_raptor_stats(db):
     stats = {}
 
+    # Count unique samples (tubes from the same bird count as one)
     stats['total_samples'] = db.execute(
-        "SELECT COUNT(*) FROM raptor_tubes"
+        f"SELECT COUNT(DISTINCT {_BASE_ID}) FROM raptor_tubes rt"
     ).fetchone()[0]
 
-    rows = db.execute("""
-        SELECT s.common_name AS species, s.banding_code AS code, COUNT(*) AS count
+    rows = db.execute(f"""
+        SELECT s.common_name AS species, s.banding_code AS code,
+               COUNT(DISTINCT {_BASE_ID}) AS count
         FROM raptor_tubes rt
         JOIN species s ON rt.species_id = s.id
         GROUP BY s.id
@@ -17,28 +25,29 @@ def get_raptor_stats(db):
     """).fetchall()
     stats['species_breakdown'] = [dict(r) for r in rows]
 
-    rows = db.execute("""
-        SELECT strftime('%Y-%m', collection_date) AS month, COUNT(*) AS count
-        FROM raptor_tubes
+    rows = db.execute(f"""
+        SELECT strftime('%Y-%m', rt.collection_date) AS month,
+               COUNT(DISTINCT {_BASE_ID}) AS count
+        FROM raptor_tubes rt
         GROUP BY month
         ORDER BY month
     """).fetchall()
     stats['monthly_counts'] = [dict(r) for r in rows]
 
-    rows = db.execute("""
-        SELECT age, COUNT(*) AS count
-        FROM raptor_tubes
-        WHERE age IS NOT NULL AND age != ''
-        GROUP BY age
+    rows = db.execute(f"""
+        SELECT rt.age, COUNT(DISTINCT {_BASE_ID}) AS count
+        FROM raptor_tubes rt
+        WHERE rt.age IS NOT NULL AND rt.age != ''
+        GROUP BY rt.age
         ORDER BY count DESC
     """).fetchall()
     stats['age_distribution'] = [dict(r) for r in rows]
 
-    rows = db.execute("""
-        SELECT sex, COUNT(*) AS count
-        FROM raptor_tubes
-        WHERE sex IS NOT NULL AND sex != ''
-        GROUP BY sex
+    rows = db.execute(f"""
+        SELECT rt.sex, COUNT(DISTINCT {_BASE_ID}) AS count
+        FROM raptor_tubes rt
+        WHERE rt.sex IS NOT NULL AND rt.sex != ''
+        GROUP BY rt.sex
     """).fetchall()
     stats['sex_distribution'] = [dict(r) for r in rows]
 
@@ -92,7 +101,9 @@ def get_freezer_stats(db):
     stats['total_boxes'] = row[0]
     stats['total_capacity'] = row[1] or 0
 
-    raptor_count = db.execute("SELECT COUNT(*) FROM raptor_tubes").fetchone()[0]
+    raptor_count = db.execute(
+        f"SELECT COUNT(DISTINCT {_BASE_ID}) FROM raptor_tubes rt"
+    ).fetchone()[0]
     research_count = db.execute("SELECT COUNT(*) FROM research_tubes").fetchone()[0]
     stats['total_stored'] = raptor_count + research_count
     stats['raptor_count'] = raptor_count

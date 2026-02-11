@@ -147,7 +147,7 @@ function printViaDialog(imgElement) {
                 .print-btn:hover { background: #2563eb; }
                 .hint { margin-top: 12px; color: #64748b; font-size: 13px; }
                 @media print {
-                    @page { margin: 0; size: 1.5in 0.75in; }
+                    @page { margin: 0; size: 1in 0.5in; }
                     body { padding: 0; background: white; min-height: auto; }
                     .label-preview { border: none; padding: 0; }
                     .print-btn, .hint { display: none; }
