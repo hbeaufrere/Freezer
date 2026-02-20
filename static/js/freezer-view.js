@@ -42,6 +42,7 @@ function renderFreezer(container, shelves, options = {}) {
 
         const racksContainer = shelfEl.querySelector('.shelf-racks');
         shelf.racks.forEach(rack => {
+            // Overview mode — no drawer editing
             const rackEl = createRackElement(rack, options);
             racksContainer.appendChild(rackEl);
         });
@@ -68,73 +69,62 @@ function createRackElement(rack, options = {}) {
     const drawersContainer = rackEl.querySelector('.rack-drawers');
 
     rack.drawers.forEach(drawer => {
-        drawersContainer.appendChild(createDrawerElement(drawer, options));
+        const drawerEl = document.createElement('div');
+        drawerEl.className = 'drawer-slot';
+        drawerEl.dataset.drawerId = drawer.id;
+        drawerEl.title = drawer.name
+            ? `${drawer.label || 'Drawer ' + drawer.position} — ${drawer.name}`
+            : (drawer.label || `Drawer ${drawer.position}`);
+
+        const labelEl = document.createElement('div');
+        labelEl.className = 'drawer-label';
+        labelEl.textContent = `D${drawer.position}`;
+        drawerEl.appendChild(labelEl);
+
+        drawer.boxes.forEach(box => {
+            const boxEl = document.createElement('div');
+            boxEl.className = 'box-slot ' + getOccupancyClass(box.occupied, box.capacity);
+            boxEl.dataset.boxId = box.id;
+            boxEl.title = `${box.label}: ${box.occupied}/${box.capacity} tubes`;
+
+            boxEl.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (options.onBoxClick) {
+                    options.onBoxClick(box.id, box);
+                } else {
+                    const section = box.section === 'raptor' ? '/raptor' : '/research';
+                    window.location.href = `${section}?box=${box.id}`;
+                }
+            });
+
+            drawerEl.appendChild(boxEl);
+        });
+
+        // Show name chip + edit button only in sidebar mode
+        if (options.showDrawerEdit) {
+            if (drawer.name) {
+                const nameChip = document.createElement('span');
+                nameChip.className = 'drawer-name-chip';
+                nameChip.textContent = drawer.name;
+                nameChip.title = drawer.name;
+                drawerEl.appendChild(nameChip);
+            }
+
+            const editBtn = document.createElement('button');
+            editBtn.className = 'btn btn-link btn-sm p-0 drawer-name-edit-btn';
+            editBtn.title = 'Name this drawer';
+            editBtn.innerHTML = '<i class="bi bi-pencil-fill"></i>';
+            editBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                openDrawerNameModal(drawer.id, drawer.name || '');
+            });
+            drawerEl.appendChild(editBtn);
+        }
+
+        drawersContainer.appendChild(drawerEl);
     });
 
     return rackEl;
-}
-
-function createDrawerElement(drawer, options = {}) {
-    const drawerEl = document.createElement('div');
-    drawerEl.className = 'drawer-slot';
-    drawerEl.dataset.drawerId = drawer.id;
-
-    // Header: label + optional name chip + edit button
-    const headerEl = document.createElement('div');
-    headerEl.className = 'drawer-header';
-
-    const labelEl = document.createElement('span');
-    labelEl.className = 'drawer-label';
-    labelEl.textContent = `D${drawer.position}`;
-    headerEl.appendChild(labelEl);
-
-    if (drawer.name) {
-        const nameEl = document.createElement('span');
-        nameEl.className = 'drawer-name-chip';
-        nameEl.textContent = drawer.name;
-        nameEl.title = drawer.name;
-        headerEl.appendChild(nameEl);
-    }
-
-    const editBtn = document.createElement('button');
-    editBtn.className = 'btn btn-link btn-sm p-0 drawer-name-edit-btn';
-    editBtn.title = 'Set study/project name for this drawer';
-    editBtn.dataset.drawerId = drawer.id;
-    editBtn.dataset.drawerName = drawer.name || '';
-    editBtn.innerHTML = '<i class="bi bi-pencil-fill"></i>';
-    editBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        openDrawerNameModal(drawer.id, drawer.name || '');
-    });
-    headerEl.appendChild(editBtn);
-
-    drawerEl.appendChild(headerEl);
-
-    // Boxes row
-    const boxesEl = document.createElement('div');
-    boxesEl.className = 'drawer-boxes';
-
-    drawer.boxes.forEach(box => {
-        const boxEl = document.createElement('div');
-        boxEl.className = 'box-slot ' + getOccupancyClass(box.occupied, box.capacity);
-        boxEl.dataset.boxId = box.id;
-        boxEl.title = `${box.label}: ${box.occupied}/${box.capacity} tubes`;
-
-        boxEl.addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (options.onBoxClick) {
-                options.onBoxClick(box.id, box);
-            } else {
-                const section = box.section === 'raptor' ? '/raptor' : '/research';
-                window.location.href = `${section}?box=${box.id}`;
-            }
-        });
-
-        boxesEl.appendChild(boxEl);
-    });
-
-    drawerEl.appendChild(boxesEl);
-    return drawerEl;
 }
 
 function getOccupancyClass(occupied, capacity) {
@@ -169,7 +159,8 @@ async function renderSectionSidebar(containerId, sectionFilter, onBoxClick) {
             container.appendChild(shelfTitle);
 
             shelf.racks.forEach(rack => {
-                const rackEl = createRackElement(rack, { onBoxClick });
+                // Sidebar mode — enable drawer editing
+                const rackEl = createRackElement(rack, { onBoxClick, showDrawerEdit: true });
                 rackEl.classList.add('mb-2');
                 container.appendChild(rackEl);
             });
@@ -191,9 +182,5 @@ function refreshFreezerView() {
     const raptorSidebar = document.getElementById('raptor-rack-sidebar');
     if (raptorSidebar) {
         renderSectionSidebar('raptor-rack-sidebar', 'raptor', window._onRaptorBoxClick);
-    }
-    const freezerVisual = document.getElementById('freezer-visual');
-    if (freezerVisual) {
-        loadFreezerOverview();
     }
 }

@@ -120,12 +120,13 @@
 
 .drawer-slot {
     display: flex;
-    flex-direction: column;
     gap: 2px;
-    padding: 3px 4px;
+    padding: 3px;
     background: #f1f5f9;
     border-radius: 3px;
+    cursor: pointer;
     transition: background-color 0.15s;
+    align-items: center;
 }
 
 .drawer-slot:hover {
@@ -137,54 +138,46 @@
     outline: 2px solid #3b82f6;
 }
 
-/* Drawer header: label + name chip + edit button */
-.drawer-header {
+.drawer-label {
+    font-size: 0.55rem;
+    color: #64748b;
+    writing-mode: vertical-lr;
+    text-orientation: mixed;
+    padding: 0 2px;
     display: flex;
     align-items: center;
-    gap: 3px;
-    min-height: 14px;
+    min-width: 14px;
 }
 
-.drawer-label {
-    font-size: 0.6rem;
-    font-weight: 600;
-    color: #64748b;
-    white-space: nowrap;
-    flex-shrink: 0;
-}
-
+/* Drawer name elements (sidebar only, after boxes) */
 .drawer-name-chip {
-    font-size: 0.58rem;
+    font-size: 0.5rem;
     color: #0f766e;
     font-weight: 600;
     background: #ccfbf1;
-    border-radius: 3px;
+    border-radius: 2px;
     padding: 0 3px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 80px;
+    max-width: 60px;
+    margin-left: 2px;
+    line-height: 1.4;
 }
 
 .drawer-name-edit-btn {
     color: #94a3b8;
     line-height: 1;
     text-decoration: none;
-    margin-left: auto;
     flex-shrink: 0;
-    font-size: 0.6rem;
+    font-size: 0.55rem;
     opacity: 0;
     transition: opacity 0.15s;
+    padding: 0 1px;
 }
 
 .drawer-slot:hover .drawer-name-edit-btn {
     opacity: 1;
-}
-
-/* Boxes row inside a drawer */
-.drawer-boxes {
-    display: flex;
-    gap: 2px;
 }
 
 .box-slot {
