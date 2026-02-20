@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS racks (
     position    INTEGER NOT NULL,            -- 1-6 (left to right within shelf)
     label       TEXT,
     designation TEXT,                        -- species group label (e.g. 'RTHA / SWHA')
+    name        TEXT,                        -- user-defined study/project name for this rack
     UNIQUE(shelf_id, position)
 );
 
@@ -94,6 +95,21 @@ CREATE TABLE IF NOT EXISTS raptor_tubes (
     created_at          TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at          TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE(box_id, row_pos, col_pos)
+);
+
+-- ============================================================
+-- RETRIEVAL LOG
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS retrieval_log (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    section         TEXT NOT NULL,           -- 'research' or 'raptor'
+    tube_identifier TEXT NOT NULL,           -- sample_id for research, tube_id for raptor
+    tube_info       TEXT,                    -- location/description at time of action
+    action          TEXT NOT NULL,           -- 'removed' or 'thawed'
+    retrieved_by    TEXT,                    -- name of person performing the action
+    purpose         TEXT,                    -- reason / study name
+    timestamp       TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 -- ============================================================

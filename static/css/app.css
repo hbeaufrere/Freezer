@@ -112,6 +112,30 @@
     text-overflow: ellipsis;
 }
 
+.rack-name-label {
+    font-size: 0.68rem;
+    text-align: center;
+    color: #0f766e;
+    font-weight: 600;
+    margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    background: #ccfbf1;
+    border-radius: 3px;
+    padding: 1px 4px;
+}
+
+.rack-label-row .rack-name-edit-btn {
+    color: #94a3b8;
+    line-height: 1;
+    text-decoration: none;
+}
+
+.rack-label-row .rack-name-edit-btn:hover {
+    color: #475569;
+}
+
 .rack-drawers {
     display: flex;
     flex-direction: column;

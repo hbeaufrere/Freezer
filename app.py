@@ -43,12 +43,14 @@ def create_app():
     from routes.raptor import raptor_bp
     from routes.stats import stats_bp
     from routes.export import export_bp
+    from routes.retrieval_log import retrieval_log_bp
 
     app.register_blueprint(freezer_bp)
     app.register_blueprint(research_bp)
     app.register_blueprint(raptor_bp)
     app.register_blueprint(stats_bp)
     app.register_blueprint(export_bp)
+    app.register_blueprint(retrieval_log_bp)
 
     # Authentication
     @app.before_request
@@ -90,6 +92,10 @@ def create_app():
     @app.route('/stats')
     def stats_page():
         return render_template('stats.html')
+
+    @app.route('/retrieval-log')
+    def retrieval_log_page():
+        return render_template('retrieval_log.html')
 
     return app
 

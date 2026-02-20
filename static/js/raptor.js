@@ -6,6 +6,9 @@ let speciesList = [];
 let allRackDesignations = []; // all raptor rack designations for computing "Other Species"
 
 async function initRaptorPage() {
+    // Expose box click for refreshFreezerView
+    window._onRaptorBoxClick = onRaptorBoxClick;
+
     // Load species list first
     speciesList = await API.get('/api/species');
     populateSpeciesDropdown(null);
@@ -318,34 +321,55 @@ async function saveRaptorTube() {
     }
 }
 
-async function deleteRaptorTube() {
+function deleteRaptorTube() {
     const dbId = document.getElementById('raptor-tube-db-id').value;
     if (!dbId) return;
-    if (!confirm('Are you sure you want to remove this sample? This cannot be undone.')) return;
 
-    try {
-        await API.del(`/api/raptor/tubes/${dbId}`);
-        showToast('Sample removed');
-        bootstrap.Modal.getInstance(document.getElementById('raptorTubeModal')).hide();
-        onRaptorBoxClick(currentRaptorBoxId);
-        loadRaptorQuickStats();
-    } catch (err) {
-        showToast('Error: ' + err.message, 'error');
-    }
+    const tubeId = document.getElementById('raptor-tube-id-badge').textContent || `#${dbId}`;
+
+    // Close the tube modal first, then show retrieval prompt
+    const tubeModal = bootstrap.Modal.getInstance(document.getElementById('raptorTubeModal'));
+    if (tubeModal) tubeModal.hide();
+
+    showRetrievalPrompt(
+        'Remove Sample',
+        `Removing sample "${tubeId}" from the freezer. Please log who is removing it and for what purpose.`,
+        async ({ retrieved_by, purpose }) => {
+            try {
+                await API.del(`/api/raptor/tubes/${dbId}`, { retrieved_by, purpose });
+                showToast('Sample removed');
+                onRaptorBoxClick(currentRaptorBoxId);
+                loadRaptorQuickStats();
+            } catch (err) {
+                showToast('Error: ' + err.message, 'error');
+            }
+        }
+    );
 }
 
-async function recordThaw() {
+function recordThaw() {
     const dbId = document.getElementById('raptor-tube-db-id').value;
     if (!dbId) return;
 
-    try {
-        const result = await API.put(`/api/raptor/tubes/${dbId}/thaw`);
-        document.getElementById('raptor-freeze-thaw').value = result.freeze_thaw_cycles;
-        showToast(`Freeze-thaw cycle recorded (now ${result.freeze_thaw_cycles})`);
-        onRaptorBoxClick(currentRaptorBoxId);
-    } catch (err) {
-        showToast('Error: ' + err.message, 'error');
-    }
+    const tubeId = document.getElementById('raptor-tube-id-badge').textContent || `#${dbId}`;
+
+    // Close the tube modal first, then show retrieval prompt
+    const tubeModal = bootstrap.Modal.getInstance(document.getElementById('raptorTubeModal'));
+    if (tubeModal) tubeModal.hide();
+
+    showRetrievalPrompt(
+        'Record Freeze-Thaw',
+        `Recording a freeze-thaw cycle for sample "${tubeId}". Please log who is retrieving it and for what purpose.`,
+        async ({ retrieved_by, purpose }) => {
+            try {
+                const result = await API.put(`/api/raptor/tubes/${dbId}/thaw`, { retrieved_by, purpose });
+                showToast(`Freeze-thaw cycle recorded (now ${result.freeze_thaw_cycles})`);
+                onRaptorBoxClick(currentRaptorBoxId);
+            } catch (err) {
+                showToast('Error: ' + err.message, 'error');
+            }
+        }
+    );
 }
 
 async function printRaptorLabel() {

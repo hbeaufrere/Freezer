@@ -197,6 +197,22 @@ def update_tube(tube_id):
 @raptor_bp.route('/api/raptor/tubes/<int:tube_id>', methods=['DELETE'])
 def delete_tube(tube_id):
     db = get_db()
+    data = request.get_json(silent=True) or {}
+    retrieved_by = data.get('retrieved_by', '').strip()
+    purpose = data.get('purpose', '').strip()
+
+    tube = db.execute("SELECT * FROM raptor_tubes WHERE id = ?", (tube_id,)).fetchone()
+
+    if tube:
+        # Log the removal before deleting
+        db.execute(
+            """INSERT INTO retrieval_log (section, tube_identifier, tube_info, action, retrieved_by, purpose)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            ('raptor', tube['tube_id'],
+             f"Box {tube['box_id']}, Position {tube['row_pos']},{tube['col_pos']}",
+             'removed', retrieved_by, purpose)
+        )
+
     db.execute("DELETE FROM raptor_tubes WHERE id = ?", (tube_id,))
     db.commit()
     return jsonify({'success': True})
@@ -204,12 +220,30 @@ def delete_tube(tube_id):
 
 @raptor_bp.route('/api/raptor/tubes/<int:tube_id>/thaw', methods=['PUT'])
 def record_thaw(tube_id):
-    """Increment freeze-thaw cycle count by 1."""
+    """Increment freeze-thaw cycle count by 1 and log the retrieval."""
     db = get_db()
+    data = request.get_json(silent=True) or {}
+    retrieved_by = data.get('retrieved_by', '').strip()
+    purpose = data.get('purpose', '').strip()
+
+    raw_tube = db.execute("SELECT * FROM raptor_tubes WHERE id = ?", (tube_id,)).fetchone()
+    if not raw_tube:
+        return jsonify({'error': 'Tube not found'}), 404
+
     db.execute(
         "UPDATE raptor_tubes SET freeze_thaw_cycles = freeze_thaw_cycles + 1, updated_at = datetime('now') WHERE id = ?",
         (tube_id,)
     )
+
+    # Log the retrieval event
+    db.execute(
+        """INSERT INTO retrieval_log (section, tube_identifier, tube_info, action, retrieved_by, purpose)
+           VALUES (?, ?, ?, ?, ?, ?)""",
+        ('raptor', raw_tube['tube_id'],
+         f"Box {raw_tube['box_id']}, Position {raw_tube['row_pos']},{raw_tube['col_pos']}",
+         'thawed', retrieved_by, purpose)
+    )
+
     db.commit()
     tube = db.execute("""
         SELECT rt.*, s.banding_code, s.common_name, s.scientific_name
@@ -217,8 +251,6 @@ def record_thaw(tube_id):
         JOIN species s ON rt.species_id = s.id
         WHERE rt.id = ?
     """, (tube_id,)).fetchone()
-    if not tube:
-        return jsonify({'error': 'Tube not found'}), 404
     return jsonify(dict(tube))
 
 

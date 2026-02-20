@@ -133,6 +133,35 @@ def migrate():
     else:
         print("All boxes already 10x10 (or no 9x9 boxes found).")
 
+    # --- 6. Add name column to racks if missing ---
+    rack_cols = [row[1] for row in conn.execute("PRAGMA table_info(racks)").fetchall()]
+    if 'name' not in rack_cols:
+        conn.execute("ALTER TABLE racks ADD COLUMN name TEXT")
+        print("Added 'name' column to racks table.")
+    else:
+        print("'name' column already exists in racks.")
+
+    # --- 7. Create retrieval_log table if missing ---
+    tables = [row[0] for row in conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table'"
+    ).fetchall()]
+    if 'retrieval_log' not in tables:
+        conn.execute("""
+            CREATE TABLE retrieval_log (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                section         TEXT NOT NULL,
+                tube_identifier TEXT NOT NULL,
+                tube_info       TEXT,
+                action          TEXT NOT NULL,
+                retrieved_by    TEXT,
+                purpose         TEXT,
+                timestamp       TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+        """)
+        print("Created 'retrieval_log' table.")
+    else:
+        print("'retrieval_log' table already exists.")
+
     conn.commit()
     conn.close()
     print("Migration complete.")

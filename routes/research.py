@@ -78,22 +78,54 @@ def update_tube(tube_id):
 
 @research_bp.route('/api/research/tubes/<int:tube_id>/thaw', methods=['PUT'])
 def record_thaw(tube_id):
-    """Increment freeze-thaw cycle count by 1."""
+    """Increment freeze-thaw cycle count by 1 and log the retrieval."""
     db = get_db()
+    data = request.get_json(silent=True) or {}
+    retrieved_by = data.get('retrieved_by', '').strip()
+    purpose = data.get('purpose', '').strip()
+
+    tube = db.execute("SELECT * FROM research_tubes WHERE id = ?", (tube_id,)).fetchone()
+    if not tube:
+        return jsonify({'error': 'Tube not found'}), 404
+
     db.execute(
         "UPDATE research_tubes SET freeze_thaw_cycles = freeze_thaw_cycles + 1, updated_at = datetime('now') WHERE id = ?",
         (tube_id,)
     )
+
+    # Log the retrieval event
+    db.execute(
+        """INSERT INTO retrieval_log (section, tube_identifier, tube_info, action, retrieved_by, purpose)
+           VALUES (?, ?, ?, ?, ?, ?)""",
+        ('research', tube['sample_id'] or f'#{tube_id}',
+         f"Box {tube['box_id']}, Position {tube['row_pos']},{tube['col_pos']}",
+         'thawed', retrieved_by, purpose)
+    )
+
     db.commit()
     tube = db.execute("SELECT * FROM research_tubes WHERE id = ?", (tube_id,)).fetchone()
-    if not tube:
-        return jsonify({'error': 'Tube not found'}), 404
     return jsonify(dict(tube))
 
 
 @research_bp.route('/api/research/tubes/<int:tube_id>', methods=['DELETE'])
 def delete_tube(tube_id):
     db = get_db()
+    data = request.get_json(silent=True) or {}
+    retrieved_by = data.get('retrieved_by', '').strip()
+    purpose = data.get('purpose', '').strip()
+
+    tube = db.execute("SELECT * FROM research_tubes WHERE id = ?", (tube_id,)).fetchone()
+
+    if tube:
+        # Log the removal before deleting
+        db.execute(
+            """INSERT INTO retrieval_log (section, tube_identifier, tube_info, action, retrieved_by, purpose)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            ('research', tube['sample_id'] or f'#{tube_id}',
+             f"Box {tube['box_id']}, Position {tube['row_pos']},{tube['col_pos']}",
+             'removed', retrieved_by, purpose)
+        )
+
     db.execute("DELETE FROM research_tubes WHERE id = ?", (tube_id,))
     db.commit()
     return jsonify({'success': True})

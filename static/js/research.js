@@ -4,6 +4,9 @@ let currentResearchBoxId = null;
 let currentResearchBoxData = null;
 
 async function initResearchPage() {
+    // Expose box click for refreshFreezerView
+    window._onResearchBoxClick = onResearchBoxClick;
+
     // Load sidebar racks
     await renderSectionSidebar('research-rack-sidebar', 'research', onResearchBoxClick);
 
@@ -131,34 +134,55 @@ async function saveResearchTube() {
     }
 }
 
-async function recordResearchThaw() {
+function recordResearchThaw() {
     const tubeId = document.getElementById('research-tube-id').value;
     if (!tubeId) return;
 
-    try {
-        const result = await API.put(`/api/research/tubes/${tubeId}/thaw`);
-        document.getElementById('research-freeze-thaw').value = result.freeze_thaw_cycles;
-        showToast(`Freeze-thaw cycle recorded (now ${result.freeze_thaw_cycles})`);
-        onResearchBoxClick(currentResearchBoxId);
-    } catch (err) {
-        showToast('Error: ' + err.message, 'error');
-    }
+    const sampleId = document.getElementById('research-sample-id').value || `#${tubeId}`;
+
+    // Close the tube modal first, then show retrieval prompt
+    const tubeModal = bootstrap.Modal.getInstance(document.getElementById('researchTubeModal'));
+    if (tubeModal) tubeModal.hide();
+
+    showRetrievalPrompt(
+        'Record Freeze-Thaw',
+        `Recording a freeze-thaw cycle for sample "${sampleId}". Please log who is retrieving it and for what purpose.`,
+        async ({ retrieved_by, purpose }) => {
+            try {
+                const result = await API.put(`/api/research/tubes/${tubeId}/thaw`, { retrieved_by, purpose });
+                showToast(`Freeze-thaw cycle recorded (now ${result.freeze_thaw_cycles})`);
+                onResearchBoxClick(currentResearchBoxId);
+            } catch (err) {
+                showToast('Error: ' + err.message, 'error');
+            }
+        }
+    );
 }
 
-async function deleteResearchTube() {
+function deleteResearchTube() {
     const tubeId = document.getElementById('research-tube-id').value;
     if (!tubeId) return;
-    if (!confirm('Are you sure you want to remove this tube?')) return;
 
-    try {
-        await API.del(`/api/research/tubes/${tubeId}`);
-        showToast('Tube removed');
-        bootstrap.Modal.getInstance(document.getElementById('researchTubeModal')).hide();
-        onResearchBoxClick(currentResearchBoxId);
-        loadResearchQuickStats();
-    } catch (err) {
-        showToast('Error: ' + err.message, 'error');
-    }
+    const sampleId = document.getElementById('research-sample-id').value || `#${tubeId}`;
+
+    // Close the tube modal first, then show retrieval prompt
+    const tubeModal = bootstrap.Modal.getInstance(document.getElementById('researchTubeModal'));
+    if (tubeModal) tubeModal.hide();
+
+    showRetrievalPrompt(
+        'Remove Sample',
+        `Removing sample "${sampleId}" from the freezer. Please log who is removing it and for what purpose.`,
+        async ({ retrieved_by, purpose }) => {
+            try {
+                await API.del(`/api/research/tubes/${tubeId}`, { retrieved_by, purpose });
+                showToast('Tube removed');
+                onResearchBoxClick(currentResearchBoxId);
+                loadResearchQuickStats();
+            } catch (err) {
+                showToast('Error: ' + err.message, 'error');
+            }
+        }
+    );
 }
 
 async function onResearchSearch() {

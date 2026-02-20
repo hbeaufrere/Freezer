@@ -59,11 +59,31 @@ function createRackElement(rack, options = {}) {
         ? `<div class="rack-designation">${rack.designation}</div>`
         : '';
 
+    const nameHtml = rack.name
+        ? `<div class="rack-name-label" title="Study/project name">${rack.name}</div>`
+        : '';
+
     rackEl.innerHTML = `
-        <div class="rack-label">${rack.label || 'Rack ' + rack.position}</div>
+        <div class="rack-label-row d-flex align-items-center justify-content-between">
+            <span class="rack-label">${rack.label || 'Rack ' + rack.position}</span>
+            <button class="btn btn-link btn-sm p-0 ms-1 rack-name-edit-btn"
+                    title="Set study/project name for this rack"
+                    data-rack-id="${rack.id}"
+                    data-rack-name="${rack.name || ''}">
+                <i class="bi bi-pencil-fill" style="font-size:0.65rem;opacity:0.5;"></i>
+            </button>
+        </div>
         ${designationHtml}
+        ${nameHtml}
         <div class="rack-drawers"></div>
     `;
+
+    // Edit rack name button
+    rackEl.querySelector('.rack-name-edit-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        const btn = e.currentTarget;
+        openRackNameModal(btn.dataset.rackId, btn.dataset.rackName);
+    });
 
     const drawersContainer = rackEl.querySelector('.rack-drawers');
 
@@ -146,5 +166,24 @@ async function renderSectionSidebar(containerId, sectionFilter, onBoxClick) {
     } catch (err) {
         container.innerHTML = '<div class="alert alert-danger">Failed to load racks.</div>';
         throw err;
+    }
+}
+
+/* Called after saving a rack name to refresh the visible sidebar/overview */
+function refreshFreezerView() {
+    // Research page sidebar
+    const researchSidebar = document.getElementById('research-rack-sidebar');
+    if (researchSidebar) {
+        renderSectionSidebar('research-rack-sidebar', 'research', window._onResearchBoxClick);
+    }
+    // Raptor page sidebar
+    const raptorSidebar = document.getElementById('raptor-rack-sidebar');
+    if (raptorSidebar) {
+        renderSectionSidebar('raptor-rack-sidebar', 'raptor', window._onRaptorBoxClick);
+    }
+    // Freezer overview
+    const freezerVisual = document.getElementById('freezer-visual');
+    if (freezerVisual) {
+        loadFreezerOverview();
     }
 }
