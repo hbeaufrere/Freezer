@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS drawers (
     rack_id     INTEGER NOT NULL REFERENCES racks(id) ON DELETE CASCADE,
     position    INTEGER NOT NULL,            -- 1-7 (top to bottom within rack)
     label       TEXT,
+    name        TEXT,                        -- user-defined study/project name for this drawer
     UNIQUE(rack_id, position)
 );
 

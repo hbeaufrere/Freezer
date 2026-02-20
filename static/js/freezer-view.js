@@ -59,69 +59,82 @@ function createRackElement(rack, options = {}) {
         ? `<div class="rack-designation">${rack.designation}</div>`
         : '';
 
-    const nameHtml = rack.name
-        ? `<div class="rack-name-label" title="Study/project name">${rack.name}</div>`
-        : '';
-
     rackEl.innerHTML = `
-        <div class="rack-label-row d-flex align-items-center justify-content-between">
-            <span class="rack-label">${rack.label || 'Rack ' + rack.position}</span>
-            <button class="btn btn-link btn-sm p-0 ms-1 rack-name-edit-btn"
-                    title="Set study/project name for this rack"
-                    data-rack-id="${rack.id}"
-                    data-rack-name="${rack.name || ''}">
-                <i class="bi bi-pencil-fill" style="font-size:0.65rem;opacity:0.5;"></i>
-            </button>
-        </div>
+        <div class="rack-label">${rack.label || 'Rack ' + rack.position}</div>
         ${designationHtml}
-        ${nameHtml}
         <div class="rack-drawers"></div>
     `;
-
-    // Edit rack name button
-    rackEl.querySelector('.rack-name-edit-btn').addEventListener('click', (e) => {
-        e.stopPropagation();
-        const btn = e.currentTarget;
-        openRackNameModal(btn.dataset.rackId, btn.dataset.rackName);
-    });
 
     const drawersContainer = rackEl.querySelector('.rack-drawers');
 
     rack.drawers.forEach(drawer => {
-        const drawerEl = document.createElement('div');
-        drawerEl.className = 'drawer-slot';
-        drawerEl.dataset.drawerId = drawer.id;
-        drawerEl.title = drawer.label || `Drawer ${drawer.position}`;
-
-        const labelEl = document.createElement('div');
-        labelEl.className = 'drawer-label';
-        labelEl.textContent = `D${drawer.position}`;
-        drawerEl.appendChild(labelEl);
-
-        drawer.boxes.forEach(box => {
-            const boxEl = document.createElement('div');
-            boxEl.className = 'box-slot ' + getOccupancyClass(box.occupied, box.capacity);
-            boxEl.dataset.boxId = box.id;
-            boxEl.title = `${box.label}: ${box.occupied}/${box.capacity} tubes`;
-
-            boxEl.addEventListener('click', (e) => {
-                e.stopPropagation();
-                if (options.onBoxClick) {
-                    options.onBoxClick(box.id, box);
-                } else {
-                    // Default: navigate to section page
-                    const section = box.section === 'raptor' ? '/raptor' : '/research';
-                    window.location.href = `${section}?box=${box.id}`;
-                }
-            });
-
-            drawerEl.appendChild(boxEl);
-        });
-
-        drawersContainer.appendChild(drawerEl);
+        drawersContainer.appendChild(createDrawerElement(drawer, options));
     });
 
     return rackEl;
+}
+
+function createDrawerElement(drawer, options = {}) {
+    const drawerEl = document.createElement('div');
+    drawerEl.className = 'drawer-slot';
+    drawerEl.dataset.drawerId = drawer.id;
+
+    // Header: label + optional name chip + edit button
+    const headerEl = document.createElement('div');
+    headerEl.className = 'drawer-header';
+
+    const labelEl = document.createElement('span');
+    labelEl.className = 'drawer-label';
+    labelEl.textContent = `D${drawer.position}`;
+    headerEl.appendChild(labelEl);
+
+    if (drawer.name) {
+        const nameEl = document.createElement('span');
+        nameEl.className = 'drawer-name-chip';
+        nameEl.textContent = drawer.name;
+        nameEl.title = drawer.name;
+        headerEl.appendChild(nameEl);
+    }
+
+    const editBtn = document.createElement('button');
+    editBtn.className = 'btn btn-link btn-sm p-0 drawer-name-edit-btn';
+    editBtn.title = 'Set study/project name for this drawer';
+    editBtn.dataset.drawerId = drawer.id;
+    editBtn.dataset.drawerName = drawer.name || '';
+    editBtn.innerHTML = '<i class="bi bi-pencil-fill"></i>';
+    editBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openDrawerNameModal(drawer.id, drawer.name || '');
+    });
+    headerEl.appendChild(editBtn);
+
+    drawerEl.appendChild(headerEl);
+
+    // Boxes row
+    const boxesEl = document.createElement('div');
+    boxesEl.className = 'drawer-boxes';
+
+    drawer.boxes.forEach(box => {
+        const boxEl = document.createElement('div');
+        boxEl.className = 'box-slot ' + getOccupancyClass(box.occupied, box.capacity);
+        boxEl.dataset.boxId = box.id;
+        boxEl.title = `${box.label}: ${box.occupied}/${box.capacity} tubes`;
+
+        boxEl.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (options.onBoxClick) {
+                options.onBoxClick(box.id, box);
+            } else {
+                const section = box.section === 'raptor' ? '/raptor' : '/research';
+                window.location.href = `${section}?box=${box.id}`;
+            }
+        });
+
+        boxesEl.appendChild(boxEl);
+    });
+
+    drawerEl.appendChild(boxesEl);
+    return drawerEl;
 }
 
 function getOccupancyClass(occupied, capacity) {
@@ -169,19 +182,16 @@ async function renderSectionSidebar(containerId, sectionFilter, onBoxClick) {
     }
 }
 
-/* Called after saving a rack name to refresh the visible sidebar/overview */
+/* Called after saving a drawer name to refresh the visible sidebar/overview */
 function refreshFreezerView() {
-    // Research page sidebar
     const researchSidebar = document.getElementById('research-rack-sidebar');
     if (researchSidebar) {
         renderSectionSidebar('research-rack-sidebar', 'research', window._onResearchBoxClick);
     }
-    // Raptor page sidebar
     const raptorSidebar = document.getElementById('raptor-rack-sidebar');
     if (raptorSidebar) {
         renderSectionSidebar('raptor-rack-sidebar', 'raptor', window._onRaptorBoxClick);
     }
-    // Freezer overview
     const freezerVisual = document.getElementById('freezer-visual');
     if (freezerVisual) {
         loadFreezerOverview();

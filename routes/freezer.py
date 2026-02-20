@@ -31,7 +31,7 @@ def get_freezer():
         for rack in racks:
             rack_data = dict(rack)
             drawers = db.execute(
-                "SELECT id, position, label FROM drawers WHERE rack_id = ? ORDER BY position",
+                "SELECT id, position, label, name FROM drawers WHERE rack_id = ? ORDER BY position",
                 (rack['id'],)
             ).fetchall()
 
@@ -101,10 +101,32 @@ def update_rack(rack_id):
 def list_drawers(rack_id):
     db = get_db()
     rows = db.execute(
-        "SELECT id, rack_id, position, label FROM drawers WHERE rack_id = ? ORDER BY position",
+        "SELECT id, rack_id, position, label, name FROM drawers WHERE rack_id = ? ORDER BY position",
         (rack_id,)
     ).fetchall()
     return jsonify([dict(r) for r in rows])
+
+
+@freezer_bp.route('/api/drawers/<int:drawer_id>', methods=['PUT'])
+def update_drawer(drawer_id):
+    db = get_db()
+    data = request.get_json()
+    try:
+        db.execute(
+            "UPDATE drawers SET name = ? WHERE id = ?",
+            (data.get('name', '') or None, drawer_id)
+        )
+        db.commit()
+        drawer = db.execute(
+            "SELECT id, rack_id, position, label, name FROM drawers WHERE id = ?",
+            (drawer_id,)
+        ).fetchone()
+        if not drawer:
+            return jsonify({'error': 'Drawer not found'}), 404
+        return jsonify(dict(drawer))
+    except Exception as e:
+        db.rollback()
+        return jsonify({'error': str(e)}), 400
 
 
 @freezer_bp.route('/api/drawers/<int:drawer_id>/boxes')

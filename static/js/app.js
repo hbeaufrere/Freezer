@@ -117,29 +117,28 @@ function showRetrievalPrompt(title, description, onConfirm, onCancel) {
     bsModal.show();
 }
 
-/* ── Rack naming ──────────────────────────────────────────── */
+/* ── Drawer naming ────────────────────────────────────────── */
 
-function openRackNameModal(rackId, currentName) {
-    document.getElementById('rack-name-rack-id').value = rackId;
-    document.getElementById('rack-name-input').value = currentName || '';
+function openDrawerNameModal(drawerId, currentName) {
+    document.getElementById('drawer-name-drawer-id').value = drawerId;
+    document.getElementById('drawer-name-input').value = currentName || '';
 
-    const saveBtn = document.getElementById('rack-name-save-btn');
+    const saveBtn = document.getElementById('drawer-name-save-btn');
     const newSaveBtn = saveBtn.cloneNode(true);
     saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
 
     newSaveBtn.addEventListener('click', async () => {
-        const name = document.getElementById('rack-name-input').value.trim();
-        const id = document.getElementById('rack-name-rack-id').value;
+        const name = document.getElementById('drawer-name-input').value.trim();
+        const id = document.getElementById('drawer-name-drawer-id').value;
         try {
-            await API.put(`/api/racks/${id}`, { name });
-            bootstrap.Modal.getInstance(document.getElementById('rackNameModal')).hide();
-            showToast(name ? `Rack name set to "${name}"` : 'Rack name cleared');
-            // Refresh the sidebar/freezer view if a refresh function is available
+            await API.put(`/api/drawers/${id}`, { name });
+            bootstrap.Modal.getInstance(document.getElementById('drawerNameModal')).hide();
+            showToast(name ? `Drawer name set to "${name}"` : 'Drawer name cleared');
             if (typeof refreshFreezerView === 'function') refreshFreezerView();
         } catch (err) {
-            showToast('Error saving rack name: ' + err.message, 'error');
+            showToast('Error saving drawer name: ' + err.message, 'error');
         }
     });
 
-    new bootstrap.Modal(document.getElementById('rackNameModal')).show();
+    new bootstrap.Modal(document.getElementById('drawerNameModal')).show();
 }

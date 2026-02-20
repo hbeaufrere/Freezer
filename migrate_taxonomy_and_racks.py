@@ -162,6 +162,14 @@ def migrate():
     else:
         print("'retrieval_log' table already exists.")
 
+    # --- 8. Add name column to drawers if missing ---
+    drawer_cols = [row[1] for row in conn.execute("PRAGMA table_info(drawers)").fetchall()]
+    if 'name' not in drawer_cols:
+        conn.execute("ALTER TABLE drawers ADD COLUMN name TEXT")
+        print("Added 'name' column to drawers table.")
+    else:
+        print("'name' column already exists in drawers.")
+
     conn.commit()
     conn.close()
     print("Migration complete.")
