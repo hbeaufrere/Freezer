@@ -160,7 +160,8 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 60px;
+    flex: 1;
+    min-width: 0;
     margin-left: 2px;
     line-height: 1.4;
 }

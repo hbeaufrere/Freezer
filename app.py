@@ -52,6 +52,13 @@ def create_app():
     app.register_blueprint(export_bp)
     app.register_blueprint(retrieval_log_bp)
 
+    # Disable browser caching for all API responses
+    @app.after_request
+    def no_cache_api(response):
+        if request.path.startswith('/api/'):
+            response.headers['Cache-Control'] = 'no-store'
+        return response
+
     # Authentication
     @app.before_request
     def require_login():
