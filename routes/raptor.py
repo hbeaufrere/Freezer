@@ -211,7 +211,7 @@ def delete_tube(tube_id):
     """, (tube_id,)).fetchone()
 
     if tube:
-        location = f"{tube['rack_label']}-{tube['drawer_label']}-{tube['box_label']}, Pos {tube['row_pos']},{tube['col_pos']}"
+        location = f"{tube['box_label']}, Pos {tube['row_pos']},{tube['col_pos']}"
         # Log the removal before deleting
         db.execute(
             """INSERT INTO retrieval_log (section, tube_identifier, tube_info, action, retrieved_by, purpose)
@@ -248,7 +248,7 @@ def record_thaw(tube_id):
         (tube_id,)
     )
 
-    location = f"{raw_tube['rack_label']}-{raw_tube['drawer_label']}-{raw_tube['box_label']}, Pos {raw_tube['row_pos']},{raw_tube['col_pos']}"
+    location = f"{raw_tube['box_label']}, Pos {raw_tube['row_pos']},{raw_tube['col_pos']}"
     # Log the retrieval event
     db.execute(
         """INSERT INTO retrieval_log (section, tube_identifier, tube_info, action, retrieved_by, purpose)

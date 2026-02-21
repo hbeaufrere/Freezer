@@ -29,7 +29,7 @@ async function loadLog() {
     if (q) params.set('q', q);
 
     const tbody = document.getElementById('log-body');
-    tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-3">
+    tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-3">
         <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>Loading...</td></tr>`;
 
     try {
@@ -47,7 +47,7 @@ function renderLogEntries(entries) {
     const tbody = document.getElementById('log-body');
 
     if (entries.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">No entries found.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4">No entries found.</td></tr>`;
         return;
     }
 
@@ -71,6 +71,7 @@ function renderLogEntries(entries) {
             <td>${by}</td>
             <td>${purpose}</td>
             <td>${location}</td>
+            <td><button class="btn btn-outline-danger btn-sm py-0 px-1" title="Delete entry" onclick="deleteLogEntry(${e.id}, this)"><i class="bi bi-trash"></i></button></td>
         </tr>`;
     }).join('');
 }
@@ -126,6 +127,21 @@ function formatTimestamp(ts) {
         });
     } catch {
         return ts;
+    }
+}
+
+async function deleteLogEntry(entryId, btn) {
+    if (!confirm('Delete this log entry? This cannot be undone.')) return;
+    btn.disabled = true;
+    try {
+        await API.del(`/api/retrieval-log/${entryId}`);
+        btn.closest('tr').remove();
+        logTotal = Math.max(0, logTotal - 1);
+        updateStats([], logTotal);
+        updatePagination();
+    } catch (err) {
+        alert(`Failed to delete entry: ${err.message}`);
+        btn.disabled = false;
     }
 }
 

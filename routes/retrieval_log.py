@@ -58,3 +58,14 @@ def list_log():
         'limit': limit,
         'offset': offset
     })
+
+
+@retrieval_log_bp.route('/api/retrieval-log/<int:entry_id>', methods=['DELETE'])
+def delete_log_entry(entry_id):
+    """Delete a single retrieval log entry by ID."""
+    db = get_db()
+    result = db.execute("DELETE FROM retrieval_log WHERE id = ?", (entry_id,))
+    db.commit()
+    if result.rowcount == 0:
+        return jsonify({'error': 'Entry not found'}), 404
+    return jsonify({'success': True})
