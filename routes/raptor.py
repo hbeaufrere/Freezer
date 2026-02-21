@@ -201,16 +201,22 @@ def delete_tube(tube_id):
     retrieved_by = data.get('retrieved_by', '').strip()
     purpose = data.get('purpose', '').strip()
 
-    tube = db.execute("SELECT * FROM raptor_tubes WHERE id = ?", (tube_id,)).fetchone()
+    tube = db.execute("""
+        SELECT rt.*, b.label AS box_label, d.label AS drawer_label, r.label AS rack_label
+        FROM raptor_tubes rt
+        LEFT JOIN boxes b ON rt.box_id = b.id
+        LEFT JOIN drawers d ON b.drawer_id = d.id
+        LEFT JOIN racks r ON d.rack_id = r.id
+        WHERE rt.id = ?
+    """, (tube_id,)).fetchone()
 
     if tube:
+        location = f"{tube['rack_label']}-{tube['drawer_label']}-{tube['box_label']}, Pos {tube['row_pos']},{tube['col_pos']}"
         # Log the removal before deleting
         db.execute(
             """INSERT INTO retrieval_log (section, tube_identifier, tube_info, action, retrieved_by, purpose)
                VALUES (?, ?, ?, ?, ?, ?)""",
-            ('raptor', tube['tube_id'],
-             f"Box {tube['box_id']}, Position {tube['row_pos']},{tube['col_pos']}",
-             'removed', retrieved_by, purpose)
+            ('raptor', tube['tube_id'], location, 'removed', retrieved_by, purpose)
         )
 
     db.execute("DELETE FROM raptor_tubes WHERE id = ?", (tube_id,))
@@ -226,7 +232,14 @@ def record_thaw(tube_id):
     retrieved_by = data.get('retrieved_by', '').strip()
     purpose = data.get('purpose', '').strip()
 
-    raw_tube = db.execute("SELECT * FROM raptor_tubes WHERE id = ?", (tube_id,)).fetchone()
+    raw_tube = db.execute("""
+        SELECT rt.*, b.label AS box_label, d.label AS drawer_label, r.label AS rack_label
+        FROM raptor_tubes rt
+        LEFT JOIN boxes b ON rt.box_id = b.id
+        LEFT JOIN drawers d ON b.drawer_id = d.id
+        LEFT JOIN racks r ON d.rack_id = r.id
+        WHERE rt.id = ?
+    """, (tube_id,)).fetchone()
     if not raw_tube:
         return jsonify({'error': 'Tube not found'}), 404
 
@@ -235,13 +248,12 @@ def record_thaw(tube_id):
         (tube_id,)
     )
 
+    location = f"{raw_tube['rack_label']}-{raw_tube['drawer_label']}-{raw_tube['box_label']}, Pos {raw_tube['row_pos']},{raw_tube['col_pos']}"
     # Log the retrieval event
     db.execute(
         """INSERT INTO retrieval_log (section, tube_identifier, tube_info, action, retrieved_by, purpose)
            VALUES (?, ?, ?, ?, ?, ?)""",
-        ('raptor', raw_tube['tube_id'],
-         f"Box {raw_tube['box_id']}, Position {raw_tube['row_pos']},{raw_tube['col_pos']}",
-         'thawed', retrieved_by, purpose)
+        ('raptor', raw_tube['tube_id'], location, 'thawed', retrieved_by, purpose)
     )
 
     db.commit()
