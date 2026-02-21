@@ -200,21 +200,29 @@ function deleteResearchTube() {
 
 function resetSampleIdWidget(currentSampleId) {
     document.getElementById('sample-id-type-free').checked = true;
-    document.getElementById('sample-id-free-panel').style.display = '';
     document.getElementById('sample-id-std-panel').style.display = 'none';
-    document.getElementById('research-sample-id').value = currentSampleId;
+    const input = document.getElementById('research-sample-id');
+    input.value = currentSampleId;
+    input.readOnly = false;
+    input.placeholder = 'e.g., EXP-2026-042';
     document.getElementById('std-date').value = new Date().toISOString().split('T')[0];
     document.getElementById('std-animal-id').value = '';
     document.getElementById('std-study-id').value = '';
     document.getElementById('std-sequence').value = '';
-    document.getElementById('std-preview').textContent = '—';
 }
 
 function onSampleIdTypeChange() {
     const type = document.querySelector('input[name="research-sample-id-type"]:checked').value;
-    document.getElementById('sample-id-free-panel').style.display = type === 'free' ? '' : 'none';
     document.getElementById('sample-id-std-panel').style.display = type === 'standardized' ? '' : 'none';
-    if (type === 'standardized') updateStdPreview();
+    const input = document.getElementById('research-sample-id');
+    if (type === 'standardized') {
+        input.readOnly = true;
+        input.placeholder = 'Auto-generated from fields above';
+        updateStdPreview();
+    } else {
+        input.readOnly = false;
+        input.placeholder = 'e.g., EXP-2026-042';
+    }
 }
 
 function updateStdPreview() {
@@ -228,15 +236,10 @@ function updateStdPreview() {
     const study = document.getElementById('std-study-id').value.trim();
     const seq = document.getElementById('std-sequence').value.trim();
     const parts = [datePart, animal, study, seq].filter(Boolean);
-    document.getElementById('std-preview').textContent = parts.length ? parts.join('-') : '—';
+    document.getElementById('research-sample-id').value = parts.join('-');
 }
 
 function getSampleId() {
-    const type = document.querySelector('input[name="research-sample-id-type"]:checked').value;
-    if (type === 'standardized') {
-        const preview = document.getElementById('std-preview').textContent;
-        return preview === '—' ? '' : preview;
-    }
     return document.getElementById('research-sample-id').value.trim();
 }
 
