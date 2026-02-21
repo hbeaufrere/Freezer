@@ -170,6 +170,33 @@ def migrate():
     else:
         print("'name' column already exists in drawers.")
 
+    # --- 9. Add missing 8th drawer to any rack that only has 7 ---
+    racks_missing_d8 = conn.execute("""
+        SELECT r.id AS rack_id, r.label AS rack_label, sh.section
+        FROM racks r
+        JOIN shelves sh ON r.shelf_id = sh.id
+        WHERE (SELECT MAX(position) FROM drawers WHERE rack_id = r.id) = 7
+    """).fetchall()
+
+    if racks_missing_d8:
+        for rack_id, rack_label, section in racks_missing_d8:
+            prefix = rack_label.replace('Rack ', '')  # e.g. "U1"
+            drawer_label = f"{prefix}-D8"
+            conn.execute(
+                "INSERT INTO drawers (rack_id, position, label) VALUES (?, ?, ?)",
+                (rack_id, 8, drawer_label)
+            )
+            drawer_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+            for box_pos in range(1, 5):
+                box_label = f"{prefix}-D8-B{box_pos}"
+                conn.execute(
+                    "INSERT INTO boxes (drawer_id, position, label, grid_rows, grid_cols, section) VALUES (?, ?, ?, ?, ?, ?)",
+                    (drawer_id, box_pos, box_label, 10, 10, section)
+                )
+        print(f"Added drawer 8 (and 4 boxes) to {len(racks_missing_d8)} racks.")
+    else:
+        print("All racks already have 8 drawers.")
+
     conn.commit()
     conn.close()
     print("Migration complete.")

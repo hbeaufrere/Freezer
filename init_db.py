@@ -35,7 +35,7 @@ def init_database():
 def _seed_freezer_structure(conn):
     """Create the default Eppendorf CryoCube F740hi structure.
 
-    Layout: 3 shelves, 6 racks per shelf, 7 drawers per rack, 4 boxes per drawer.
+    Layout: 3 shelves, 6 racks per shelf, 8 drawers per rack, 4 boxes per drawer.
     Upper shelf is for the raptor biobank, middle and lower are for research.
 
     Raptor rack designations (upper shelf) group common species together:
@@ -81,7 +81,7 @@ def _seed_freezer_structure(conn):
             )
             rack_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
 
-            for drawer_pos in range(1, 8):  # 7 drawers per rack
+            for drawer_pos in range(1, 9):  # 8 drawers per rack
                 drawer_label = f"{shelf_prefix}{rack_pos}-D{drawer_pos}"
                 conn.execute(
                     "INSERT INTO drawers (rack_id, position, label) VALUES (?, ?, ?)",
