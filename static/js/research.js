@@ -90,7 +90,7 @@ function openResearchAddModal(row, col) {
     document.getElementById('research-tube-position').textContent =
         `${currentResearchBoxData.label} — Position ${positionLabel(row, col)}`;
     document.getElementById('research-description').value = '';
-    document.getElementById('research-date-stored').value = new Date().toISOString().split('T')[0];
+    document.getElementById('research-date-stored').value = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
     document.getElementById('research-freeze-thaw').value = 0;
     document.getElementById('btn-research-delete').style.display = 'none';
     document.getElementById('btn-research-thaw').style.display = 'none';
@@ -205,7 +205,7 @@ function resetSampleIdWidget(currentSampleId) {
     input.value = currentSampleId;
     input.readOnly = false;
     input.placeholder = 'e.g., EXP-2026-042';
-    document.getElementById('std-date').value = new Date().toISOString().split('T')[0];
+    document.getElementById('std-date').value = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
     document.getElementById('std-animal-id').value = '';
     document.getElementById('std-study-id').value = '';
     document.getElementById('std-sequence').value = '';
