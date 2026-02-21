@@ -26,6 +26,15 @@ def get_raptor_stats(db):
     stats['species_breakdown'] = [dict(r) for r in rows]
 
     rows = db.execute(f"""
+        SELECT strftime('%Y', rt.collection_date) AS year,
+               COUNT(DISTINCT {_BASE_ID}) AS count
+        FROM raptor_tubes rt
+        GROUP BY year
+        ORDER BY year
+    """).fetchall()
+    stats['yearly_counts'] = [dict(r) for r in rows]
+
+    rows = db.execute(f"""
         SELECT strftime('%Y-%m', rt.collection_date) AS month,
                COUNT(DISTINCT {_BASE_ID}) AS count
         FROM raptor_tubes rt

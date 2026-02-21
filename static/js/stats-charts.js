@@ -56,6 +56,9 @@ async function loadRaptorStats() {
         // Species bar chart (horizontal)
         renderSpeciesChart(stats.species_breakdown || []);
 
+        // Yearly chart
+        renderYearlyChart(stats.yearly_counts || []);
+
         // Monthly chart
         renderMonthlyChart(stats.monthly_counts || []);
 
@@ -104,6 +107,34 @@ function renderSpeciesChart(data) {
             scales: {
                 x: { beginAtZero: true, title: { display: true, text: 'Sample Count' } },
                 y: { title: { display: false } }
+            }
+        }
+    });
+}
+
+function renderYearlyChart(data) {
+    destroyChart('yearly');
+    const ctx = document.getElementById('chart-yearly');
+    if (!ctx || data.length === 0) return;
+
+    chartInstances['yearly'] = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: data.map(d => d.year),
+            datasets: [{
+                label: 'Samples',
+                data: data.map(d => d.count),
+                backgroundColor: data.map((_, i) => CHART_COLORS[i % CHART_COLORS.length]),
+                borderRadius: 4,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { beginAtZero: true, title: { display: true, text: 'Count' } },
+                x: { title: { display: true, text: 'Year' } }
             }
         }
     });
