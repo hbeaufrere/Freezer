@@ -1,7 +1,9 @@
 """CSV and Excel export endpoints."""
 
 import io
+import datetime
 from flask import Blueprint, send_file, request
+from config import DATABASE_PATH
 from services.export_service import (
     export_raptor_xlsx, export_raptor_csv,
     export_research_xlsx, export_research_csv,
@@ -66,4 +68,15 @@ def research_csv():
         mimetype='text/csv',
         as_attachment=True,
         download_name='research_export.csv'
+    )
+
+
+@export_bp.route('/api/export/database')
+def database_backup():
+    date_str = datetime.date.today().strftime('%Y-%m-%d')
+    return send_file(
+        DATABASE_PATH,
+        mimetype='application/octet-stream',
+        as_attachment=True,
+        download_name=f'freezer_backup_{date_str}.db'
     )

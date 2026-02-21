@@ -185,6 +185,17 @@
         </div>
     </div>
 </div>
+
+<!-- Database Backup -->
+<div class="card mt-4">
+    <div class="card-header fw-bold"><i class="bi bi-database-down me-2"></i>Database Backup</div>
+    <div class="card-body d-flex align-items-center gap-3">
+        <a class="btn btn-outline-secondary" href="/api/export/database">
+            <i class="bi bi-download me-1"></i>Download freezer.db
+        </a>
+        <span class="text-muted small">Complete backup of all data. Save this file somewhere safe to restore on another server.</span>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
