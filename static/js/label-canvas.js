@@ -30,6 +30,34 @@ function generateRaptorLabel(tubeData) {
     return img;
 }
 
+function generateCliprLabel(sampleId) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 203;
+    canvas.height = 102;
+    const ctx = canvas.getContext('2d');
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.fillStyle = '#000000';
+    const text = sampleId || 'No ID';
+
+    // Scale font down to fit label width
+    let fontSize = 16;
+    ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+    while (ctx.measureText(text).width > 193 && fontSize > 7) {
+        fontSize -= 1;
+        ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+    }
+
+    // Center vertically
+    ctx.fillText(text, 5, Math.round(canvas.height / 2 + fontSize / 2) - 2);
+
+    const img = new Image();
+    img.src = canvas.toDataURL('image/png');
+    return img;
+}
+
 function generateResearchLabel(tubeData, boxLabel) {
     const canvas = document.createElement('canvas');
     canvas.width = 203;

@@ -31,6 +31,17 @@ async function initResearchPage() {
     document.getElementById('btn-research-save').addEventListener('click', saveResearchTube);
     document.getElementById('btn-research-delete').addEventListener('click', deleteResearchTube);
     document.getElementById('btn-research-thaw').addEventListener('click', recordResearchThaw);
+    document.getElementById('btn-research-print').addEventListener('click', printResearchLabel);
+
+    // Sample ID type toggle
+    document.querySelectorAll('input[name="research-sample-id-type"]').forEach(r => {
+        r.addEventListener('change', onSampleIdTypeChange);
+    });
+
+    // Live preview for standardized fields
+    ['std-date', 'std-animal-id', 'std-study-id', 'std-sequence'].forEach(id => {
+        document.getElementById(id).addEventListener('input', updateStdPreview);
+    });
 }
 
 async function loadResearchQuickStats() {
@@ -78,12 +89,13 @@ function openResearchAddModal(row, col) {
     document.getElementById('research-tube-col').value = col;
     document.getElementById('research-tube-position').textContent =
         `${currentResearchBoxData.label} — Position ${positionLabel(row, col)}`;
-    document.getElementById('research-sample-id').value = '';
     document.getElementById('research-description').value = '';
     document.getElementById('research-date-stored').value = new Date().toISOString().split('T')[0];
     document.getElementById('research-freeze-thaw').value = 0;
     document.getElementById('btn-research-delete').style.display = 'none';
     document.getElementById('btn-research-thaw').style.display = 'none';
+    document.getElementById('btn-research-print').style.display = 'none';
+    resetSampleIdWidget('');
 
     new bootstrap.Modal(document.getElementById('researchTubeModal')).show();
 }
@@ -96,12 +108,13 @@ function openResearchEditModal(tube, row, col) {
     document.getElementById('research-tube-col').value = col;
     document.getElementById('research-tube-position').textContent =
         `${currentResearchBoxData.label} — Position ${positionLabel(row, col)}`;
-    document.getElementById('research-sample-id').value = tube.sample_id || '';
     document.getElementById('research-description').value = tube.description || '';
     document.getElementById('research-date-stored').value = tube.date_stored || '';
     document.getElementById('research-freeze-thaw').value = tube.freeze_thaw_cycles || 0;
     document.getElementById('btn-research-delete').style.display = 'inline-block';
     document.getElementById('btn-research-thaw').style.display = 'inline-block';
+    document.getElementById('btn-research-print').style.display = 'inline-block';
+    resetSampleIdWidget(tube.sample_id || '');
 
     new bootstrap.Modal(document.getElementById('researchTubeModal')).show();
 }
@@ -112,7 +125,7 @@ async function saveResearchTube() {
         box_id: parseInt(document.getElementById('research-tube-box-id').value),
         row_pos: parseInt(document.getElementById('research-tube-row').value),
         col_pos: parseInt(document.getElementById('research-tube-col').value),
-        sample_id: document.getElementById('research-sample-id').value.trim(),
+        sample_id: getSampleId(),
         description: document.getElementById('research-description').value.trim(),
         date_stored: document.getElementById('research-date-stored').value || null,
         freeze_thaw_cycles: parseInt(document.getElementById('research-freeze-thaw').value) || 0,
@@ -183,6 +196,54 @@ function deleteResearchTube() {
             }
         }
     );
+}
+
+function resetSampleIdWidget(currentSampleId) {
+    document.getElementById('sample-id-type-free').checked = true;
+    document.getElementById('sample-id-free-panel').style.display = '';
+    document.getElementById('sample-id-std-panel').style.display = 'none';
+    document.getElementById('research-sample-id').value = currentSampleId;
+    document.getElementById('std-date').value = new Date().toISOString().split('T')[0];
+    document.getElementById('std-animal-id').value = '';
+    document.getElementById('std-study-id').value = '';
+    document.getElementById('std-sequence').value = '';
+    document.getElementById('std-preview').textContent = '—';
+}
+
+function onSampleIdTypeChange() {
+    const type = document.querySelector('input[name="research-sample-id-type"]:checked').value;
+    document.getElementById('sample-id-free-panel').style.display = type === 'free' ? '' : 'none';
+    document.getElementById('sample-id-std-panel').style.display = type === 'standardized' ? '' : 'none';
+    if (type === 'standardized') updateStdPreview();
+}
+
+function updateStdPreview() {
+    const dateVal = document.getElementById('std-date').value; // YYYY-MM-DD
+    let datePart = '';
+    if (dateVal) {
+        const [y, m, d] = dateVal.split('-');
+        datePart = m + d + y.slice(2); // MMDDYY
+    }
+    const animal = document.getElementById('std-animal-id').value.trim();
+    const study = document.getElementById('std-study-id').value.trim();
+    const seq = document.getElementById('std-sequence').value.trim();
+    const parts = [datePart, animal, study, seq].filter(Boolean);
+    document.getElementById('std-preview').textContent = parts.length ? parts.join('-') : '—';
+}
+
+function getSampleId() {
+    const type = document.querySelector('input[name="research-sample-id-type"]:checked').value;
+    if (type === 'standardized') {
+        const preview = document.getElementById('std-preview').textContent;
+        return preview === '—' ? '' : preview;
+    }
+    return document.getElementById('research-sample-id').value.trim();
+}
+
+function printResearchLabel() {
+    const sampleId = getSampleId();
+    const img = generateCliprLabel(sampleId || 'No ID');
+    printLabel(img);
 }
 
 async function onResearchSearch() {
