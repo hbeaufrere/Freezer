@@ -235,7 +235,7 @@ function updateStdPreview() {
     const animal = document.getElementById('std-animal-id').value.trim();
     const study = document.getElementById('std-study-id').value.trim();
     const seq = document.getElementById('std-sequence').value.trim();
-    const parts = [datePart, animal, study, seq].filter(Boolean);
+    const parts = [study, animal, seq, datePart].filter(Boolean);
     document.getElementById('research-sample-id').value = parts.join('-');
 }
 
