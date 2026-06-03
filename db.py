@@ -1,39 +1,50 @@
 """Postgres connection helpers.
 
-One connection per request via Flask's `g`. Designed for serverless +
-Neon's pooled connection (or Supabase's transaction pooler), so prepared
-statements are disabled.
+Uses a small psycopg connection pool so warm Vercel function instances
+reuse connections to Neon across requests (cutting per-request TCP/TLS
+handshake to zero on warm hits).
 """
 
-import psycopg
 from psycopg.rows import dict_row
+from psycopg_pool import ConnectionPool
 from flask import g
 
 import config
 
+_pool = None
 
-def _connect():
-    if not config.DATABASE_URL:
-        raise RuntimeError(
-            "DATABASE_URL is not set. Configure it to your Supabase pooler URL."
+
+def _get_pool():
+    """Lazily create the pool on first use."""
+    global _pool
+    if _pool is None:
+        if not config.DATABASE_URL:
+            raise RuntimeError(
+                "DATABASE_URL is not set. Configure it to your Neon pooled URL."
+            )
+        _pool = ConnectionPool(
+            config.DATABASE_URL,
+            min_size=1,
+            max_size=4,
+            timeout=15,
+            kwargs={
+                "row_factory": dict_row,
+                "prepare_threshold": None,
+                "autocommit": False,
+            },
         )
-    return psycopg.connect(
-        config.DATABASE_URL,
-        row_factory=dict_row,
-        prepare_threshold=None,
-        autocommit=False,
-    )
+    return _pool
 
 
 def get_db():
-    """Return the request-scoped Postgres connection."""
+    """Return the request-scoped Postgres connection (checked out of the pool)."""
     if 'db' not in g:
-        g.db = _connect()
+        g.db = _get_pool().getconn()
     return g.db
 
 
 def close_db(e=None):
-    """Roll back uncommitted work and close the connection at request end."""
+    """Return the connection to the pool at request end (rolling back on error)."""
     db = g.pop('db', None)
     if db is None:
         return
@@ -41,7 +52,13 @@ def close_db(e=None):
         if e is not None:
             db.rollback()
     finally:
-        db.close()
+        try:
+            _get_pool().putconn(db)
+        except Exception:
+            try:
+                db.close()
+            except Exception:
+                pass
 
 
 def fetch_one(query, params=()):
