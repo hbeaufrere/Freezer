@@ -29,3 +29,9 @@ def raptor():
 @require_login
 def stats():
     return render_template('stats.html', user=current_user())
+
+
+@pages_bp.route('/retrieval-log')
+@require_login
+def retrieval_log():
+    return render_template('retrieval_log.html', user=current_user())

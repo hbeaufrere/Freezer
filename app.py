@@ -27,6 +27,7 @@ def create_app():
     from routes.stats import stats_bp
     from routes.export import export_bp
     from routes.cron import cron_bp
+    from routes.retrieval_log import retrieval_log_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(admin_bp)
@@ -37,6 +38,7 @@ def create_app():
     app.register_blueprint(stats_bp)
     app.register_blueprint(export_bp)
     app.register_blueprint(cron_bp)
+    app.register_blueprint(retrieval_log_bp)
 
     @app.context_processor
     def inject_user():

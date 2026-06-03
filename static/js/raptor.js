@@ -321,31 +321,44 @@ async function saveRaptorTube() {
 async function deleteRaptorTube() {
     const dbId = document.getElementById('raptor-tube-db-id').value;
     if (!dbId) return;
-    if (!confirm('Are you sure you want to remove this sample? This cannot be undone.')) return;
 
-    try {
-        await API.del(`/api/raptor/tubes/${dbId}`);
-        showToast('Sample removed');
-        bootstrap.Modal.getInstance(document.getElementById('raptorTubeModal')).hide();
-        onRaptorBoxClick(currentRaptorBoxId);
-        loadRaptorQuickStats();
-    } catch (err) {
-        showToast('Error: ' + err.message, 'error');
-    }
+    const tubeIdStr = document.getElementById('raptor-tube-id-badge').textContent || `tube #${dbId}`;
+    showRetrievalPrompt(
+        'Remove sample',
+        `Sample: ${tubeIdStr}`,
+        async ({ retrieved_by, purpose }) => {
+            try {
+                await API.del(`/api/raptor/tubes/${dbId}`, { retrieved_by, purpose });
+                showToast('Sample removed');
+                bootstrap.Modal.getInstance(document.getElementById('raptorTubeModal')).hide();
+                onRaptorBoxClick(currentRaptorBoxId);
+                loadRaptorQuickStats();
+            } catch (err) {
+                showToast('Error: ' + err.message, 'error');
+            }
+        }
+    );
 }
 
 async function recordThaw() {
     const dbId = document.getElementById('raptor-tube-db-id').value;
     if (!dbId) return;
 
-    try {
-        const result = await API.put(`/api/raptor/tubes/${dbId}/thaw`);
-        document.getElementById('raptor-freeze-thaw').value = result.freeze_thaw_cycles;
-        showToast(`Freeze-thaw cycle recorded (now ${result.freeze_thaw_cycles})`);
-        onRaptorBoxClick(currentRaptorBoxId);
-    } catch (err) {
-        showToast('Error: ' + err.message, 'error');
-    }
+    const tubeIdStr = document.getElementById('raptor-tube-id-badge').textContent || `tube #${dbId}`;
+    showRetrievalPrompt(
+        'Record freeze-thaw',
+        `Sample: ${tubeIdStr}`,
+        async ({ retrieved_by, purpose }) => {
+            try {
+                const result = await API.put(`/api/raptor/tubes/${dbId}/thaw`, { retrieved_by, purpose });
+                document.getElementById('raptor-freeze-thaw').value = result.freeze_thaw_cycles;
+                showToast(`Freeze-thaw cycle recorded (now ${result.freeze_thaw_cycles})`);
+                onRaptorBoxClick(currentRaptorBoxId);
+            } catch (err) {
+                showToast('Error: ' + err.message, 'error');
+            }
+        }
+    );
 }
 
 async function printRaptorLabel() {

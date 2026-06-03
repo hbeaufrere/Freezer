@@ -121,6 +121,26 @@ CREATE TABLE IF NOT EXISTS raptor_tubes (
 );
 
 -- ============================================================
+-- RETRIEVAL LOG
+-- Logs sample removals and freeze-thaw events with who/why/when.
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS retrieval_log (
+    id              SERIAL PRIMARY KEY,
+    section         TEXT NOT NULL CHECK (section IN ('research', 'raptor')),
+    tube_identifier TEXT NOT NULL,
+    tube_info       TEXT,
+    action          TEXT NOT NULL CHECK (action IN ('removed', 'thawed')),
+    retrieved_by    TEXT,
+    purpose         TEXT,
+    user_id         INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    timestamp       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_retrieval_log_section ON retrieval_log(section);
+CREATE INDEX IF NOT EXISTS idx_retrieval_log_timestamp ON retrieval_log(timestamp DESC);
+
+-- ============================================================
 -- INDEXES
 -- ============================================================
 

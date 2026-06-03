@@ -28,6 +28,55 @@ async function initResearchPage() {
     document.getElementById('btn-research-save').addEventListener('click', saveResearchTube);
     document.getElementById('btn-research-delete').addEventListener('click', deleteResearchTube);
     document.getElementById('btn-research-thaw').addEventListener('click', recordResearchThaw);
+
+    // Sample ID free / standardized toggle
+    document.querySelectorAll('input[name="research-sample-id-type"]').forEach(r => {
+        r.addEventListener('change', onSampleIdTypeChange);
+    });
+    ['std-date', 'std-animal-id', 'std-study-id', 'std-sequence'].forEach(id => {
+        document.getElementById(id).addEventListener('input', updateStdPreview);
+    });
+}
+
+function resetSampleIdWidget(currentSampleId) {
+    document.getElementById('sample-id-type-free').checked = true;
+    document.getElementById('sample-id-std-panel').style.display = 'none';
+    const input = document.getElementById('research-sample-id');
+    input.value = currentSampleId || '';
+    input.readOnly = false;
+    input.placeholder = 'e.g., EXP-2026-042';
+    document.getElementById('std-date').value = new Date().toISOString().split('T')[0];
+    document.getElementById('std-animal-id').value = '';
+    document.getElementById('std-study-id').value = '';
+    document.getElementById('std-sequence').value = '';
+}
+
+function onSampleIdTypeChange() {
+    const type = document.querySelector('input[name="research-sample-id-type"]:checked').value;
+    document.getElementById('sample-id-std-panel').style.display = type === 'standardized' ? '' : 'none';
+    const input = document.getElementById('research-sample-id');
+    if (type === 'standardized') {
+        input.readOnly = true;
+        input.placeholder = 'Auto-generated from fields above';
+        updateStdPreview();
+    } else {
+        input.readOnly = false;
+        input.placeholder = 'e.g., EXP-2026-042';
+    }
+}
+
+function updateStdPreview() {
+    const dateVal = document.getElementById('std-date').value; // YYYY-MM-DD
+    let datePart = '';
+    if (dateVal) {
+        const [y, m, d] = dateVal.split('-');
+        datePart = m + d + y.slice(2); // MMDDYY
+    }
+    const animal = document.getElementById('std-animal-id').value.trim();
+    const study = document.getElementById('std-study-id').value.trim();
+    const seq = document.getElementById('std-sequence').value.trim();
+    const parts = [study, animal, seq, datePart].filter(Boolean);
+    document.getElementById('research-sample-id').value = parts.join('-');
 }
 
 async function loadResearchQuickStats() {
@@ -73,12 +122,12 @@ function openResearchAddModal(row, col) {
     document.getElementById('research-tube-col').value = col;
     document.getElementById('research-tube-position').textContent =
         `${currentResearchBoxData.label} — Position ${positionLabel(row, col)}`;
-    document.getElementById('research-sample-id').value = '';
     document.getElementById('research-description').value = '';
     document.getElementById('research-date-stored').value = new Date().toISOString().split('T')[0];
     document.getElementById('research-freeze-thaw').value = 0;
     document.getElementById('btn-research-delete').style.display = 'none';
     document.getElementById('btn-research-thaw').style.display = 'none';
+    resetSampleIdWidget('');
 
     new bootstrap.Modal(document.getElementById('researchTubeModal')).show();
 }
@@ -91,12 +140,12 @@ function openResearchEditModal(tube, row, col) {
     document.getElementById('research-tube-col').value = col;
     document.getElementById('research-tube-position').textContent =
         `${currentResearchBoxData.label} — Position ${positionLabel(row, col)}`;
-    document.getElementById('research-sample-id').value = tube.sample_id || '';
     document.getElementById('research-description').value = tube.description || '';
     document.getElementById('research-date-stored').value = tube.date_stored || '';
     document.getElementById('research-freeze-thaw').value = tube.freeze_thaw_cycles || 0;
     document.getElementById('btn-research-delete').style.display = 'inline-block';
     document.getElementById('btn-research-thaw').style.display = 'inline-block';
+    resetSampleIdWidget(tube.sample_id || '');
 
     new bootstrap.Modal(document.getElementById('researchTubeModal')).show();
 }
@@ -133,30 +182,43 @@ async function recordResearchThaw() {
     const tubeId = document.getElementById('research-tube-id').value;
     if (!tubeId) return;
 
-    try {
-        const result = await API.put(`/api/research/tubes/${tubeId}/thaw`);
-        document.getElementById('research-freeze-thaw').value = result.freeze_thaw_cycles;
-        showToast(`Freeze-thaw cycle recorded (now ${result.freeze_thaw_cycles})`);
-        onResearchBoxClick(currentResearchBoxId);
-    } catch (err) {
-        showToast('Error: ' + err.message, 'error');
-    }
+    const sampleId = document.getElementById('research-sample-id').value.trim() || `tube #${tubeId}`;
+    showRetrievalPrompt(
+        'Record freeze-thaw',
+        `Sample: ${sampleId}`,
+        async ({ retrieved_by, purpose }) => {
+            try {
+                const result = await API.put(`/api/research/tubes/${tubeId}/thaw`, { retrieved_by, purpose });
+                document.getElementById('research-freeze-thaw').value = result.freeze_thaw_cycles;
+                showToast(`Freeze-thaw cycle recorded (now ${result.freeze_thaw_cycles})`);
+                onResearchBoxClick(currentResearchBoxId);
+            } catch (err) {
+                showToast('Error: ' + err.message, 'error');
+            }
+        }
+    );
 }
 
 async function deleteResearchTube() {
     const tubeId = document.getElementById('research-tube-id').value;
     if (!tubeId) return;
-    if (!confirm('Are you sure you want to remove this tube?')) return;
 
-    try {
-        await API.del(`/api/research/tubes/${tubeId}`);
-        showToast('Tube removed');
-        bootstrap.Modal.getInstance(document.getElementById('researchTubeModal')).hide();
-        onResearchBoxClick(currentResearchBoxId);
-        loadResearchQuickStats();
-    } catch (err) {
-        showToast('Error: ' + err.message, 'error');
-    }
+    const sampleId = document.getElementById('research-sample-id').value.trim() || `tube #${tubeId}`;
+    showRetrievalPrompt(
+        'Remove sample',
+        `Sample: ${sampleId}`,
+        async ({ retrieved_by, purpose }) => {
+            try {
+                await API.del(`/api/research/tubes/${tubeId}`, { retrieved_by, purpose });
+                showToast('Tube removed');
+                bootstrap.Modal.getInstance(document.getElementById('researchTubeModal')).hide();
+                onResearchBoxClick(currentResearchBoxId);
+                loadResearchQuickStats();
+            } catch (err) {
+                showToast('Error: ' + err.message, 'error');
+            }
+        }
+    );
 }
 
 async function onResearchSearch() {

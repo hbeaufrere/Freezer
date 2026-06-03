@@ -56,7 +56,37 @@
                     <div id="research-tube-position" class="form-control-plaintext fw-bold text-primary"></div>
                 </div>
                 <div class="mb-3">
-                    <label for="research-sample-id" class="form-label">Sample ID</label>
+                    <label class="form-label">Sample ID</label>
+                    <div class="mb-2">
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="research-sample-id-type" id="sample-id-type-free" value="free" checked>
+                            <label class="form-check-label" for="sample-id-type-free">Free text</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="research-sample-id-type" id="sample-id-type-std" value="standardized">
+                            <label class="form-check-label" for="sample-id-type-std">Standardized</label>
+                        </div>
+                    </div>
+                    <div id="sample-id-std-panel" style="display:none;" class="mb-2">
+                        <div class="row g-2">
+                            <div class="col">
+                                <label class="form-label small mb-1">Date</label>
+                                <input type="date" class="form-control form-control-sm" id="std-date">
+                            </div>
+                            <div class="col">
+                                <label class="form-label small mb-1">Animal ID</label>
+                                <input type="text" class="form-control form-control-sm" id="std-animal-id" placeholder="HAWK01">
+                            </div>
+                            <div class="col">
+                                <label class="form-label small mb-1">Study ID</label>
+                                <input type="text" class="form-control form-control-sm" id="std-study-id" placeholder="STUDY1">
+                            </div>
+                            <div class="col">
+                                <label class="form-label small mb-1">Sequence</label>
+                                <input type="text" class="form-control form-control-sm" id="std-sequence" placeholder="001">
+                            </div>
+                        </div>
+                    </div>
                     <input type="text" class="form-control" id="research-sample-id" placeholder="e.g., EXP-2026-042">
                 </div>
                 <div class="mb-3">

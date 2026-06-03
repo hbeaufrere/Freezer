@@ -43,13 +43,49 @@ const API = {
         return body;
     },
 
-    async del(url) {
-        const res = await fetch(url, { method: 'DELETE' });
+    async del(url, data) {
+        const opts = { method: 'DELETE' };
+        if (data) {
+            opts.headers = { 'Content-Type': 'application/json' };
+            opts.body = JSON.stringify(data);
+        }
+        const res = await fetch(url, opts);
         const body = await res.json();
         if (!res.ok) throw new Error(body.error || res.statusText);
         return body;
     }
 };
+
+/* Show the shared retrieval-prompt modal. onConfirm receives
+   { retrieved_by, purpose }. */
+function showRetrievalPrompt(title, description, onConfirm) {
+    const modal = document.getElementById('retrievalPromptModal');
+    if (!modal) { onConfirm({ retrieved_by: '', purpose: '' }); return; }
+
+    document.getElementById('retrievalPromptTitle').textContent = title;
+    document.getElementById('retrievalPromptDesc').textContent = description;
+
+    const byInput = document.getElementById('retrieval-by');
+    const purposeInput = document.getElementById('retrieval-purpose');
+    const u = window.__CURRENT_USER__;
+    byInput.value = u ? (u.full_name || u.email) : '';
+    purposeInput.value = '';
+
+    const bsModal = new bootstrap.Modal(modal);
+    const oldBtn = document.getElementById('retrieval-confirm-btn');
+    const newBtn = oldBtn.cloneNode(true);
+    oldBtn.parentNode.replaceChild(newBtn, oldBtn);
+
+    newBtn.addEventListener('click', () => {
+        const retrieved_by = byInput.value.trim();
+        const purpose = purposeInput.value.trim();
+        bsModal.hide();
+        onConfirm({ retrieved_by, purpose });
+    });
+
+    bsModal.show();
+    setTimeout(() => purposeInput.focus(), 300);
+}
 
 function showToast(message, type = 'success') {
     const container = document.getElementById('toast-container');

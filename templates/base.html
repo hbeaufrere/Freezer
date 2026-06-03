@@ -59,6 +59,11 @@
                             <i class="bi bi-bar-chart me-1"></i>Statistics
                         </a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path == '/retrieval-log' %}active{% endif %}" href="/retrieval-log">
+                            <i class="bi bi-journal-text me-1"></i>Retrieval Log
+                        </a>
+                    </li>
                     {% if is_admin %}
                     <li class="nav-item">
                         <a class="nav-link {% if request.path.startswith('/admin') %}active{% endif %}" href="/admin/users">
@@ -99,6 +104,44 @@
     </main>
 
     <div class="toast-container position-fixed bottom-0 end-0 p-3" id="toast-container"></div>
+
+    <!-- Retrieval Prompt Modal (shared) -->
+    <div class="modal fade" id="retrievalPromptModal" tabindex="-1">
+        <div class="modal-dialog modal-sm">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h6 class="modal-title" id="retrievalPromptTitle">Record retrieval</h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small mb-3" id="retrievalPromptDesc"></p>
+                    <div class="mb-3">
+                        <label for="retrieval-by" class="form-label">Performed by</label>
+                        <input type="text" class="form-control" id="retrieval-by" placeholder="Your name">
+                    </div>
+                    <div class="mb-2">
+                        <label for="retrieval-purpose" class="form-label">Purpose / Study</label>
+                        <input type="text" class="form-control" id="retrieval-purpose" placeholder="e.g., ELISA assay, Study ABC">
+                    </div>
+                </div>
+                <div class="modal-footer p-2">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary btn-sm" id="retrieval-confirm-btn">Confirm</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if current_user %}
+    <script>
+        window.__CURRENT_USER__ = {
+            id: {{ current_user.id }},
+            email: "{{ current_user.email | e }}",
+            full_name: "{{ (current_user.full_name or '') | e }}",
+            role: "{{ current_user.role }}"
+        };
+    </script>
+    {% endif %}
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="/static/js/app.js"></script>

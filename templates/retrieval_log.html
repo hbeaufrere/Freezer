@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Retrieval Log - CLIPR Repository{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title"><i class="bi bi-journal-text me-2 text-primary"></i>Retrieval Log</h1>
+        <p class="page-subtitle">All sample removals and freeze-thaw events</p>
+    </div>
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+        <span class="quick-stat-badge"><span class="dot"></span><span id="log-stat-total">— entries</span></span>
+        <select class="form-select form-select-sm" id="filter-section" style="width:auto;">
+            <option value="">All sections</option>
+            <option value="research">CLIPR Research</option>
+            <option value="raptor">Raptor Biobank</option>
+        </select>
+        <select class="form-select form-select-sm" id="filter-action" style="width:auto;">
+            <option value="">All actions</option>
+            <option value="removed">Removed</option>
+            <option value="thawed">Freeze-thaw</option>
+        </select>
+        <div class="position-relative">
+            <input type="text" class="form-control form-control-sm" id="filter-search"
+                   placeholder="Search tube ID, person, purpose..." style="min-width:240px;">
+        </div>
+    </div>
+</div>
+
+<div class="content-card">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0" id="retrieval-log-table">
+            <thead>
+                <tr>
+                    <th style="width:170px;">Timestamp</th>
+                    <th style="width:100px;">Section</th>
+                    <th>Tube / Sample ID</th>
+                    <th style="width:110px;">Action</th>
+                    <th>Performed By</th>
+                    <th>Purpose / Study</th>
+                    <th>Location at Retrieval</th>
+                    {% if current_user and current_user.role == 'admin' %}
+                    <th style="width:60px;"></th>
+                    {% endif %}
+                </tr>
+            </thead>
+            <tbody id="log-body">
+                <tr>
+                    <td colspan="8" class="text-center text-muted py-4">
+                        <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
+                        Loading...
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="d-flex align-items-center gap-3 mt-3" id="log-pagination" style="display:none!important;">
+    <button class="btn btn-outline-secondary btn-sm" id="log-prev-btn" disabled>
+        <i class="bi bi-chevron-left"></i> Previous
+    </button>
+    <span id="log-page-info" class="text-muted small"></span>
+    <button class="btn btn-outline-secondary btn-sm" id="log-next-btn" disabled>
+        Next <i class="bi bi-chevron-right"></i>
+    </button>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>window.__IS_ADMIN__ = {{ 'true' if current_user and current_user.role == 'admin' else 'false' }};</script>
+<script src="/static/js/retrieval_log.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', () => { initRetrievalLogPage(); });
+</script>
+{% endblock %}

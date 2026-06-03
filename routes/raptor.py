@@ -5,8 +5,25 @@ from flask import Blueprint, jsonify, request
 from db import get_db
 from auth import require_role
 from services.id_generator import generate_raptor_tube_id
+from routes.retrieval_log import log_retrieval
 
 raptor_bp = Blueprint('raptor', __name__)
+
+
+def _tube_location(db, tube):
+    row = db.execute("""
+        SELECT b.label AS box_label, d.label AS drawer_label,
+               r.label AS rack_label, sh.name AS shelf_name
+        FROM boxes b
+        JOIN drawers d ON b.drawer_id = d.id
+        JOIN racks r ON d.rack_id = r.id
+        JOIN shelves sh ON r.shelf_id = sh.id
+        WHERE b.id = %s
+    """, (tube['box_id'],)).fetchone()
+    if not row:
+        return f"Position {tube['row_pos']},{tube['col_pos']}"
+    return (f"{row['shelf_name']} / {row['rack_label']} / {row['drawer_label']} / "
+            f"{row['box_label']} / {tube['row_pos']},{tube['col_pos']}")
 
 
 def _fetch_raptor_tube(db, row_id):
@@ -189,6 +206,18 @@ def update_tube(tube_id):
 @require_role('raptor')
 def delete_tube(tube_id):
     db = get_db()
+    data = request.get_json(silent=True) or {}
+    retrieved_by = (data.get('retrieved_by') or '').strip() or None
+    purpose = (data.get('purpose') or '').strip() or None
+
+    tube = db.execute(
+        "SELECT id, tube_id, box_id, row_pos, col_pos FROM raptor_tubes WHERE id = %s",
+        (tube_id,)
+    ).fetchone()
+    if tube:
+        log_retrieval('raptor', tube['tube_id'], _tube_location(db, tube),
+                      'removed', retrieved_by, purpose)
+
     db.execute("DELETE FROM raptor_tubes WHERE id = %s", (tube_id,))
     db.commit()
     return jsonify({'success': True})
@@ -197,16 +226,27 @@ def delete_tube(tube_id):
 @raptor_bp.route('/api/raptor/tubes/<int:tube_id>/thaw', methods=['PUT'])
 @require_role('raptor')
 def record_thaw(tube_id):
-    """Increment freeze-thaw cycle count by 1."""
+    """Increment freeze-thaw cycle count by 1 and log the retrieval."""
     db = get_db()
+    data = request.get_json(silent=True) or {}
+    retrieved_by = (data.get('retrieved_by') or '').strip() or None
+    purpose = (data.get('purpose') or '').strip() or None
+
+    raw = db.execute(
+        "SELECT id, tube_id, box_id, row_pos, col_pos FROM raptor_tubes WHERE id = %s",
+        (tube_id,)
+    ).fetchone()
+    if not raw:
+        return jsonify({'error': 'Tube not found'}), 404
+
     db.execute(
         "UPDATE raptor_tubes SET freeze_thaw_cycles = freeze_thaw_cycles + 1, updated_at = now() WHERE id = %s",
         (tube_id,)
     )
+    log_retrieval('raptor', raw['tube_id'], _tube_location(db, raw),
+                  'thawed', retrieved_by, purpose)
+
     tube = _fetch_raptor_tube(db, tube_id)
-    if not tube:
-        db.rollback()
-        return jsonify({'error': 'Tube not found'}), 404
     db.commit()
     return jsonify(dict(tube))
 
