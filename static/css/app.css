@@ -46,20 +46,20 @@ a { color: var(--primary); }
 a:hover { color: var(--primary-700); }
 
 /* ============================================================
-   NAVBAR
+   NAVBAR (blue, like the PythonAnywhere version)
    ============================================================ */
 
 .app-navbar {
-    background: var(--surface);
-    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
+    border-bottom: 1px solid #1e40af;
     box-shadow: var(--shadow-sm);
     padding: 0.6rem 0;
 }
 
 .app-navbar .navbar-brand {
     font-weight: 700;
-    color: var(--text) !important;
-    font-size: 1rem;
+    color: #ffffff !important;
+    font-size: 1.05rem;
     letter-spacing: -0.01em;
 }
 
@@ -67,7 +67,7 @@ a:hover { color: var(--primary-700); }
     width: 32px;
     height: 32px;
     border-radius: 8px;
-    background: linear-gradient(135deg, var(--primary) 0%, #1e3a8a 100%);
+    background: rgba(255,255,255,0.18);
     color: white;
     display: inline-flex;
     align-items: center;
@@ -76,11 +76,11 @@ a:hover { color: var(--primary-700); }
     font-size: 1rem;
 }
 
-.app-navbar .brand-text { color: var(--text); }
-.app-navbar .brand-divider { color: var(--border-strong); margin: 0 6px; }
+.app-navbar .brand-text { color: #ffffff; }
+.app-navbar .brand-divider { color: rgba(255,255,255,0.5); margin: 0 6px; font-weight: 400; }
 
 .app-navbar .nav-link {
-    color: var(--text-soft) !important;
+    color: rgba(255,255,255,0.85) !important;
     font-weight: 500;
     padding: 0.5rem 0.85rem;
     border-radius: 8px;
@@ -89,23 +89,41 @@ a:hover { color: var(--primary-700); }
 }
 
 .app-navbar .nav-link:hover {
-    background: var(--surface-2);
-    color: var(--text) !important;
+    background: rgba(255,255,255,0.12);
+    color: #ffffff !important;
 }
 
 .app-navbar .nav-link.active {
-    background: var(--primary-50);
-    color: var(--primary-700) !important;
+    background: rgba(255,255,255,0.18);
+    color: #ffffff !important;
     font-weight: 600;
 }
 
+.app-navbar .navbar-toggler {
+    border-color: rgba(255,255,255,0.4);
+}
+.app-navbar .navbar-toggler-icon {
+    filter: invert(1);
+}
+
 .app-btn {
-    border-color: var(--border);
-    color: var(--text-soft);
+    background: rgba(255,255,255,0.12);
+    border-color: rgba(255,255,255,0.25);
+    color: #ffffff;
     font-weight: 500;
     border-radius: 8px;
 }
-.app-btn:hover { background: var(--surface-2); border-color: var(--border-strong); color: var(--text); }
+.app-btn:hover, .app-btn:focus {
+    background: rgba(255,255,255,0.22);
+    border-color: rgba(255,255,255,0.4);
+    color: #ffffff;
+}
+
+.app-navbar .dropdown-menu {
+    color: var(--text);
+}
+.app-navbar .dropdown-menu .dropdown-item { color: var(--text); }
+.app-navbar .dropdown-menu .dropdown-header { color: var(--text-soft); }
 
 /* ============================================================
    PAGE LAYOUT
