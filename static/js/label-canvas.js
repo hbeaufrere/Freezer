@@ -30,22 +30,59 @@ function generateRaptorLabel(tubeData) {
     return img;
 }
 
+/* Split `text` into up to `maxLines` lines, each at most `maxCharsPerLine`
+   characters. Prefers breaking at hyphens close to the line limit so an ID
+   like "PRV-TBY-001-0626" won't be cut mid-segment. */
+function wrapForBradyLabel(text, maxCharsPerLine = 18, maxLines = 3) {
+    if (!text) return '';
+    const lines = [];
+    let rest = String(text);
+
+    while (rest.length > 0 && lines.length < maxLines) {
+        if (rest.length <= maxCharsPerLine || lines.length === maxLines - 1) {
+            // last allowed line — take up to maxChars and bail
+            lines.push(rest.slice(0, maxCharsPerLine));
+            rest = rest.slice(maxCharsPerLine);
+            break;
+        }
+
+        // Find a hyphen near the end of the allowed range to break at
+        let breakAt = maxCharsPerLine;
+        for (let i = maxCharsPerLine; i >= Math.max(maxCharsPerLine - 5, 1); i--) {
+            if (rest[i - 1] === '-') { breakAt = i; break; }
+        }
+
+        lines.push(rest.slice(0, breakAt));
+        rest = rest.slice(breakAt);
+    }
+
+    return lines.join('\n');
+}
+
 /* Open a clean popup window with a large Code 128 barcode of `value`,
    intended to be scanned by Brady Express Labels (or any barcode-aware
-   label app) on a phone. Returns the popup or null if blocked. */
+   label app) on a phone. The encoded value is line-wrapped so Brady
+   prints multi-line on a small 30mm Eppendorf label at 8pt. */
 function openBradyScanWindow(value) {
     if (!value) {
         showToast('Nothing to encode — sample/tube ID is empty.', 'error');
         return null;
     }
-    const w = window.open('', '_blank', 'width=520,height=640');
+    const wrapped = wrapForBradyLabel(value, 18, 3);
+    const lineCount = wrapped.split('\n').length;
+    const truncated = wrapped.replace(/\n/g, '').length < String(value).length;
+
+    const w = window.open('', '_blank', 'width=520,height=680');
     if (!w) {
         showToast('Pop-up blocked. Allow pop-ups for this site to use barcode scan.', 'error');
         return null;
     }
-    const escaped = String(value).replace(/[&<>"']/g, c => (
+    const escapeHtml = s => String(s).replace(/[&<>"']/g, c => (
         {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]
     ));
+    const originalEsc = escapeHtml(value);
+    const wrappedDisplay = escapeHtml(wrapped).replace(/\n/g, '<br>');
+
     w.document.write(`<!DOCTYPE html><html><head><title>Scan with Brady app</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
@@ -59,7 +96,21 @@ body {
     min-height: 100vh; padding: 24px;
 }
 h1 { font-size: 0.85rem; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
-.id { font-size: 1.25rem; color: #0f172a; font-weight: 700; font-family: 'SF Mono', Menlo, monospace; margin-bottom: 24px; word-break: break-all; text-align: center; max-width: 100%; }
+.id { font-size: 1.05rem; color: #0f172a; font-weight: 700; font-family: 'SF Mono', Menlo, monospace; margin-bottom: 8px; word-break: break-all; text-align: center; max-width: 100%; }
+.preview {
+    background: #f8fafc;
+    border: 1px dashed #94a3b8;
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin-bottom: 16px;
+    font-family: 'SF Mono', Menlo, monospace;
+    font-size: 0.9rem;
+    line-height: 1.4;
+    color: #1e293b;
+    text-align: center;
+}
+.preview-label { font-size: 0.7rem; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; font-family: 'Inter', sans-serif; }
+.warn { color: #b45309; font-size: 0.8rem; margin-bottom: 12px; }
 .barcode-frame {
     background: white;
     border: 1px solid #e2e8f0;
@@ -71,21 +122,26 @@ h1 { font-size: 0.85rem; color: #64748b; font-weight: 600; text-transform: upper
     overflow: hidden;
 }
 svg { max-width: 100%; height: auto; display: block; }
-.help { color: #475569; font-size: 0.9rem; text-align: center; line-height: 1.55; max-width: 380px; margin-top: 8px; }
+.help { color: #475569; font-size: 0.9rem; text-align: center; line-height: 1.55; max-width: 380px; margin-top: 4px; }
 .help ol { text-align: left; padding-left: 24px; margin-top: 8px; }
 .help li { margin-bottom: 4px; }
 .help b { color: #0f172a; }
 </style>
 </head><body>
 <h1>Scan with Brady app</h1>
-<div class="id">${escaped}</div>
+<div class="id">${originalEsc}</div>
+<div class="preview">
+    <div class="preview-label">Label preview (${lineCount} ${lineCount === 1 ? 'line' : 'lines'})</div>
+    ${wrappedDisplay}
+</div>
+${truncated ? '<div class="warn">⚠ ID too long — truncated to fit 3 lines × 18 chars.</div>' : ''}
 <div class="barcode-frame"><svg id="bc"></svg></div>
 <div class="help">
     <div>Point your phone camera at the barcode above.</div>
     <ol>
         <li>Open <b>Brady Express Labels</b> on your phone</li>
         <li>Tap the <b>Scan / Barcode</b> icon</li>
-        <li>Aim at this screen — the ID will fill in automatically</li>
+        <li>Aim at this screen — the ID will fill in, wrapped to ${lineCount} ${lineCount === 1 ? 'line' : 'lines'}</li>
         <li>Tap <b>Print</b> to send to the M211</li>
     </ol>
 </div>
@@ -93,13 +149,14 @@ svg { max-width: 100%; height: auto; display: block; }
 <script>
     document.addEventListener('DOMContentLoaded', () => {
         try {
-            JsBarcode("#bc", ${JSON.stringify(String(value))}, {
+            // Use CODE128 auto so JsBarcode picks Set A when needed (newlines)
+            JsBarcode("#bc", ${JSON.stringify(wrapped)}, {
                 format: "CODE128",
                 width: 3,
                 height: 130,
-                fontSize: 18,
+                fontSize: 16,
                 margin: 10,
-                displayValue: true
+                displayValue: false
             });
         } catch (e) {
             document.getElementById('bc').outerHTML =
