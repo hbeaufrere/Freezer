@@ -10,9 +10,13 @@ DATABASE_URL = os.environ.get('DATABASE_URL', '')
 # ----- Flask -----
 SECRET_KEY = os.environ.get('SECRET_KEY', 'freezer-default-secret-change-me')
 
-# ----- Email (Resend) -----
-RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
-EMAIL_FROM = os.environ.get('EMAIL_FROM', 'CLIPR Biobank <onboarding@resend.dev>')
+# ----- Email (Gmail SMTP) -----
+# Requires a Gmail App Password (set up 2FA, then generate one at
+# https://myaccount.google.com/apppasswords). Use the 16-char value here.
+GMAIL_USER = os.environ.get('GMAIL_USER', '')
+GMAIL_APP_PASSWORD = os.environ.get('GMAIL_APP_PASSWORD', '')
+# Display name + sending address. Gmail requires the address to match GMAIL_USER.
+EMAIL_FROM = os.environ.get('EMAIL_FROM', GMAIL_USER)
 APP_BASE_URL = os.environ.get('APP_BASE_URL', 'http://localhost:5000')
 
 # ----- Cron auth -----

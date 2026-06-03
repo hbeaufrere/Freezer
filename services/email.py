@@ -1,32 +1,40 @@
-"""Transactional email via Resend.
+"""Transactional email via Gmail SMTP.
 
-Used to send temporary passwords to admin-created users. Falls back to
-printing the email body to stdout if RESEND_API_KEY is not configured,
+Sends temporary passwords to admin-created users. Requires a Gmail App
+Password (set up 2FA, then generate at https://myaccount.google.com/apppasswords).
+
+Falls back to printing the email body to stdout if Gmail isn't configured,
 which is useful for local development.
 """
 
-import resend
+import smtplib
+import ssl
+from email.message import EmailMessage
 
 import config
 
 
 def _client_configured() -> bool:
-    return bool(config.RESEND_API_KEY)
+    return bool(config.GMAIL_USER and config.GMAIL_APP_PASSWORD)
 
 
 def _send(to: str, subject: str, html: str, text: str) -> None:
     if not _client_configured():
-        # Dev fallback: log so the admin can grab the temp password locally
         print(f"\n[email:dev] To: {to}\n[email:dev] Subject: {subject}\n{text}\n")
         return
-    resend.api_key = config.RESEND_API_KEY
-    resend.Emails.send({
-        'from': config.EMAIL_FROM,
-        'to': [to],
-        'subject': subject,
-        'html': html,
-        'text': text,
-    })
+
+    msg = EmailMessage()
+    msg['Subject'] = subject
+    msg['From'] = config.EMAIL_FROM or config.GMAIL_USER
+    msg['To'] = to
+    msg.set_content(text)
+    msg.add_alternative(html, subtype='html')
+
+    context = ssl.create_default_context()
+    with smtplib.SMTP('smtp.gmail.com', 587, timeout=15) as smtp:
+        smtp.starttls(context=context)
+        smtp.login(config.GMAIL_USER, config.GMAIL_APP_PASSWORD)
+        smtp.send_message(msg)
 
 
 def send_temp_password(to: str, full_name: str, temp_password: str, role_label: str) -> None:
