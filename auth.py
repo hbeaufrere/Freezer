@@ -11,7 +11,7 @@ import string
 from functools import wraps
 
 from flask import g, session, request, jsonify, redirect, url_for, render_template
-from passlib.hash import bcrypt
+import bcrypt
 
 from db import get_db
 
@@ -22,12 +22,16 @@ _TEMP_PW_ALPHABET = string.ascii_letters + string.digits
 
 
 def hash_password(plaintext: str) -> str:
-    return bcrypt.hash(plaintext)
+    # bcrypt only uses the first 72 bytes; truncate explicitly to avoid
+    # the 4.x library raising on longer inputs.
+    pw = plaintext.encode('utf-8')[:72]
+    return bcrypt.hashpw(pw, bcrypt.gensalt()).decode('utf-8')
 
 
 def verify_password(plaintext: str, hashed: str) -> bool:
     try:
-        return bcrypt.verify(plaintext, hashed)
+        pw = plaintext.encode('utf-8')[:72]
+        return bcrypt.checkpw(pw, hashed.encode('utf-8'))
     except (ValueError, TypeError):
         return False
 
