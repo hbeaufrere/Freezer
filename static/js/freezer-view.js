@@ -78,6 +78,34 @@ function createRackElement(rack, options = {}) {
         labelEl.textContent = `D${drawer.position}`;
         drawerEl.appendChild(labelEl);
 
+        if (options.editableDrawerNames) {
+            const nameInput = document.createElement('input');
+            nameInput.type = 'text';
+            nameInput.className = 'drawer-name-input';
+            nameInput.value = drawer.name || '';
+            nameInput.placeholder = '— name —';
+            nameInput.title = 'Click to edit drawer name';
+            nameInput.dataset.drawerId = drawer.id;
+            nameInput.addEventListener('click', (e) => e.stopPropagation());
+            nameInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') { e.preventDefault(); nameInput.blur(); }
+                if (e.key === 'Escape') { nameInput.value = drawer.name || ''; nameInput.blur(); }
+            });
+            nameInput.addEventListener('blur', async () => {
+                const newName = nameInput.value.trim();
+                if (newName === (drawer.name || '')) return;
+                try {
+                    const result = await API.patch(`/api/drawers/${drawer.id}`, { name: newName });
+                    drawer.name = result.name || '';
+                    showToast('Drawer renamed', 'success');
+                } catch (err) {
+                    showToast('Failed to save drawer name: ' + err.message, 'error');
+                    nameInput.value = drawer.name || '';
+                }
+            });
+            drawerEl.appendChild(nameInput);
+        }
+
         drawer.boxes.forEach(box => {
             const boxEl = document.createElement('div');
             boxEl.className = 'box-slot ' + getOccupancyClass(box.occupied, box.capacity);
@@ -114,7 +142,7 @@ function getOccupancyClass(occupied, capacity) {
 }
 
 /* Render a sidebar with racks for a specific section */
-async function renderSectionSidebar(containerId, sectionFilter, onBoxClick) {
+async function renderSectionSidebar(containerId, sectionFilter, onBoxClick, opts = {}) {
     const container = document.getElementById(containerId);
     try {
         const shelves = await API.get('/api/freezer');
@@ -131,12 +159,15 @@ async function renderSectionSidebar(containerId, sectionFilter, onBoxClick) {
 
         filtered.forEach(shelf => {
             const shelfTitle = document.createElement('div');
-            shelfTitle.className = 'fw-bold text-muted small mb-1 mt-2';
+            shelfTitle.className = 'sidebar-shelf-title';
             shelfTitle.textContent = shelf.name;
             container.appendChild(shelfTitle);
 
             shelf.racks.forEach(rack => {
-                const rackEl = createRackElement(rack, { onBoxClick });
+                const rackEl = createRackElement(rack, {
+                    onBoxClick,
+                    editableDrawerNames: !!opts.editableDrawerNames,
+                });
                 rackEl.classList.add('mb-2');
                 container.appendChild(rackEl);
             });

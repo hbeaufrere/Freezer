@@ -2,29 +2,18 @@
 {% block title %}Raptor Biobank - CLIPR Repository{% endblock %}
 
 {% block content %}
-<div class="row mb-3">
-    <div class="col">
-        <h4 class="mb-0">
-            <img src="/static/img/logo-raptor.png" alt="" height="28" class="me-2" onerror="this.style.display='none'">
-            Raptor Plasma Biobank
-        </h4>
-        <small class="text-muted">Upper Shelf Only</small>
+<div class="page-header">
+    <div>
+        <h1 class="page-title"><i class="bi bi-feather me-2 text-primary"></i>Raptor Plasma Biobank</h1>
+        <p class="page-subtitle">Upper Shelf Only</p>
     </div>
-    <div class="col-auto">
-        <div class="position-relative" style="min-width: 350px;">
+    <div class="d-flex align-items-center gap-3 flex-wrap">
+        <span class="quick-stat-badge blue"><span class="dot"></span><span id="raptor-stat-total">0 samples</span></span>
+        <span class="quick-stat-badge"><span class="dot"></span><span id="raptor-stat-species">0 species</span></span>
+        <div class="position-relative" style="min-width: 360px;">
             <input type="text" class="form-control" id="raptor-search" placeholder="Search by tube ID, species, WRMD#, VMTH#...">
             <div class="search-results-dropdown" id="raptor-search-results"></div>
         </div>
-    </div>
-</div>
-
-<!-- Quick stats -->
-<div class="row g-3 mb-3" id="raptor-quick-stats">
-    <div class="col-auto">
-        <span class="badge bg-primary fs-6" id="raptor-stat-total">0 samples</span>
-    </div>
-    <div class="col-auto">
-        <span class="badge bg-info fs-6" id="raptor-stat-species">0 species</span>
     </div>
 </div>
 

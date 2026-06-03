@@ -47,8 +47,12 @@ CREATE TABLE IF NOT EXISTS drawers (
     rack_id     INTEGER NOT NULL REFERENCES racks(id) ON DELETE CASCADE,
     position    INTEGER NOT NULL,
     label       TEXT,
+    name        TEXT,
     UNIQUE(rack_id, position)
 );
+
+-- Idempotent additions for already-provisioned databases
+ALTER TABLE drawers ADD COLUMN IF NOT EXISTS name TEXT;
 
 CREATE TABLE IF NOT EXISTS boxes (
     id          SERIAL PRIMARY KEY,

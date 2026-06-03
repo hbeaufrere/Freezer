@@ -19,7 +19,7 @@ def get_freezer():
             sh.position AS shelf_position, sh.section AS shelf_section,
             r.id AS rack_id, r.position AS rack_position,
             r.label AS rack_label, r.designation AS rack_designation,
-            d.id AS drawer_id, d.position AS drawer_position, d.label AS drawer_label,
+            d.id AS drawer_id, d.position AS drawer_position, d.label AS drawer_label, d.name AS drawer_name,
             b.id AS box_id, b.position AS box_position, b.label AS box_label,
             b.grid_rows, b.grid_cols, b.section AS box_section,
             COALESCE(rc.cnt, 0) + COALESCE(rp.cnt, 0) AS occupied,
@@ -70,6 +70,7 @@ def get_freezer():
                 'id': did,
                 'position': row['drawer_position'],
                 'label': row['drawer_label'],
+                'name': row['drawer_name'],
                 'boxes': [],
             }
             drawers[did] = drawer
@@ -115,10 +116,28 @@ def list_racks(shelf_id):
 @require_login
 def list_drawers(rack_id):
     rows = get_db().execute(
-        "SELECT id, rack_id, position, label FROM drawers WHERE rack_id = %s ORDER BY position",
+        "SELECT id, rack_id, position, label, name FROM drawers WHERE rack_id = %s ORDER BY position",
         (rack_id,)
     ).fetchall()
     return jsonify([dict(r) for r in rows])
+
+
+@freezer_bp.route('/api/drawers/<int:drawer_id>', methods=['PATCH'])
+@require_role('raptor', 'clipr')
+def update_drawer(drawer_id):
+    """Update the user-facing name on a drawer (label stays fixed)."""
+    db = get_db()
+    data = request.get_json() or {}
+    new_name = data.get('name')
+    if new_name is not None:
+        new_name = new_name.strip() or None
+    try:
+        db.execute("UPDATE drawers SET name = %s WHERE id = %s", (new_name, drawer_id))
+        db.commit()
+        return jsonify({'success': True, 'name': new_name})
+    except Exception as e:
+        db.rollback()
+        return jsonify({'error': str(e)}), 400
 
 
 @freezer_bp.route('/api/drawers/<int:drawer_id>/boxes')

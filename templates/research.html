@@ -2,29 +2,18 @@
 {% block title %}CLIPR Research - CLIPR Repository{% endblock %}
 
 {% block content %}
-<div class="row mb-3">
-    <div class="col">
-        <h4 class="mb-0">
-            <img src="/static/img/logo-clipr.jpg" alt="" height="28" class="me-2" onerror="this.style.display='none'">
-            CLIPR Research
-        </h4>
-        <small class="text-muted">Middle and Lower Shelves</small>
+<div class="page-header">
+    <div>
+        <h1 class="page-title"><i class="bi bi-flask me-2 text-success"></i>CLIPR Research</h1>
+        <p class="page-subtitle">Middle and Lower Shelves</p>
     </div>
-    <div class="col-auto">
-        <div class="position-relative" style="min-width: 300px;">
+    <div class="d-flex align-items-center gap-3 flex-wrap">
+        <span class="quick-stat-badge green"><span class="dot"></span><span id="research-stat-total">0 tubes</span></span>
+        <span class="quick-stat-badge"><span class="dot"></span><span id="research-stat-boxes">0 boxes in use</span></span>
+        <div class="position-relative" style="min-width: 320px;">
             <input type="text" class="form-control" id="research-search" placeholder="Search by sample ID or description...">
             <div class="search-results-dropdown" id="research-search-results"></div>
         </div>
-    </div>
-</div>
-
-<!-- Quick stats -->
-<div class="row g-3 mb-3" id="research-quick-stats">
-    <div class="col-auto">
-        <span class="badge bg-success fs-6" id="research-stat-total">0 tubes</span>
-    </div>
-    <div class="col-auto">
-        <span class="badge bg-secondary fs-6" id="research-stat-boxes">0 boxes in use</span>
     </div>
 </div>
 

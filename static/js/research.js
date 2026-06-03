@@ -5,7 +5,7 @@ let currentResearchBoxData = null;
 
 async function initResearchPage() {
     // Load sidebar racks
-    await renderSectionSidebar('research-rack-sidebar', 'research', onResearchBoxClick);
+    await renderSectionSidebar('research-rack-sidebar', 'research', onResearchBoxClick, { editableDrawerNames: true });
 
     // Load quick stats
     loadResearchQuickStats();
@@ -35,9 +35,7 @@ async function loadResearchQuickStats() {
         const stats = await API.get('/api/stats/research');
         document.getElementById('research-stat-total').textContent = `${stats.total_samples} tubes`;
         document.getElementById('research-stat-boxes').textContent = `${stats.boxes_with_samples} boxes in use`;
-    } catch (err) {
-        console.error('Failed to load research stats:', err);
-    }
+    } catch (err) { console.error('Failed to load research stats:', err); }
 }
 
 async function onResearchBoxClick(boxId, boxInfo) {
