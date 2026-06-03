@@ -43,6 +43,7 @@ async function initRaptorPage() {
     document.getElementById('btn-raptor-delete').addEventListener('click', deleteRaptorTube);
     document.getElementById('btn-raptor-thaw').addEventListener('click', recordThaw);
     document.getElementById('btn-raptor-print').addEventListener('click', printRaptorLabel);
+    document.getElementById('btn-raptor-brady-scan').addEventListener('click', showRaptorBradyScan);
     document.getElementById('btn-add-species').addEventListener('click', addNewSpecies);
 }
 
@@ -218,6 +219,7 @@ function openRaptorAddModal(row, col) {
     document.getElementById('btn-raptor-delete').style.display = 'none';
     document.getElementById('btn-raptor-thaw').style.display = 'none';
     document.getElementById('btn-raptor-print').style.display = 'none';
+    document.getElementById('btn-raptor-brady-scan').style.display = 'none';
     document.getElementById('raptor-num-tubes-group').style.display = 'block';
     document.getElementById('raptor-num-tubes').value = 1;
 
@@ -255,6 +257,7 @@ function openRaptorEditModal(tube, row, col) {
     document.getElementById('btn-raptor-delete').style.display = 'inline-block';
     document.getElementById('btn-raptor-thaw').style.display = 'inline-block';
     document.getElementById('btn-raptor-print').style.display = 'inline-block';
+    document.getElementById('btn-raptor-brady-scan').style.display = 'inline-block';
     document.getElementById('raptor-num-tubes-group').style.display = 'none';
 
     // Store tube data for printing
@@ -359,6 +362,11 @@ async function recordThaw() {
             }
         }
     );
+}
+
+function showRaptorBradyScan() {
+    const tubeId = document.getElementById('raptor-tube-id-badge').textContent.trim();
+    openBradyScanWindow(tubeId);
 }
 
 async function printRaptorLabel() {

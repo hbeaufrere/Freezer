@@ -29,6 +29,7 @@ async function initResearchPage() {
     document.getElementById('btn-research-delete').addEventListener('click', deleteResearchTube);
     document.getElementById('btn-research-thaw').addEventListener('click', recordResearchThaw);
     document.getElementById('btn-research-print').addEventListener('click', printResearchLabel);
+    document.getElementById('btn-research-brady-scan').addEventListener('click', showResearchBradyScan);
 
     // Sample ID free / standardized toggle
     document.querySelectorAll('input[name="research-sample-id-type"]').forEach(r => {
@@ -129,6 +130,7 @@ function openResearchAddModal(row, col) {
     document.getElementById('btn-research-delete').style.display = 'none';
     document.getElementById('btn-research-thaw').style.display = 'none';
     document.getElementById('btn-research-print').style.display = 'none';
+    document.getElementById('btn-research-brady-scan').style.display = 'none';
     resetSampleIdWidget('');
 
     new bootstrap.Modal(document.getElementById('researchTubeModal')).show();
@@ -148,9 +150,15 @@ function openResearchEditModal(tube, row, col) {
     document.getElementById('btn-research-delete').style.display = 'inline-block';
     document.getElementById('btn-research-thaw').style.display = 'inline-block';
     document.getElementById('btn-research-print').style.display = 'inline-block';
+    document.getElementById('btn-research-brady-scan').style.display = 'inline-block';
     resetSampleIdWidget(tube.sample_id || '');
 
     new bootstrap.Modal(document.getElementById('researchTubeModal')).show();
+}
+
+function showResearchBradyScan() {
+    const sampleId = document.getElementById('research-sample-id').value.trim();
+    openBradyScanWindow(sampleId);
 }
 
 async function printResearchLabel() {
