@@ -28,7 +28,7 @@ async function initResearchPage() {
     document.getElementById('btn-research-save').addEventListener('click', saveResearchTube);
     document.getElementById('btn-research-delete').addEventListener('click', deleteResearchTube);
     document.getElementById('btn-research-thaw').addEventListener('click', recordResearchThaw);
-    document.getElementById('btn-research-print').addEventListener('click', printResearchLabel);
+    document.getElementById('btn-research-export').addEventListener('click', exportResearchLabel);
     document.getElementById('btn-research-brady-scan').addEventListener('click', showResearchBradyScan);
 
     // Sample ID free / standardized toggle
@@ -129,7 +129,7 @@ function openResearchAddModal(row, col) {
     document.getElementById('research-freeze-thaw').value = 0;
     document.getElementById('btn-research-delete').style.display = 'none';
     document.getElementById('btn-research-thaw').style.display = 'none';
-    document.getElementById('btn-research-print').style.display = 'none';
+    document.getElementById('btn-research-export').style.display = 'none';
     document.getElementById('btn-research-brady-scan').style.display = 'none';
     resetSampleIdWidget('');
 
@@ -149,7 +149,7 @@ function openResearchEditModal(tube, row, col) {
     document.getElementById('research-freeze-thaw').value = tube.freeze_thaw_cycles || 0;
     document.getElementById('btn-research-delete').style.display = 'inline-block';
     document.getElementById('btn-research-thaw').style.display = 'inline-block';
-    document.getElementById('btn-research-print').style.display = 'inline-block';
+    document.getElementById('btn-research-export').style.display = 'inline-block';
     document.getElementById('btn-research-brady-scan').style.display = 'inline-block';
     resetSampleIdWidget(tube.sample_id || '');
 
@@ -161,19 +161,16 @@ function showResearchBradyScan() {
     openBradyScanWindow(sampleId);
 }
 
-async function printResearchLabel() {
-    try {
-        const sampleId = document.getElementById('research-sample-id').value.trim();
-        if (!sampleId) {
-            showToast('No sample ID to print', 'error');
-            return;
-        }
-        const img = generateCliprLabel(sampleId);
-        await printLabel(img);
-        showToast('Label sent to printer');
-    } catch (err) {
-        showToast('Print error: ' + err.message, 'error');
+function exportResearchLabel() {
+    const sampleId = document.getElementById('research-sample-id').value.trim();
+    if (!sampleId) {
+        showToast('No sample ID to export', 'error');
+        return;
     }
+    // Render at 4x for a sharper, print-friendly image (~812x408 px)
+    const canvas = renderCliprLabelCanvas(sampleId, 4);
+    downloadCanvasAsJpeg(canvas, `clipr-${sampleId}.jpg`);
+    showToast('Label saved to Downloads');
 }
 
 async function saveResearchTube() {

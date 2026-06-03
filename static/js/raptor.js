@@ -42,7 +42,7 @@ async function initRaptorPage() {
     document.getElementById('btn-raptor-save').addEventListener('click', saveRaptorTube);
     document.getElementById('btn-raptor-delete').addEventListener('click', deleteRaptorTube);
     document.getElementById('btn-raptor-thaw').addEventListener('click', recordThaw);
-    document.getElementById('btn-raptor-print').addEventListener('click', printRaptorLabel);
+    document.getElementById('btn-raptor-export').addEventListener('click', exportRaptorLabel);
     document.getElementById('btn-raptor-brady-scan').addEventListener('click', showRaptorBradyScan);
     document.getElementById('btn-add-species').addEventListener('click', addNewSpecies);
 }
@@ -218,7 +218,7 @@ function openRaptorAddModal(row, col) {
     document.getElementById('raptor-species').disabled = false;
     document.getElementById('btn-raptor-delete').style.display = 'none';
     document.getElementById('btn-raptor-thaw').style.display = 'none';
-    document.getElementById('btn-raptor-print').style.display = 'none';
+    document.getElementById('btn-raptor-export').style.display = 'none';
     document.getElementById('btn-raptor-brady-scan').style.display = 'none';
     document.getElementById('raptor-num-tubes-group').style.display = 'block';
     document.getElementById('raptor-num-tubes').value = 1;
@@ -256,7 +256,7 @@ function openRaptorEditModal(tube, row, col) {
     document.getElementById('raptor-notes').value = tube.notes || '';
     document.getElementById('btn-raptor-delete').style.display = 'inline-block';
     document.getElementById('btn-raptor-thaw').style.display = 'inline-block';
-    document.getElementById('btn-raptor-print').style.display = 'inline-block';
+    document.getElementById('btn-raptor-export').style.display = 'inline-block';
     document.getElementById('btn-raptor-brady-scan').style.display = 'inline-block';
     document.getElementById('raptor-num-tubes-group').style.display = 'none';
 
@@ -369,18 +369,18 @@ function showRaptorBradyScan() {
     openBradyScanWindow(tubeId);
 }
 
-async function printRaptorLabel() {
+function exportRaptorLabel() {
     try {
         const tubeData = JSON.parse(document.getElementById('raptorTubeModal').dataset.tubeData || '{}');
         if (!tubeData.tube_id) {
-            showToast('No tube data available for printing', 'error');
+            showToast('No tube data available to export', 'error');
             return;
         }
-        const img = generateRaptorLabel(tubeData);
-        await printLabel(img);
-        showToast('Label sent to printer');
+        const canvas = renderRaptorLabelCanvas(tubeData, 4);
+        downloadCanvasAsJpeg(canvas, `raptor-${tubeData.tube_id}.jpg`);
+        showToast('Label saved to Downloads');
     } catch (err) {
-        showToast('Print error: ' + err.message, 'error');
+        showToast('Export error: ' + err.message, 'error');
     }
 }
 

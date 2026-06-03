@@ -1,33 +1,106 @@
-/* Label image generation for printing.
-   Generates small text-only labels sized for eppendorf tubes. */
+/* Label image generation for printing / export.
+   Canvas-first design: each renderer returns a Canvas. Callers convert
+   to Image (for the BLE printer flow) or trigger a JPEG download. */
+
+/* Render a raptor tube label as a Canvas, scaled by `scale` (default 1x is
+   M211-sized at 203 DPI). */
+function renderRaptorLabelCanvas(tubeData, scale = 1) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 203 * scale;
+    canvas.height = 102 * scale;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(scale, scale);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, 203, 102);
+    ctx.fillStyle = '#000000';
+
+    ctx.font = 'bold 16px Arial, sans-serif';
+    ctx.fillText(tubeData.tube_id || '', 6, 18);
+
+    ctx.font = '11px Arial, sans-serif';
+    ctx.fillText(tubeData.wrmd_number ? 'WRMD: ' + tubeData.wrmd_number : '', 6, 38);
+    ctx.fillText(tubeData.vmth_number ? 'VMTH: ' + tubeData.vmth_number : '', 6, 56);
+
+    return canvas;
+}
 
 function generateRaptorLabel(tubeData) {
+    const img = new Image();
+    img.src = renderRaptorLabelCanvas(tubeData).toDataURL('image/png');
+    return img;
+}
+
+/* Render the compact "cryobaby" sample-ID-only label. */
+function renderCliprLabelCanvas(sampleId, scale = 1) {
     const canvas = document.createElement('canvas');
-    // Small label for eppendorf tube (~1" x 0.5" at 203 DPI)
+    canvas.width = 203 * scale;
+    canvas.height = 102 * scale;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(scale, scale);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, 203, 102);
+    ctx.fillStyle = '#000000';
+
+    const text = sampleId || 'No ID';
+    let fontSize = 16;
+    ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+    while (ctx.measureText(text).width > 193 && fontSize > 7) {
+        fontSize -= 1;
+        ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+    }
+    ctx.fillText(text, 5, Math.round(102 / 2 + fontSize / 2) - 2);
+
+    return canvas;
+}
+
+function generateCliprLabel(sampleId) {
+    const img = new Image();
+    img.src = renderCliprLabelCanvas(sampleId).toDataURL('image/png');
+    return img;
+}
+
+function generateResearchLabel(tubeData, boxLabel) {
+    const canvas = document.createElement('canvas');
     canvas.width = 203;
     canvas.height = 102;
     const ctx = canvas.getContext('2d');
 
-    // White background
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     ctx.fillStyle = '#000000';
 
-    // Tube ID (bold, largest text)
     ctx.font = 'bold 16px Arial, sans-serif';
-    ctx.fillText(tubeData.tube_id || '', 6, 18);
+    ctx.fillText(tubeData.sample_id || 'No ID', 6, 18);
 
-    // WRMD number
+    ctx.font = '12px Arial, sans-serif';
+    ctx.fillText(boxLabel || '', 6, 36);
+
+    if (tubeData.row_pos && tubeData.col_pos) {
+        ctx.fillText('Pos: ' + positionLabel(tubeData.row_pos, tubeData.col_pos), 6, 54);
+    }
+
     ctx.font = '11px Arial, sans-serif';
-    ctx.fillText(tubeData.wrmd_number ? 'WRMD: ' + tubeData.wrmd_number : '', 6, 38);
-
-    // VMTH number
-    ctx.fillText(tubeData.vmth_number ? 'VMTH: ' + tubeData.vmth_number : '', 6, 56);
+    ctx.fillText(tubeData.date_stored || '', 6, 72);
 
     const img = new Image();
     img.src = canvas.toDataURL('image/png');
     return img;
+}
+
+/* Trigger a JPEG download of the given canvas. `filename` should end in .jpg.
+   Sanitizes the basename so e.g. "PRV/TBY 001" becomes "PRV-TBY-001". */
+function downloadCanvasAsJpeg(canvas, filename, quality = 0.95) {
+    const safeName = String(filename || 'label.jpg').replace(/[^a-zA-Z0-9._-]+/g, '-');
+    const dataUrl = canvas.toDataURL('image/jpeg', quality);
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = safeName;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => document.body.removeChild(a), 0);
 }
 
 /* Split `text` into up to `maxLines` lines, each at most `maxCharsPerLine`
@@ -40,13 +113,11 @@ function wrapForBradyLabel(text, maxCharsPerLine = 18, maxLines = 3) {
 
     while (rest.length > 0 && lines.length < maxLines) {
         if (rest.length <= maxCharsPerLine || lines.length === maxLines - 1) {
-            // last allowed line — take up to maxChars and bail
             lines.push(rest.slice(0, maxCharsPerLine));
             rest = rest.slice(maxCharsPerLine);
             break;
         }
 
-        // Find a hyphen near the end of the allowed range to break at
         let breakAt = maxCharsPerLine;
         for (let i = maxCharsPerLine; i >= Math.max(maxCharsPerLine - 5, 1); i--) {
             if (rest[i - 1] === '-') { breakAt = i; break; }
@@ -149,7 +220,6 @@ ${truncated ? '<div class="warn">⚠ ID too long — truncated to fit 3 lines ×
 <script>
     document.addEventListener('DOMContentLoaded', () => {
         try {
-            // Use CODE128 auto so JsBarcode picks Set A when needed (newlines)
             JsBarcode("#bc", ${JSON.stringify(wrapped)}, {
                 format: "CODE128",
                 width: 3,
@@ -167,60 +237,4 @@ ${truncated ? '<div class="warn">⚠ ID too long — truncated to fit 3 lines ×
 </body></html>`);
     w.document.close();
     return w;
-}
-
-/* Compact "cryobaby" tube label — sample ID only, max-fit text.
-   Sized for Brady M211 0.5" cartridge (M21-500-7425, 203 DPI). */
-function generateCliprLabel(sampleId) {
-    const canvas = document.createElement('canvas');
-    canvas.width = 203;
-    canvas.height = 102;
-    const ctx = canvas.getContext('2d');
-
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    ctx.fillStyle = '#000000';
-    const text = sampleId || 'No ID';
-
-    let fontSize = 16;
-    ctx.font = `bold ${fontSize}px Arial, sans-serif`;
-    while (ctx.measureText(text).width > 193 && fontSize > 7) {
-        fontSize -= 1;
-        ctx.font = `bold ${fontSize}px Arial, sans-serif`;
-    }
-    ctx.fillText(text, 5, Math.round(canvas.height / 2 + fontSize / 2) - 2);
-
-    const img = new Image();
-    img.src = canvas.toDataURL('image/png');
-    return img;
-}
-
-function generateResearchLabel(tubeData, boxLabel) {
-    const canvas = document.createElement('canvas');
-    canvas.width = 203;
-    canvas.height = 102;
-    const ctx = canvas.getContext('2d');
-
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    ctx.fillStyle = '#000000';
-
-    ctx.font = 'bold 16px Arial, sans-serif';
-    ctx.fillText(tubeData.sample_id || 'No ID', 6, 18);
-
-    ctx.font = '12px Arial, sans-serif';
-    ctx.fillText(boxLabel || '', 6, 36);
-
-    if (tubeData.row_pos && tubeData.col_pos) {
-        ctx.fillText('Pos: ' + positionLabel(tubeData.row_pos, tubeData.col_pos), 6, 54);
-    }
-
-    ctx.font = '11px Arial, sans-serif';
-    ctx.fillText(tubeData.date_stored || '', 6, 72);
-
-    const img = new Image();
-    img.src = canvas.toDataURL('image/png');
-    return img;
 }
