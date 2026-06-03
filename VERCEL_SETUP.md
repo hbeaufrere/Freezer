@@ -1,4 +1,4 @@
-# Vercel + Supabase Deployment Guide
+# Vercel + Neon Deployment Guide
 
 This branch hosts the Vercel-targeted version of the app. The `main` branch is
 unchanged and still runs on PythonAnywhere.
@@ -6,7 +6,7 @@ unchanged and still runs on PythonAnywhere.
 ## Stack
 
 - **Hosting**: Vercel (Python serverless functions)
-- **Database**: Supabase Postgres (transaction pooler, port 6543)
+- **Database**: Neon Postgres (pooled connection)
 - **Email**: Gmail SMTP (your own Gmail account, via an App Password)
 - **Auth**: custom — bcrypt-hashed passwords, Flask signed-cookie sessions, roles in the `users` table
 
@@ -14,13 +14,12 @@ unchanged and still runs on PythonAnywhere.
 
 | Variable             | Required | Notes                                              |
 |----------------------|----------|----------------------------------------------------|
-| `DATABASE_URL`       | yes      | Supabase transaction pooler URL (port 6543)        |
+| `DATABASE_URL`       | yes      | Neon **pooled** URL (host contains `-pooler`)      |
 | `SECRET_KEY`         | yes      | Flask session signing key (32+ random chars)       |
 | `GMAIL_USER`         | yes      | Your full Gmail address (e.g. `you@gmail.com`)     |
 | `GMAIL_APP_PASSWORD` | yes      | 16-char Gmail App Password (not your login pw)     |
 | `EMAIL_FROM`         | optional | `"CLIPR Biobank <you@gmail.com>"` — defaults to `GMAIL_USER` |
 | `APP_BASE_URL`       | yes      | Public URL, used in invite emails                  |
-| `CRON_SECRET`        | yes      | Bearer token validated by the keepalive cron       |
 
 ## Roles & access
 
@@ -46,18 +45,28 @@ Creating, editing, or deleting boxes is admin-only.
 To reset a password, the admin clicks the reset icon next to a user — same flow,
 new temp password.
 
-## Cron jobs
+## Neon vs Supabase
 
-`vercel.json` defines a single cron:
+Neon was chosen over Supabase because:
 
-- `/api/cron/keepalive` every Monday at 06:00 UTC — runs `SELECT now()` to reset
-  the Supabase free-tier 7-day pause timer. Add more crons here if needed
-  (paid Vercel allows multiple).
+- Free tier allows 10 projects (Supabase: 2)
+- Projects auto-resume on connection (Supabase: pause after 7 days, manual unpause)
+
+Because Neon auto-resumes, **no keepalive cron is needed**. If you ever switch
+back to Supabase, restore the cron entry to `vercel.json`:
+
+```json
+"crons": [{ "path": "/api/cron/keepalive", "schedule": "0 6 * * 1" }]
+```
+
+The `/api/cron/keepalive` route is still present in `routes/cron.py`.
 
 ## Local development
 
 ```bash
-export DATABASE_URL='postgresql://postgres.<ref>:<password>@aws-0-<region>.pooler.supabase.com:6543/postgres'
+# Use the DIRECT (non-pooled) URL for init_db.py if you can — Neon allows
+# either, but the direct URL is preferred for schema work.
+export DATABASE_URL='postgresql://neondb_owner:<pw>@ep-<name>.<region>.aws.neon.tech/neondb?sslmode=require'
 export SECRET_KEY='dev-not-secret'
 # Gmail is optional in dev — without it, emails print to stdout
 export GMAIL_USER='you@gmail.com'
@@ -69,7 +78,7 @@ Then visit http://localhost:5000/login.
 
 ## Differences from the PythonAnywhere version (`main`)
 
-- SQLite -> Supabase Postgres
+- SQLite -> Neon Postgres
 - Shared password (`FREEZER_PASSWORD`) -> per-user accounts with bcrypt + roles
 - Auto-migration on startup -> explicit `init_db.py` bootstrap
 - `wsgi.py` -> `api/index.py` (Vercel entry)

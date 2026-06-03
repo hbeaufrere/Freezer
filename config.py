@@ -3,8 +3,8 @@
 import os
 
 # ----- Database -----
-# Use Supabase transaction pooler URL (port 6543) for serverless.
-# Format: postgresql://postgres.<ref>:[password]@aws-0-<region>.pooler.supabase.com:6543/postgres
+# Use the *pooled* Neon connection URL for serverless (host contains "-pooler").
+# Format: postgresql://<user>:<pw>@ep-<name>-pooler.<region>.aws.neon.tech/<db>?sslmode=require
 DATABASE_URL = os.environ.get('DATABASE_URL', '')
 
 # ----- Flask -----

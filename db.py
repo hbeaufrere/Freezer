@@ -1,7 +1,8 @@
 """Postgres connection helpers.
 
-One connection per request via Flask's `g`. Designed for Supabase's
-transaction pooler (port 6543), so prepared statements are disabled.
+One connection per request via Flask's `g`. Designed for serverless +
+Neon's pooled connection (or Supabase's transaction pooler), so prepared
+statements are disabled.
 """
 
 import psycopg
