@@ -11,50 +11,85 @@ freezer_bp = Blueprint('freezer', __name__)
 @freezer_bp.route('/api/freezer')
 @require_login
 def get_freezer():
-    """Full freezer structure with nested shelves -> racks -> drawers -> boxes and occupancy counts."""
-    db = get_db()
+    """Full freezer structure with nested shelves -> racks -> drawers -> boxes
+    and occupancy counts. Single flat query, grouped in Python."""
+    rows = get_db().execute("""
+        SELECT
+            sh.id AS shelf_id, sh.name AS shelf_name,
+            sh.position AS shelf_position, sh.section AS shelf_section,
+            r.id AS rack_id, r.position AS rack_position,
+            r.label AS rack_label, r.designation AS rack_designation,
+            d.id AS drawer_id, d.position AS drawer_position, d.label AS drawer_label,
+            b.id AS box_id, b.position AS box_position, b.label AS box_label,
+            b.grid_rows, b.grid_cols, b.section AS box_section,
+            COALESCE(rc.cnt, 0) + COALESCE(rp.cnt, 0) AS occupied,
+            (b.grid_rows * b.grid_cols) AS capacity
+        FROM shelves sh
+        LEFT JOIN racks r ON r.shelf_id = sh.id
+        LEFT JOIN drawers d ON d.rack_id = r.id
+        LEFT JOIN boxes b ON b.drawer_id = d.id
+        LEFT JOIN (SELECT box_id, COUNT(*) AS cnt FROM research_tubes GROUP BY box_id) rc ON rc.box_id = b.id
+        LEFT JOIN (SELECT box_id, COUNT(*) AS cnt FROM raptor_tubes  GROUP BY box_id) rp ON rp.box_id = b.id
+        ORDER BY sh.position, r.position, d.position, b.position
+    """).fetchall()
 
-    shelves = db.execute(
-        "SELECT id, name, position, section FROM shelves ORDER BY position"
-    ).fetchall()
+    shelves = {}
+    racks = {}
+    drawers = {}
 
-    result = []
-    for shelf in shelves:
-        shelf_data = dict(shelf)
-        racks = db.execute(
-            "SELECT id, position, label, designation FROM racks WHERE shelf_id = %s ORDER BY position",
-            (shelf['id'],)
-        ).fetchall()
+    for row in rows:
+        sid = row['shelf_id']
+        if sid not in shelves:
+            shelves[sid] = {
+                'id': sid,
+                'name': row['shelf_name'],
+                'position': row['shelf_position'],
+                'section': row['shelf_section'],
+                'racks': [],
+            }
 
-        shelf_data['racks'] = []
-        for rack in racks:
-            rack_data = dict(rack)
-            drawers = db.execute(
-                "SELECT id, position, label FROM drawers WHERE rack_id = %s ORDER BY position",
-                (rack['id'],)
-            ).fetchall()
+        rid = row['rack_id']
+        if rid is None:
+            continue
+        if rid not in racks:
+            rack = {
+                'id': rid,
+                'position': row['rack_position'],
+                'label': row['rack_label'],
+                'designation': row['rack_designation'],
+                'drawers': [],
+            }
+            racks[rid] = rack
+            shelves[sid]['racks'].append(rack)
 
-            rack_data['drawers'] = []
-            for drawer in drawers:
-                drawer_data = dict(drawer)
-                boxes = db.execute("""
-                    SELECT b.id, b.position, b.label, b.grid_rows, b.grid_cols, b.section,
-                           COALESCE(rc.cnt, 0) + COALESCE(rp.cnt, 0) AS occupied,
-                           b.grid_rows * b.grid_cols AS capacity
-                    FROM boxes b
-                    LEFT JOIN (SELECT box_id, COUNT(*) AS cnt FROM research_tubes GROUP BY box_id) rc ON rc.box_id = b.id
-                    LEFT JOIN (SELECT box_id, COUNT(*) AS cnt FROM raptor_tubes GROUP BY box_id) rp ON rp.box_id = b.id
-                    WHERE b.drawer_id = %s
-                    ORDER BY b.position
-                """, (drawer['id'],)).fetchall()
+        did = row['drawer_id']
+        if did is None:
+            continue
+        if did not in drawers:
+            drawer = {
+                'id': did,
+                'position': row['drawer_position'],
+                'label': row['drawer_label'],
+                'boxes': [],
+            }
+            drawers[did] = drawer
+            racks[rid]['drawers'].append(drawer)
 
-                drawer_data['boxes'] = [dict(b) for b in boxes]
-                rack_data['drawers'].append(drawer_data)
+        bid = row['box_id']
+        if bid is None:
+            continue
+        drawers[did]['boxes'].append({
+            'id': bid,
+            'position': row['box_position'],
+            'label': row['box_label'],
+            'grid_rows': row['grid_rows'],
+            'grid_cols': row['grid_cols'],
+            'section': row['box_section'],
+            'occupied': row['occupied'],
+            'capacity': row['capacity'],
+        })
 
-            shelf_data['racks'].append(rack_data)
-        result.append(shelf_data)
-
-    return jsonify(result)
+    return jsonify(list(shelves.values()))
 
 
 @freezer_bp.route('/api/shelves')

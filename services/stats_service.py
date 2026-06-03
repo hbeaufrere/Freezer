@@ -89,25 +89,23 @@ def get_research_stats(db):
 
 
 def get_freezer_stats(db):
-    stats = {}
+    row = db.execute(f"""
+        SELECT
+            (SELECT COUNT(*) FROM boxes) AS total_boxes,
+            (SELECT COALESCE(SUM(grid_rows * grid_cols), 0) FROM boxes) AS total_capacity,
+            (SELECT COUNT(DISTINCT {_BASE_ID}) FROM raptor_tubes rt) AS raptor_count,
+            (SELECT COUNT(*) FROM research_tubes) AS research_count
+    """).fetchone()
 
-    row = db.execute(
-        "SELECT COUNT(*) AS box_count, COALESCE(SUM(grid_rows * grid_cols), 0) AS total_capacity FROM boxes"
-    ).fetchone()
-    stats['total_boxes'] = row['box_count']
-    stats['total_capacity'] = row['total_capacity']
-
-    raptor_count = db.execute(
-        f"SELECT COUNT(DISTINCT {_BASE_ID}) AS c FROM raptor_tubes rt"
-    ).fetchone()['c']
-    research_count = db.execute("SELECT COUNT(*) AS c FROM research_tubes").fetchone()['c']
-    stats['total_stored'] = raptor_count + research_count
-    stats['raptor_count'] = raptor_count
-    stats['research_count'] = research_count
-
-    if stats['total_capacity'] > 0:
-        stats['percent_full'] = round(stats['total_stored'] / stats['total_capacity'] * 100, 1)
-    else:
-        stats['percent_full'] = 0
-
+    stats = {
+        'total_boxes': row['total_boxes'],
+        'total_capacity': row['total_capacity'],
+        'raptor_count': row['raptor_count'],
+        'research_count': row['research_count'],
+        'total_stored': row['raptor_count'] + row['research_count'],
+    }
+    stats['percent_full'] = (
+        round(stats['total_stored'] / stats['total_capacity'] * 100, 1)
+        if stats['total_capacity'] > 0 else 0
+    )
     return stats
