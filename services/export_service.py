@@ -7,7 +7,6 @@ from openpyxl.styles import Font, PatternFill, Alignment
 
 
 def _raptor_query(filters=None):
-    """Build the raptor export query with optional filters."""
     query = """
         SELECT rt.tube_id, s.banding_code, s.common_name, s.scientific_name,
                rt.collection_date, rt.age, rt.sex, rt.freeze_thaw_cycles,
@@ -26,13 +25,13 @@ def _raptor_query(filters=None):
     conditions = []
     if filters:
         if filters.get('species_id'):
-            conditions.append("rt.species_id = ?")
+            conditions.append("rt.species_id = %s")
             params.append(filters['species_id'])
         if filters.get('date_from'):
-            conditions.append("rt.collection_date >= ?")
+            conditions.append("rt.collection_date >= %s")
             params.append(filters['date_from'])
         if filters.get('date_to'):
-            conditions.append("rt.collection_date <= ?")
+            conditions.append("rt.collection_date <= %s")
             params.append(filters['date_to'])
     if conditions:
         query += " WHERE " + " AND ".join(conditions)
@@ -63,26 +62,36 @@ def _format_position(row_pos, col_pos):
     return f"{letter}{col_pos}"
 
 
+_RAPTOR_KEYS = [
+    'tube_id', 'banding_code', 'common_name', 'scientific_name',
+    'collection_date', 'age', 'sex', 'freeze_thaw_cycles',
+    'wrmd_number', 'vmth_number',
+    'shelf', 'rack', 'drawer', 'box',
+    'row_pos', 'col_pos',
+    'notes', 'created_at',
+]
+
+
 def _raptor_row(row):
     """Format a raptor query result row for export."""
     return [
-        row[0],   # tube_id
-        row[1],   # banding_code
-        row[2],   # common_name
-        row[3],   # scientific_name
-        row[4],   # collection_date
-        row[5],   # age
-        row[6],   # sex
-        row[7],   # freeze_thaw_cycles
-        row[8],   # wrmd_number
-        row[9],   # vmth_number
-        row[10],  # shelf
-        row[11],  # rack
-        row[12],  # drawer
-        row[13],  # box
-        _format_position(row[14], row[15]),  # position
-        row[16],  # notes
-        row[17],  # created_at
+        row['tube_id'],
+        row['banding_code'],
+        row['common_name'],
+        row['scientific_name'],
+        row['collection_date'],
+        row['age'],
+        row['sex'],
+        row['freeze_thaw_cycles'],
+        row['wrmd_number'],
+        row['vmth_number'],
+        row['shelf'],
+        row['rack'],
+        row['drawer'],
+        row['box'],
+        _format_position(row['row_pos'], row['col_pos']),
+        row['notes'],
+        row['created_at'],
     ]
 
 
@@ -105,7 +114,7 @@ def export_raptor_xlsx(db, filters=None):
 
     for row_idx, row in enumerate(rows, 2):
         for col_idx, value in enumerate(_raptor_row(row), 1):
-            ws.cell(row=row_idx, column=col_idx, value=value)
+            ws.cell(row=row_idx, column=col_idx, value=_xlsx_value(value))
 
     for col in ws.columns:
         max_length = max((len(str(cell.value or "")) for cell in col), default=10)
@@ -125,7 +134,7 @@ def export_raptor_csv(db, filters=None):
     writer = csv.writer(output)
     writer.writerow(RAPTOR_HEADERS)
     for row in rows:
-        writer.writerow(_raptor_row(row))
+        writer.writerow([_csv_value(v) for v in _raptor_row(row)])
     output.seek(0)
     return output
 
@@ -145,6 +154,21 @@ def _research_query():
     """
 
 
+def _research_row(row):
+    return [
+        row['sample_id'],
+        row['description'],
+        row['date_stored'],
+        row['freeze_thaw_cycles'],
+        row['shelf'],
+        row['rack'],
+        row['drawer'],
+        row['box'],
+        _format_position(row['row_pos'], row['col_pos']),
+        row['created_at'],
+    ]
+
+
 def export_research_xlsx(db):
     rows = db.execute(_research_query()).fetchall()
 
@@ -162,14 +186,8 @@ def export_research_xlsx(db):
         cell.alignment = Alignment(horizontal='center')
 
     for row_idx, row in enumerate(rows, 2):
-        data = [
-            row[0], row[1], row[2], row[3],  # sample_id, description, date_stored, freeze_thaw_cycles
-            row[4], row[5], row[6], row[7],  # shelf, rack, drawer, box
-            _format_position(row[8], row[9]),  # position
-            row[10],  # created_at
-        ]
-        for col_idx, value in enumerate(data, 1):
-            ws.cell(row=row_idx, column=col_idx, value=value)
+        for col_idx, value in enumerate(_research_row(row), 1):
+            ws.cell(row=row_idx, column=col_idx, value=_xlsx_value(value))
 
     for col in ws.columns:
         max_length = max((len(str(cell.value or "")) for cell in col), default=10)
@@ -188,11 +206,19 @@ def export_research_csv(db):
     writer = csv.writer(output)
     writer.writerow(RESEARCH_HEADERS)
     for row in rows:
-        writer.writerow([
-            row[0], row[1], row[2], row[3],
-            row[4], row[5], row[6], row[7],
-            _format_position(row[8], row[9]),
-            row[10],
-        ])
+        writer.writerow([_csv_value(v) for v in _research_row(row)])
     output.seek(0)
     return output
+
+
+def _xlsx_value(v):
+    # openpyxl handles native datetime/date — strip tz if needed
+    if hasattr(v, 'replace') and hasattr(v, 'tzinfo') and v.tzinfo is not None:
+        return v.replace(tzinfo=None)
+    return v
+
+
+def _csv_value(v):
+    if v is None:
+        return ''
+    return str(v)

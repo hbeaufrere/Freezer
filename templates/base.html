@@ -4,17 +4,31 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}CLIPR Repository / Raptor Biobank{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <link href="/static/css/app.css" rel="stylesheet">
     {% block head %}{% endblock %}
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary sticky-top">
+    {% set role = current_user.role if current_user else None %}
+    {% set is_admin = role == 'admin' %}
+    {% set can_raptor = role in ('admin', 'raptor', 'both') %}
+    {% set can_clipr = role in ('admin', 'clipr', 'both') %}
+
+    <nav class="navbar navbar-expand-lg app-navbar sticky-top">
         <div class="container-fluid">
             <a class="navbar-brand d-flex align-items-center" href="/">
-                <img src="/static/img/logo-main.png" alt="" height="28" class="me-2" onerror="this.style.display='none'">
-                CLIPR Repository / Raptor Biobank
+                <span class="brand-mark">
+                    <i class="bi bi-snow"></i>
+                </span>
+                <span class="brand-text">
+                    <strong>CLIPR</strong>
+                    <span class="brand-divider">/</span>
+                    Raptor Biobank
+                </span>
             </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
@@ -23,43 +37,67 @@
                 <ul class="navbar-nav me-auto">
                     <li class="nav-item">
                         <a class="nav-link {% if request.path == '/' %}active{% endif %}" href="/">
-                            <i class="bi bi-box-seam me-1"></i>Freezer Overview
+                            <i class="bi bi-grid-3x3-gap me-1"></i>Overview
                         </a>
                     </li>
+                    {% if can_clipr %}
                     <li class="nav-item">
                         <a class="nav-link {% if request.path == '/research' %}active{% endif %}" href="/research">
                             <i class="bi bi-flask me-1"></i>CLIPR Research
                         </a>
                     </li>
+                    {% endif %}
+                    {% if can_raptor %}
                     <li class="nav-item">
                         <a class="nav-link {% if request.path == '/raptor' %}active{% endif %}" href="/raptor">
                             <i class="bi bi-feather me-1"></i>Raptor Biobank
                         </a>
                     </li>
+                    {% endif %}
                     <li class="nav-item">
                         <a class="nav-link {% if request.path == '/stats' %}active{% endif %}" href="/stats">
                             <i class="bi bi-bar-chart me-1"></i>Statistics
                         </a>
                     </li>
+                    {% if is_admin %}
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.path.startswith('/admin') %}active{% endif %}" href="/admin/users">
+                            <i class="bi bi-people me-1"></i>Users
+                        </a>
+                    </li>
+                    {% endif %}
                 </ul>
                 <div class="navbar-nav d-flex flex-row align-items-center gap-2">
-                    <button class="btn btn-outline-light btn-sm" id="btn-printer-connect" title="Connect Brady M211">
+                    <button class="btn btn-outline-secondary btn-sm app-btn" id="btn-printer-connect" title="Connect Brady M211">
                         <i class="bi bi-bluetooth me-1" id="printer-icon"></i>
                         <span id="printer-status-text">Printer</span>
                     </button>
-                    <a href="/logout" class="btn btn-outline-light btn-sm" title="Log out">
-                        <i class="bi bi-box-arrow-right me-1"></i>Logout
-                    </a>
+                    {% if current_user %}
+                    <div class="dropdown">
+                        <button class="btn btn-outline-secondary btn-sm app-btn dropdown-toggle" data-bs-toggle="dropdown">
+                            <i class="bi bi-person-circle me-1"></i>{{ current_user.email.split('@')[0] }}
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><h6 class="dropdown-header">{{ current_user.email }}</h6></li>
+                            <li><span class="dropdown-item-text small text-muted">Role: {{
+                                {'admin':'Administrator', 'raptor':'Raptor Biobank',
+                                 'clipr':'CLIPR Research', 'both':'Raptor + CLIPR'}[role]
+                            }}</span></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="/change-password"><i class="bi bi-key me-2"></i>Change password</a></li>
+                            <li><a class="dropdown-item" href="/logout"><i class="bi bi-box-arrow-right me-2"></i>Log out</a></li>
+                        </ul>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
         </div>
     </nav>
 
-    <main class="container-fluid py-3">
+    <main class="container-fluid py-4">
         {% block content %}{% endblock %}
     </main>
 
-    <!-- Toast notifications -->
     <div class="toast-container position-fixed bottom-0 end-0 p-3" id="toast-container"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>

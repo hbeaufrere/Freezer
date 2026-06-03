@@ -1,36 +1,48 @@
 """Raptor biobank tube CRUD endpoints with auto-ID generation."""
 
 from flask import Blueprint, jsonify, request
+
+from db import get_db
+from auth import require_role
 from services.id_generator import generate_raptor_tube_id
 
 raptor_bp = Blueprint('raptor', __name__)
 
 
-def get_db():
-    from app import get_db as _get_db
-    return _get_db()
+def _fetch_raptor_tube(db, row_id):
+    return db.execute("""
+        SELECT rt.id, rt.tube_id, rt.box_id, rt.row_pos, rt.col_pos,
+               rt.species_id, rt.collection_date, rt.age, rt.sex,
+               rt.freeze_thaw_cycles, rt.wrmd_number, rt.vmth_number,
+               rt.notes, rt.created_at, rt.updated_at,
+               s.banding_code, s.common_name, s.scientific_name
+        FROM raptor_tubes rt
+        JOIN species s ON rt.species_id = s.id
+        WHERE rt.id = %s
+    """, (row_id,)).fetchone()
 
 
 @raptor_bp.route('/api/raptor/tubes')
+@require_role('raptor')
 def list_tubes():
-    db = get_db()
     box_id = request.args.get('box_id', type=int)
     if not box_id:
         return jsonify({'error': 'box_id parameter required'}), 400
 
-    rows = db.execute("""
+    rows = get_db().execute("""
         SELECT rt.id, rt.tube_id, rt.box_id, rt.row_pos, rt.col_pos,
                rt.species_id, s.banding_code, s.common_name, s.scientific_name,
                rt.collection_date, rt.age, rt.sex, rt.freeze_thaw_cycles,
                rt.wrmd_number, rt.vmth_number, rt.notes, rt.created_at, rt.updated_at
         FROM raptor_tubes rt
         JOIN species s ON rt.species_id = s.id
-        WHERE rt.box_id = ?
+        WHERE rt.box_id = %s
     """, (box_id,)).fetchall()
     return jsonify([dict(r) for r in rows])
 
 
 @raptor_bp.route('/api/raptor/tubes', methods=['POST'])
+@require_role('raptor')
 def create_tube():
     db = get_db()
     data = request.get_json()
@@ -40,9 +52,8 @@ def create_tube():
         if field not in data:
             return jsonify({'error': f'{field} is required'}), 400
 
-    # Get species banding code
     species = db.execute(
-        "SELECT id, banding_code FROM species WHERE id = ?",
+        "SELECT id, banding_code FROM species WHERE id = %s",
         (data['species_id'],)
     ).fetchone()
     if not species:
@@ -58,111 +69,95 @@ def create_tube():
         )
 
         if num_tubes == 1:
-            # Single tube — no suffix
-            db.execute(
+            row_id = db.execute(
                 """INSERT INTO raptor_tubes
                    (tube_id, box_id, row_pos, col_pos, species_id, collection_date,
                     age, sex, freeze_thaw_cycles, wrmd_number, vmth_number, notes)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                   RETURNING id""",
                 (base_tube_id, data['box_id'], data['row_pos'], data['col_pos'],
                  data['species_id'], data['collection_date'],
                  data.get('age', ''), data.get('sex', ''),
                  data.get('freeze_thaw_cycles', 0),
                  data.get('wrmd_number', ''), data.get('vmth_number', ''),
                  data.get('notes', ''))
-            )
+            ).fetchone()['id']
+            tube = _fetch_raptor_tube(db, row_id)
             db.commit()
-
-            row_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
-            tube = db.execute("""
-                SELECT rt.*, s.banding_code, s.common_name, s.scientific_name
-                FROM raptor_tubes rt
-                JOIN species s ON rt.species_id = s.id
-                WHERE rt.id = ?
-            """, (row_id,)).fetchone()
             return jsonify(dict(tube)), 201
-        else:
-            # Multiple tubes — find empty positions in the box
-            box = db.execute(
-                "SELECT grid_rows, grid_cols FROM boxes WHERE id = ?",
-                (data['box_id'],)
-            ).fetchone()
-            if not box:
-                return jsonify({'error': 'Box not found'}), 404
 
-            occupied = set()
-            for row in db.execute(
-                "SELECT row_pos, col_pos FROM raptor_tubes WHERE box_id = ?",
-                (data['box_id'],)
-            ).fetchall():
-                occupied.add((row[0], row[1]))
+        # Multi-tube path: find empty positions in the box
+        box = db.execute(
+            "SELECT grid_rows, grid_cols FROM boxes WHERE id = %s",
+            (data['box_id'],)
+        ).fetchone()
+        if not box:
+            return jsonify({'error': 'Box not found'}), 404
 
-            # Collect empty positions scanning left-to-right, top-to-bottom
-            # starting from the clicked position
-            start_row, start_col = data['row_pos'], data['col_pos']
-            empty_positions = []
-            rows, cols = box['grid_rows'], box['grid_cols']
-            # First pass: from clicked position to end
+        occupied = set()
+        for row in db.execute(
+            "SELECT row_pos, col_pos FROM raptor_tubes WHERE box_id = %s",
+            (data['box_id'],)
+        ).fetchall():
+            occupied.add((row['row_pos'], row['col_pos']))
+
+        start_row, start_col = data['row_pos'], data['col_pos']
+        empty_positions = []
+        rows, cols = box['grid_rows'], box['grid_cols']
+        for r in range(1, rows + 1):
+            for c in range(1, cols + 1):
+                if (r, c) < (start_row, start_col):
+                    continue
+                if (r, c) not in occupied:
+                    empty_positions.append((r, c))
+                if len(empty_positions) >= num_tubes:
+                    break
+            if len(empty_positions) >= num_tubes:
+                break
+        if len(empty_positions) < num_tubes:
             for r in range(1, rows + 1):
                 for c in range(1, cols + 1):
-                    if (r, c) < (start_row, start_col):
-                        continue
+                    if (r, c) >= (start_row, start_col):
+                        break
                     if (r, c) not in occupied:
                         empty_positions.append((r, c))
                     if len(empty_positions) >= num_tubes:
                         break
                 if len(empty_positions) >= num_tubes:
                     break
-            # Second pass: wrap around from beginning if needed
-            if len(empty_positions) < num_tubes:
-                for r in range(1, rows + 1):
-                    for c in range(1, cols + 1):
-                        if (r, c) >= (start_row, start_col):
-                            break
-                        if (r, c) not in occupied:
-                            empty_positions.append((r, c))
-                        if len(empty_positions) >= num_tubes:
-                            break
-                    if len(empty_positions) >= num_tubes:
-                        break
 
-            if len(empty_positions) < num_tubes:
-                return jsonify({
-                    'error': f'Not enough empty positions. Need {num_tubes}, found {len(empty_positions)}.'
-                }), 400
+        if len(empty_positions) < num_tubes:
+            return jsonify({
+                'error': f'Not enough empty positions. Need {num_tubes}, found {len(empty_positions)}.'
+            }), 400
 
-            created_tubes = []
-            for i, (r, c) in enumerate(empty_positions[:num_tubes]):
-                tube_id = f"{base_tube_id}-{i + 1}"
-                db.execute(
-                    """INSERT INTO raptor_tubes
-                       (tube_id, box_id, row_pos, col_pos, species_id, collection_date,
-                        age, sex, freeze_thaw_cycles, wrmd_number, vmth_number, notes)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                    (tube_id, data['box_id'], r, c,
-                     data['species_id'], data['collection_date'],
-                     data.get('age', ''), data.get('sex', ''),
-                     data.get('freeze_thaw_cycles', 0),
-                     data.get('wrmd_number', ''), data.get('vmth_number', ''),
-                     data.get('notes', ''))
-                )
-                row_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
-                tube = db.execute("""
-                    SELECT rt.*, s.banding_code, s.common_name, s.scientific_name
-                    FROM raptor_tubes rt
-                    JOIN species s ON rt.species_id = s.id
-                    WHERE rt.id = ?
-                """, (row_id,)).fetchone()
-                created_tubes.append(dict(tube))
+        created_tubes = []
+        for i, (r, c) in enumerate(empty_positions[:num_tubes]):
+            tube_id = f"{base_tube_id}-{i + 1}"
+            row_id = db.execute(
+                """INSERT INTO raptor_tubes
+                   (tube_id, box_id, row_pos, col_pos, species_id, collection_date,
+                    age, sex, freeze_thaw_cycles, wrmd_number, vmth_number, notes)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                   RETURNING id""",
+                (tube_id, data['box_id'], r, c,
+                 data['species_id'], data['collection_date'],
+                 data.get('age', ''), data.get('sex', ''),
+                 data.get('freeze_thaw_cycles', 0),
+                 data.get('wrmd_number', ''), data.get('vmth_number', ''),
+                 data.get('notes', ''))
+            ).fetchone()['id']
+            created_tubes.append(dict(_fetch_raptor_tube(db, row_id)))
 
-            db.commit()
-            return jsonify({'tubes': created_tubes}), 201
+        db.commit()
+        return jsonify({'tubes': created_tubes}), 201
     except Exception as e:
         db.rollback()
         return jsonify({'error': str(e)}), 400
 
 
 @raptor_bp.route('/api/raptor/tubes/<int:tube_id>', methods=['PUT'])
+@require_role('raptor')
 def update_tube(tube_id):
     db = get_db()
     data = request.get_json()
@@ -170,24 +165,20 @@ def update_tube(tube_id):
     try:
         db.execute(
             """UPDATE raptor_tubes
-               SET collection_date = ?, age = ?, sex = ?,
-                   freeze_thaw_cycles = ?, wrmd_number = ?, vmth_number = ?,
-                   notes = ?, updated_at = datetime('now')
-               WHERE id = ?""",
+               SET collection_date = %s, age = %s, sex = %s,
+                   freeze_thaw_cycles = %s, wrmd_number = %s, vmth_number = %s,
+                   notes = %s, updated_at = now()
+               WHERE id = %s""",
             (data.get('collection_date'), data.get('age', ''), data.get('sex', ''),
              data.get('freeze_thaw_cycles', 0),
              data.get('wrmd_number', ''), data.get('vmth_number', ''),
              data.get('notes', ''), tube_id)
         )
-        db.commit()
-        tube = db.execute("""
-            SELECT rt.*, s.banding_code, s.common_name, s.scientific_name
-            FROM raptor_tubes rt
-            JOIN species s ON rt.species_id = s.id
-            WHERE rt.id = ?
-        """, (tube_id,)).fetchone()
+        tube = _fetch_raptor_tube(db, tube_id)
         if not tube:
+            db.rollback()
             return jsonify({'error': 'Tube not found'}), 404
+        db.commit()
         return jsonify(dict(tube))
     except Exception as e:
         db.rollback()
@@ -195,41 +186,40 @@ def update_tube(tube_id):
 
 
 @raptor_bp.route('/api/raptor/tubes/<int:tube_id>', methods=['DELETE'])
+@require_role('raptor')
 def delete_tube(tube_id):
     db = get_db()
-    db.execute("DELETE FROM raptor_tubes WHERE id = ?", (tube_id,))
+    db.execute("DELETE FROM raptor_tubes WHERE id = %s", (tube_id,))
     db.commit()
     return jsonify({'success': True})
 
 
 @raptor_bp.route('/api/raptor/tubes/<int:tube_id>/thaw', methods=['PUT'])
+@require_role('raptor')
 def record_thaw(tube_id):
     """Increment freeze-thaw cycle count by 1."""
     db = get_db()
     db.execute(
-        "UPDATE raptor_tubes SET freeze_thaw_cycles = freeze_thaw_cycles + 1, updated_at = datetime('now') WHERE id = ?",
+        "UPDATE raptor_tubes SET freeze_thaw_cycles = freeze_thaw_cycles + 1, updated_at = now() WHERE id = %s",
         (tube_id,)
     )
-    db.commit()
-    tube = db.execute("""
-        SELECT rt.*, s.banding_code, s.common_name, s.scientific_name
-        FROM raptor_tubes rt
-        JOIN species s ON rt.species_id = s.id
-        WHERE rt.id = ?
-    """, (tube_id,)).fetchone()
+    tube = _fetch_raptor_tube(db, tube_id)
     if not tube:
+        db.rollback()
         return jsonify({'error': 'Tube not found'}), 404
+    db.commit()
     return jsonify(dict(tube))
 
 
 @raptor_bp.route('/api/raptor/search')
+@require_role('raptor')
 def search_tubes():
-    db = get_db()
     q = request.args.get('q', '').strip()
     if not q:
         return jsonify([])
 
-    rows = db.execute("""
+    pattern = f'%{q}%'
+    rows = get_db().execute("""
         SELECT rt.id, rt.tube_id, rt.box_id, rt.row_pos, rt.col_pos,
                s.banding_code, s.common_name, s.scientific_name,
                rt.collection_date, rt.age, rt.sex, rt.freeze_thaw_cycles,
@@ -241,23 +231,23 @@ def search_tubes():
         JOIN drawers d ON b.drawer_id = d.id
         JOIN racks r ON d.rack_id = r.id
         JOIN shelves sh ON r.shelf_id = sh.id
-        WHERE rt.tube_id LIKE ?
-           OR s.common_name LIKE ?
-           OR s.scientific_name LIKE ?
-           OR s.banding_code LIKE ?
-           OR rt.wrmd_number LIKE ?
-           OR rt.vmth_number LIKE ?
+        WHERE rt.tube_id ILIKE %s
+           OR s.common_name ILIKE %s
+           OR s.scientific_name ILIKE %s
+           OR s.banding_code ILIKE %s
+           OR rt.wrmd_number ILIKE %s
+           OR rt.vmth_number ILIKE %s
         ORDER BY rt.tube_id
         LIMIT 50
-    """, (f'%{q}%', f'%{q}%', f'%{q}%', f'%{q}%', f'%{q}%', f'%{q}%')).fetchall()
+    """, (pattern, pattern, pattern, pattern, pattern, pattern)).fetchall()
     return jsonify([dict(r) for r in rows])
 
 
 @raptor_bp.route('/api/raptor/lookup/<tube_id_str>')
+@require_role('raptor')
 def lookup_by_tube_id(tube_id_str):
     """Look up a tube by its string ID (e.g., RTHA26001)."""
-    db = get_db()
-    tube = db.execute("""
+    tube = get_db().execute("""
         SELECT rt.*, s.banding_code, s.common_name, s.scientific_name,
                b.label AS box_label, d.label AS drawer_label, r.label AS rack_label, sh.name AS shelf_name
         FROM raptor_tubes rt
@@ -266,7 +256,7 @@ def lookup_by_tube_id(tube_id_str):
         JOIN drawers d ON b.drawer_id = d.id
         JOIN racks r ON d.rack_id = r.id
         JOIN shelves sh ON r.shelf_id = sh.id
-        WHERE rt.tube_id = ?
+        WHERE rt.tube_id = %s
     """, (tube_id_str.upper(),)).fetchone()
     if not tube:
         return jsonify({'error': 'Tube not found'}), 404
@@ -274,15 +264,16 @@ def lookup_by_tube_id(tube_id_str):
 
 
 @raptor_bp.route('/api/species')
+@require_role('raptor', 'clipr')
 def list_species():
-    db = get_db()
-    rows = db.execute(
+    rows = get_db().execute(
         "SELECT id, common_name, scientific_name, banding_code FROM species ORDER BY common_name"
     ).fetchall()
     return jsonify([dict(r) for r in rows])
 
 
 @raptor_bp.route('/api/species', methods=['POST'])
+@require_role('raptor')
 def create_species():
     db = get_db()
     data = request.get_json()
@@ -291,14 +282,13 @@ def create_species():
         if field not in data or not data[field].strip():
             return jsonify({'error': f'{field} is required'}), 400
     try:
-        db.execute(
-            "INSERT INTO species (common_name, scientific_name, banding_code) VALUES (?, ?, ?)",
+        new_id = db.execute(
+            "INSERT INTO species (common_name, scientific_name, banding_code) VALUES (%s, %s, %s) RETURNING id",
             (data['common_name'].strip(), data['scientific_name'].strip(),
              data['banding_code'].strip().upper())
-        )
+        ).fetchone()['id']
         db.commit()
-        species_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
-        return jsonify({'id': species_id}), 201
+        return jsonify({'id': new_id}), 201
     except Exception as e:
         db.rollback()
         return jsonify({'error': str(e)}), 400

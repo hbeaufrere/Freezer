@@ -2,6 +2,9 @@
 
 import io
 from flask import Blueprint, send_file, request
+
+from db import get_db
+from auth import require_role
 from services.export_service import (
     export_raptor_xlsx, export_raptor_csv,
     export_research_xlsx, export_research_csv,
@@ -10,12 +13,8 @@ from services.export_service import (
 export_bp = Blueprint('export', __name__)
 
 
-def get_db():
-    from app import get_db as _get_db
-    return _get_db()
-
-
 @export_bp.route('/api/export/raptor/xlsx')
+@require_role('raptor')
 def raptor_xlsx():
     filters = {
         'species_id': request.args.get('species_id', type=int),
@@ -32,6 +31,7 @@ def raptor_xlsx():
 
 
 @export_bp.route('/api/export/raptor/csv')
+@require_role('raptor')
 def raptor_csv():
     filters = {
         'species_id': request.args.get('species_id', type=int),
@@ -48,6 +48,7 @@ def raptor_csv():
 
 
 @export_bp.route('/api/export/research/xlsx')
+@require_role('clipr')
 def research_xlsx():
     output = export_research_xlsx(get_db())
     return send_file(
@@ -59,6 +60,7 @@ def research_xlsx():
 
 
 @export_bp.route('/api/export/research/csv')
+@require_role('clipr')
 def research_csv():
     output = export_research_csv(get_db())
     return send_file(

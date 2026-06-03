@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Access denied{% endblock %}
+
+{% block content %}
+<div class="empty-state">
+    <i class="bi bi-shield-lock empty-state-icon"></i>
+    <h2 class="empty-state-title">Not available for your role</h2>
+    <p class="empty-state-text">
+        Your account doesn't have access to this section. If you think this is a mistake,
+        ask an administrator to update your role.
+    </p>
+    <a href="/" class="btn btn-primary">Back to overview</a>
+</div>
+{% endblock %}
