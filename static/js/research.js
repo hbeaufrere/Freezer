@@ -28,6 +28,7 @@ async function initResearchPage() {
     document.getElementById('btn-research-save').addEventListener('click', saveResearchTube);
     document.getElementById('btn-research-delete').addEventListener('click', deleteResearchTube);
     document.getElementById('btn-research-thaw').addEventListener('click', recordResearchThaw);
+    document.getElementById('btn-research-print').addEventListener('click', printResearchLabel);
 
     // Sample ID free / standardized toggle
     document.querySelectorAll('input[name="research-sample-id-type"]').forEach(r => {
@@ -127,6 +128,7 @@ function openResearchAddModal(row, col) {
     document.getElementById('research-freeze-thaw').value = 0;
     document.getElementById('btn-research-delete').style.display = 'none';
     document.getElementById('btn-research-thaw').style.display = 'none';
+    document.getElementById('btn-research-print').style.display = 'none';
     resetSampleIdWidget('');
 
     new bootstrap.Modal(document.getElementById('researchTubeModal')).show();
@@ -145,9 +147,25 @@ function openResearchEditModal(tube, row, col) {
     document.getElementById('research-freeze-thaw').value = tube.freeze_thaw_cycles || 0;
     document.getElementById('btn-research-delete').style.display = 'inline-block';
     document.getElementById('btn-research-thaw').style.display = 'inline-block';
+    document.getElementById('btn-research-print').style.display = 'inline-block';
     resetSampleIdWidget(tube.sample_id || '');
 
     new bootstrap.Modal(document.getElementById('researchTubeModal')).show();
+}
+
+async function printResearchLabel() {
+    try {
+        const sampleId = document.getElementById('research-sample-id').value.trim();
+        if (!sampleId) {
+            showToast('No sample ID to print', 'error');
+            return;
+        }
+        const img = generateCliprLabel(sampleId);
+        await printLabel(img);
+        showToast('Label sent to printer');
+    } catch (err) {
+        showToast('Print error: ' + err.message, 'error');
+    }
 }
 
 async function saveResearchTube() {
