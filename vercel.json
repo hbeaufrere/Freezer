@@ -3,7 +3,7 @@
   "functions": {
     "app.py": {
       "maxDuration": 30,
-      "excludeFiles": "{supabase/**,tests/**,docs/**,.github/**}"
+      "excludeFiles": "{migrations/**,tests/**,docs/**,.github/**}"
     }
   }
 }

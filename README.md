@@ -8,39 +8,52 @@ The upper shelf holds the **raptor plasma biobank**, where each bird gets an
 auto-generated tube ID (`RTHA26001` — species, year, sequence). The middle and
 lower shelves hold **CLIPR research** samples with free-text sample IDs.
 
-Flask + PostgreSQL, running as a Vercel Function against a Supabase database.
+Flask + PostgreSQL, running as a Vercel Function against a Neon database.
+
+Nothing here is tied to a particular Postgres host — the app speaks plain SQL
+over psycopg, so any Postgres will do. Neon is the default because its free
+tier covers this workload comfortably and it provisions straight from the
+Vercel account the app already deploys to.
 
 ---
 
 ## Setting it up
 
-### 1. Create the Supabase database
+### 1. Create the database
 
-Create a project at [supabase.com](https://supabase.com), then apply the two
-migrations in `supabase/migrations/` — either with the CLI:
+From the project directory, with the Vercel CLI:
 
 ```bash
-supabase link --project-ref YOUR_PROJECT_REF
-supabase db push
+vercel install neon
 ```
 
-or by pasting each file into the SQL Editor, in filename order. They are
+Or add Neon from the **Storage** tab of the Vercel dashboard. Either way the
+integration provisions a database and sets the connection variables on the
+project automatically — including `DATABASE_URL` (pooled) and
+`DATABASE_URL_UNPOOLED` (direct).
+
+Confirm that `DATABASE_URL` is the **pooled** one; its host contains `-pooler`.
+Serverless functions open far more short-lived connections than a direct
+Postgres endpoint can absorb.
+
+### 2. Apply the migrations
+
+```bash
+psql "$DATABASE_URL_UNPOOLED" -f migrations/20260815000000_initial_schema.sql
+psql "$DATABASE_URL_UNPOOLED" -f migrations/20260815000001_seed_reference_data.sql
+```
+
+Or paste each file into Neon's SQL Editor, in filename order. They are
 idempotent, so re-running them is safe.
 
 That creates the schema and seeds 46 raptor species plus the full freezer
 structure (504 boxes, labelled `U1-D1-B1` through `L6-D7-B4`).
 
-### 2. Get the connection string
-
-In the Supabase dashboard: **Connect → Transaction pooler**. Use that one —
-port **6543**, not the direct connection on 5432. Serverless functions open far
-more short-lived connections than a direct Postgres connection can absorb.
-
-### 3. Set the environment variables
+### 3. Set the remaining environment variables
 
 | Variable | Required | Notes |
 | --- | --- | --- |
-| `DATABASE_URL` | yes | Supabase transaction pooler string, port 6543 |
+| `DATABASE_URL` | yes | Pooled Postgres connection string (set by the Neon integration) |
 | `SECRET_KEY` | yes | Signs session cookies. `python -c 'import secrets; print(secrets.token_hex(32))'` |
 | `FREEZER_PASSWORD` | yes | The shared lab password |
 | `SESSION_HOURS` | no | Hours before a session expires (default 12) |
@@ -59,6 +72,28 @@ environment variables, and deploy. Vercel detects Flask from the module-level
 Check `/api/health` afterwards — it returns `{"status": "ok", "database":
 "connected"}` once the database is reachable.
 
+### 5. Turn on backups
+
+`.github/workflows/backup.yml` runs `pg_dump` nightly and keeps the result as a
+workflow artifact for 90 days. To enable it, add one repository secret under
+**Settings → Secrets and variables → Actions**:
+
+- `DATABASE_URL_UNPOOLED` — the **direct** connection string, not the pooled
+  one. `pg_dump` needs a real session for its consistent snapshot and will not
+  work reliably through a transaction pooler.
+
+Run it once by hand from the Actions tab to check it works. Artifacts expire
+after 90 days, so download one occasionally if you want a long-term archive.
+
+### A note on idle databases
+
+Neon suspends compute after a few minutes of inactivity and wakes it on the
+next connection, so the first request after a quiet spell takes about a second.
+That is why `connect_timeout` is set generously in `db.py`. It is also the
+reason Neon suits this app better than a free tier that *pauses* projects
+outright after a week and needs manual intervention to come back — a freezer
+tool may sit untouched for a fortnight and then be needed straight away.
+
 ---
 
 ## Running it locally
@@ -73,12 +108,12 @@ python app.py             # http://127.0.0.1:5000
 
 Set `FLASK_ENV=development` in `.env` so session cookies work over plain HTTP.
 
-You can point `DATABASE_URL` at Supabase directly, or run Postgres locally:
+You can point `DATABASE_URL` at the hosted database, or run Postgres locally:
 
 ```bash
 createdb freezer
-psql -d freezer -f supabase/migrations/20260815000000_initial_schema.sql
-psql -d freezer -f supabase/migrations/20260815000001_seed_reference_data.sql
+psql -d freezer -f migrations/20260815000000_initial_schema.sql
+psql -d freezer -f migrations/20260815000001_seed_reference_data.sql
 ```
 
 ---
@@ -90,8 +125,8 @@ here is SQL. Without `DATABASE_URL` it skips rather than failing.
 
 ```bash
 createdb freezer_test
-psql -d freezer_test -f supabase/migrations/20260815000000_initial_schema.sql
-psql -d freezer_test -f supabase/migrations/20260815000001_seed_reference_data.sql
+psql -d freezer_test -f migrations/20260815000000_initial_schema.sql
+psql -d freezer_test -f migrations/20260815000001_seed_reference_data.sql
 
 DATABASE_URL=postgresql://localhost/freezer_test pytest
 ```
@@ -120,7 +155,8 @@ services/
   export_service.py      Workbook and CSV generation
 templates/               Jinja pages
 public/static/           CSS, JS and vendored Bootstrap/Chart.js — served by Vercel's CDN
-supabase/migrations/     Schema and reference data
+migrations/              Schema and reference data
+.github/workflows/       Nightly pg_dump backup
 ```
 
 ### Notes on a few decisions
@@ -147,17 +183,15 @@ ID with a `-N` suffix, and the sample counts use `split_part` to collapse them.
 `public/static/vendor/`, so the app has no third-party runtime dependency and
 works on a lab network that blocks outside requests.
 
-**Row level security is on with no policies.** The app connects as `postgres`,
-which bypasses RLS, but enabling it closes off Supabase's auto-generated
-PostgREST API so the anon and authenticated keys cannot read specimen records.
-
 ---
 
 ## Worth doing next
 
 - **Real accounts.** One shared password means no per-person access and no way
-  to revoke it when someone leaves. Supabase Auth with magic links would replace
-  it without any password handling on our side.
+  to revoke it when someone leaves. A hosted identity provider would replace it
+  with magic-link sign-in and no password handling on our side — Clerk and
+  Auth0 both install from the Vercel Marketplace and have free tiers well above
+  a lab-sized team.
 - **An audit trail.** Deletes are permanent and anonymous. For a specimen
   repository, `created_by` / `updated_by` columns and a `deleted_at` soft delete
   would make "who removed RTHA26014, and when" an answerable question.

@@ -5,8 +5,8 @@ testing here is SQL. Point DATABASE_URL at a scratch database with the
 migrations applied; without it the suite skips rather than failing.
 
     createdb freezer_test
-    psql -d freezer_test -f supabase/migrations/20260815000000_initial_schema.sql
-    psql -d freezer_test -f supabase/migrations/20260815000001_seed_reference_data.sql
+    psql -d freezer_test -f migrations/20260815000000_initial_schema.sql
+    psql -d freezer_test -f migrations/20260815000001_seed_reference_data.sql
     DATABASE_URL=postgresql://localhost/freezer_test pytest
 """
 

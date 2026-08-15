@@ -156,20 +156,6 @@ create index if not exists idx_raptor_tubes_box       on raptor_tubes (box_id);
 create index if not exists idx_raptor_tubes_species   on raptor_tubes (species_id);
 create index if not exists idx_raptor_tubes_date      on raptor_tubes (collection_date);
 
--- ------------------------------------------------------------
--- Row level security
---
--- The Flask app connects over the pooler as the `postgres` role, which
--- bypasses RLS. Enabling RLS with no policies therefore changes nothing for
--- the app, but it closes off Supabase's auto-generated PostgREST API so the
--- anon and authenticated keys cannot read specimen records.
--- ------------------------------------------------------------
-
-alter table shelves            enable row level security;
-alter table racks              enable row level security;
-alter table drawers            enable row level security;
-alter table boxes              enable row level security;
-alter table research_tubes     enable row level security;
-alter table species            enable row level security;
-alter table raptor_id_sequence enable row level security;
-alter table raptor_tubes       enable row level security;
+-- Note: no row level security here. The only route to this data is the
+-- application's own connection string, so RLS would protect nothing and would
+-- get in the way of adding a read-only analysis role later.
