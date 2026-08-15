@@ -43,7 +43,8 @@ def clean_database(flask_app):
 
     with flask_app.app_context():
         db = get_db()
-        db.execute('truncate raptor_tubes, research_tubes, raptor_id_sequence restart identity')
+        db.execute('truncate retrievals, raptor_tubes, research_tubes, raptor_id_sequence restart identity')
+        db.execute('update drawers set note = null')
         db.execute("delete from species where banding_code = 'ZZZZ'")
         db.commit()
     yield

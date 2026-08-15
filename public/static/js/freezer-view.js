@@ -101,7 +101,12 @@ function createRackElement(rack, options = {}) {
         const label = document.createElement('span');
         label.className = 'drawer-label';
         label.textContent = `D${drawer.position}`;
+        label.title = drawer.label || `Drawer ${drawer.position}`;
         drawerEl.appendChild(label);
+
+        const boxWrap = document.createElement('span');
+        boxWrap.className = 'drawer-boxes';
+        drawerEl.appendChild(boxWrap);
 
         drawer.boxes.forEach((box) => {
             const pct = box.capacity ? Math.round((box.occupied / box.capacity) * 100) : 0;
@@ -124,13 +129,62 @@ function createRackElement(rack, options = {}) {
                 }
             });
 
-            drawerEl.appendChild(boxEl);
+            boxWrap.appendChild(boxEl);
         });
+
+        // The line the lab writes on the drawer: experiment, species, project.
+        if (options.editableNotes) {
+            drawerEl.appendChild(drawerNoteInput(drawer));
+        } else if (drawer.note) {
+            const note = document.createElement('span');
+            note.className = 'drawer-note-static';
+            note.textContent = drawer.note;
+            note.title = drawer.note;
+            drawerEl.appendChild(note);
+        }
 
         drawers.appendChild(drawerEl);
     });
 
     return rackEl;
+}
+
+function drawerNoteInput(drawer) {
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'drawer-note';
+    input.value = drawer.note || '';
+    input.placeholder = 'Notes…';
+    input.maxLength = 200;
+    input.setAttribute('aria-label', `Note for drawer ${drawer.label || drawer.position}`);
+
+    let saved = drawer.note || '';
+
+    async function commit() {
+        const value = input.value.trim();
+        if (value === saved) return;
+        try {
+            await API.put(`/api/drawers/${drawer.id}`, { note: value });
+            saved = value;
+            drawer.note = value;
+            input.classList.add('is-saved');
+            setTimeout(() => input.classList.remove('is-saved'), 900);
+        } catch (err) {
+            input.value = saved;
+            showToast(err.message, 'error');
+        }
+    }
+
+    // Save on blur rather than per keystroke, so typing is not a write storm.
+    input.addEventListener('blur', commit);
+    input.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') { event.preventDefault(); input.blur(); }
+        if (event.key === 'Escape') { input.value = saved; input.blur(); }
+    });
+    // Clicking into the note must not also open a box.
+    input.addEventListener('click', (event) => event.stopPropagation());
+
+    return input;
 }
 
 /* Occupancy reads as a quantity: one hue, six steps from empty to full. */
@@ -166,7 +220,8 @@ async function renderSectionSidebar(containerId, section, onBoxClick) {
             container.appendChild(heading);
 
             shelf.racks.forEach((rack) =>
-                container.appendChild(createRackElement(rack, { onBoxClick })));
+                container.appendChild(
+                    createRackElement(rack, { onBoxClick, editableNotes: true })));
         });
 
         return shelves;

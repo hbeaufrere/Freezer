@@ -34,6 +34,7 @@ async function initRaptorPage() {
     document.getElementById('btn-raptor-delete').addEventListener('click', deleteRaptorTube);
     document.getElementById('btn-raptor-thaw').addEventListener('click', recordRaptorThaw);
     document.getElementById('btn-raptor-barcode').addEventListener('click', showRaptorBarcode);
+    document.getElementById('btn-raptor-retrieve').addEventListener('click', logRaptorRetrieval);
 
     const sampleType = document.getElementById('raptor-sample-type');
     sampleType.addEventListener('change', syncSampleTypeHint);
@@ -224,6 +225,7 @@ function openRaptorAddModal(row, col) {
     setRaptorHidden('btn-raptor-delete', true);
     setRaptorHidden('btn-raptor-thaw', true);
     setRaptorHidden('btn-raptor-barcode', true);
+    setRaptorHidden('btn-raptor-retrieve', true);
 
     bootstrap.Modal.getOrCreateInstance(document.getElementById('raptorTubeModal')).show();
 }
@@ -263,6 +265,7 @@ function openRaptorEditModal(tube, row, col) {
     setRaptorHidden('btn-raptor-delete', false);
     setRaptorHidden('btn-raptor-thaw', false);
     setRaptorHidden('btn-raptor-barcode', false);
+    setRaptorHidden('btn-raptor-retrieve', false);
 
     document.getElementById('raptorTubeModal').dataset.tubeData = JSON.stringify(tube);
     bootstrap.Modal.getOrCreateInstance(document.getElementById('raptorTubeModal')).show();
@@ -355,6 +358,13 @@ async function deleteRaptorTube() {
 function syncSampleTypeHint() {
     const value = document.getElementById('raptor-sample-type').value;
     document.getElementById('raptor-sample-type-hint').hidden = value !== 'Other';
+}
+
+function logRaptorRetrieval() {
+    const tube = JSON.parse(
+        document.getElementById('raptorTubeModal').dataset.tubeData || '{}'
+    );
+    openRetrievalModal('raptor', tube.id, `${tube.tube_id} · ${tube.common_name}`);
 }
 
 function showRaptorBarcode() {

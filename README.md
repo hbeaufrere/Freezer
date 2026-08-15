@@ -71,7 +71,16 @@ runs, and `vercel.json` rewrites every path onto it; `requirements.txt` is
 installed automatically.
 
 Check `/api/health` afterwards — it returns `{"status": "ok", "database":
-"connected"}` once the database is reachable.
+"connected", "schema": "current"}` once everything is in place.
+
+If a migration has been missed it returns 503 and names the files still to
+run, rather than letting the gap surface later as an unexplained error on one
+page:
+
+```json
+{"status": "error", "schema": "out of date",
+ "pending_migrations": ["20260815000002_add_sample_type.sql"]}
+```
 
 ### 5. Turn on backups
 
@@ -146,6 +155,7 @@ app.py                   Flask app factory, auth, error handling, page routes
 db.py                    Connection pool, request-scoped connections, error translation
 routes/
   freezer.py             Shelves, racks, drawers, boxes
+  retrieval.py           Retrieval log
   raptor.py              Raptor samples, species
   research.py            Research tubes
   stats.py               Dashboard aggregates
@@ -188,6 +198,13 @@ deployment independent of the project's framework preset. Flask keeps serving
 `/static` itself as well, so a missing CDN route degrades to a slower request
 rather than an unstyled page.
 
+**The retrieval log outlives the tube.** `retrievals` keeps a snapshot of the
+tube ID, box and position alongside a nullable foreign key, so consuming a
+tube and deleting its row does not erase the record of who took it out. For a
+specimen repository, losing the specimen must never mean losing the history.
+Logging a retrieval also counts one freeze-thaw cycle, because taking a tube
+out of a -80 freezer is a thaw whether or not anyone ticks the box.
+
 **Labels go out by barcode, not by print driver.** There is no workable web
 print path to a Brady M211, and the Bluetooth attempt never printed anything.
 Instead the tube's ID is rendered on screen as a barcode; Brady Express Labels
@@ -214,6 +231,8 @@ works on a lab network that blocks outside requests.
 - **An audit trail.** Deletes are permanent and anonymous. For a specimen
   repository, `created_by` / `updated_by` columns and a `deleted_at` soft delete
   would make "who removed RTHA26014, and when" an answerable question.
+- **Retrieval log export.** The log is searchable and paginated in the browser
+  but has no Excel/CSV route yet, unlike the two sample tables.
 - **Sample-type reporting.** `sample_type` is recorded and exported but not yet
   charted. A breakdown on the statistics page would answer "how much liver do
   we hold" without an export.
