@@ -148,6 +148,55 @@ function attachSearchKeys(input, dropdown) {
     });
 }
 
+/* ---- Clipboard -------------------------------------------- */
+
+async function copyText(text) {
+    // The async clipboard API needs a secure context, which Vercel and
+    // localhost both provide — but fall back rather than fail silently.
+    try {
+        if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(text);
+            return true;
+        }
+    } catch (e) { /* fall through to the textarea route */ }
+
+    const area = document.createElement('textarea');
+    area.value = text;
+    area.setAttribute('readonly', '');
+    area.style.position = 'fixed';
+    area.style.opacity = '0';
+    document.body.appendChild(area);
+    area.select();
+    let copied = false;
+    try { copied = document.execCommand('copy'); } catch (e) { copied = false; }
+    area.remove();
+    return copied;
+}
+
+/* Turns a button into a copy affordance that confirms itself with a tick,
+   rather than firing a toast for something this small. */
+function attachCopyButton(button, getText) {
+    if (!button) return;
+    button.addEventListener('click', async () => {
+        const text = (getText() || '').trim();
+        if (!text) return;
+
+        const icon = button.querySelector('i');
+        if (await copyText(text)) {
+            icon.className = 'bi bi-check-lg';
+            button.classList.add('is-copied');
+            button.title = 'Copied';
+            setTimeout(() => {
+                icon.className = 'bi bi-clipboard';
+                button.classList.remove('is-copied');
+                button.title = 'Copy';
+            }, 1400);
+        } else {
+            showToast('Could not reach the clipboard — select the ID and copy it.', 'error');
+        }
+    });
+}
+
 /* ---- Schema drift ----------------------------------------- */
 
 /* Deploying a column the database has not got would otherwise surface as an

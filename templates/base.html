@@ -101,7 +101,13 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body text-center">
-                    <div class="label-value" id="label-value"></div>
+                    <div class="id-with-copy">
+                        <span class="label-value" id="label-value"></span>
+                        <button type="button" class="copy-btn" id="btn-copy-label-value"
+                                title="Copy" aria-label="Copy ID">
+                            <i class="bi bi-clipboard"></i>
+                        </button>
+                    </div>
                     <div class="label-caption" id="label-caption"></div>
 
                     <!-- Always white, whatever the app theme: scanners need the
@@ -116,17 +122,19 @@
                                 data-symbology="qr">QR</button>
                     </div>
 
-                    <p class="label-help">
-                        Scan with <strong>Brady Express Labels</strong>, pick the
-                        <strong>Vial</strong> preset, print on the M211.
-                        <span class="d-block mt-1">M21-500-7425 &middot; 1.5&nbsp;mL tubes</span>
+                    <p class="label-help label-help-warn">
+                        In <strong>Brady Express Labels</strong>, build the label from a
+                        single large <strong>Text</strong> object &mdash; delete any
+                        barcode object first, or the ID prints as a barcode. Select the
+                        text, scan the code above to fill it, size the font up, then
+                        save it as a favourite so it is one tap next time.
                     </p>
-                    <p class="label-help mt-2 label-help-warn">
-                        On the label itself the tube ID should be a <strong>text</strong>
-                        field, not a barcode. If Brady lists
-                        <em>allowed characters 0&ndash;9</em> with
-                        <em>start/stop A, B, C, D</em>, that field is a Codabar barcode
-                        and cannot hold letters &mdash; change it to text.
+                    <p class="label-help mt-2">
+                        M211 &middot; M21-500-7425 &middot; 1.5&nbsp;mL tubes
+                        <span class="d-block mt-1">
+                            Brady complaining about <em>allowed characters 0&ndash;9</em>
+                            means the field is still a barcode.
+                        </span>
                     </p>
                 </div>
             </div>
