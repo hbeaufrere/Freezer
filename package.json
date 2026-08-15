@@ -1,9 +1,0 @@
-{
-    "name": "freezer-manager",
-    "version": "1.0.0",
-    "private": true,
-    "description": "Biorepository freezer management - Brady SDK dependency",
-    "dependencies": {
-        "@bradycorporation/brady-web-sdk": "latest"
-    }
-}

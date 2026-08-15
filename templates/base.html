@@ -1,34 +1,40 @@
 <!DOCTYPE html>
-<html lang="en" data-bs-theme="light">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light dark">
     <title>{% block title %}CLIPR Repository / Raptor Biobank{% endblock %}</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+
+    <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+    <script src="/static/js/theme-init.js"></script>
+    <link href="/static/vendor/bootstrap.min.css" rel="stylesheet">
+    <link href="/static/vendor/bootstrap-icons.css" rel="stylesheet">
     <link href="/static/css/app.css" rel="stylesheet">
     {% block head %}{% endblock %}
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary sticky-top">
+    <nav class="app-nav navbar navbar-expand-lg sticky-top py-2">
         <div class="container-fluid">
-            <a class="navbar-brand d-flex align-items-center" href="/">
-                <img src="/static/img/logo-main.png" alt="" height="28" class="me-2" onerror="this.style.display='none'">
-                CLIPR Repository / Raptor Biobank
+            <a class="app-brand" href="/">
+                <span class="brand-mark" aria-hidden="true">&minus;80</span>
+                <span>
+                    CLIPR Repository
+                    <span class="brand-sub">Raptor Biobank</span>
+                </span>
             </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
+
+            <button class="navbar-toggler border-0 ms-auto" type="button"
+                    data-bs-toggle="collapse" data-bs-target="#navbarNav"
+                    aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <i class="bi bi-list fs-4"></i>
             </button>
+
             <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav me-auto">
+                <ul class="navbar-nav mx-lg-3 gap-lg-1 my-2 my-lg-0">
                     <li class="nav-item">
                         <a class="nav-link {% if request.path == '/' %}active{% endif %}" href="/">
-                            <i class="bi bi-box-seam me-1"></i>Freezer Overview
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.path == '/research' %}active{% endif %}" href="/research">
-                            <i class="bi bi-flask me-1"></i>CLIPR Research
+                            <i class="bi bi-grid-3x3 me-1"></i>Freezer
                         </a>
                     </li>
                     <li class="nav-item">
@@ -37,32 +43,40 @@
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link {% if request.path == '/research' %}active{% endif %}" href="/research">
+                            <i class="bi bi-droplet-half me-1"></i>CLIPR Research
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link {% if request.path == '/stats' %}active{% endif %}" href="/stats">
                             <i class="bi bi-bar-chart me-1"></i>Statistics
                         </a>
                     </li>
                 </ul>
-                <div class="navbar-nav d-flex flex-row align-items-center gap-2">
-                    <button class="btn btn-outline-light btn-sm" id="btn-printer-connect" title="Connect Brady M211">
-                        <i class="bi bi-bluetooth me-1" id="printer-icon"></i>
-                        <span id="printer-status-text">Printer</span>
+
+                <div class="d-flex align-items-center gap-2 ms-lg-auto">
+                    <button class="icon-btn" id="btn-printer-connect"
+                            title="Connect Brady M211 label printer" aria-label="Connect label printer">
+                        <i class="bi bi-bluetooth" id="printer-icon"></i>
                     </button>
-                    <a href="/logout" class="btn btn-outline-light btn-sm" title="Log out">
-                        <i class="bi bi-box-arrow-right me-1"></i>Logout
+                    <button class="icon-btn" id="btn-theme" title="Switch theme" aria-label="Switch colour theme">
+                        <i class="bi bi-circle-half" id="theme-icon"></i>
+                    </button>
+                    <a href="/logout" class="icon-btn" title="Sign out" aria-label="Sign out">
+                        <i class="bi bi-box-arrow-right"></i>
                     </a>
                 </div>
             </div>
         </div>
     </nav>
 
-    <main class="container-fluid py-3">
+    <main class="container-fluid py-3 px-lg-4">
         {% block content %}{% endblock %}
     </main>
 
-    <!-- Toast notifications -->
     <div class="toast-container position-fixed bottom-0 end-0 p-3" id="toast-container"></div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/static/vendor/bootstrap.bundle.min.js"></script>
     <script src="/static/js/app.js"></script>
     {% block scripts %}{% endblock %}
 </body>

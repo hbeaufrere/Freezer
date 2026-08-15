@@ -1,60 +1,59 @@
 """Statistics computation for the freezer dashboard."""
 
-# SQL expression to extract base tube ID (strips "-N" suffix for multi-tube samples).
-# e.g. "RTHA26001-1" → "RTHA26001", "RTHA26001" → "RTHA26001"
-_BASE_ID = """CASE WHEN INSTR(rt.tube_id, '-') > 0
-              THEN SUBSTR(rt.tube_id, 1, INSTR(rt.tube_id, '-') - 1)
-              ELSE rt.tube_id END"""
+# Tubes split from one bird share a base ID with a -N suffix (RTHA26001-2).
+# Counting distinct base IDs counts birds, not tubes.
+_BASE_ID = "split_part(rt.tube_id, '-', 1)"
 
 
 def get_raptor_stats(db):
     stats = {}
 
-    # Count unique samples (tubes from the same bird count as one)
     stats['total_samples'] = db.execute(
-        f"SELECT COUNT(DISTINCT {_BASE_ID}) FROM raptor_tubes rt"
-    ).fetchone()[0]
+        f'select count(distinct {_BASE_ID}) as n from raptor_tubes rt'
+    ).fetchone()['n']
 
-    rows = db.execute(f"""
-        SELECT s.common_name AS species, s.banding_code AS code,
-               COUNT(DISTINCT {_BASE_ID}) AS count
-        FROM raptor_tubes rt
-        JOIN species s ON rt.species_id = s.id
-        GROUP BY s.id
-        ORDER BY count DESC
-    """).fetchall()
-    stats['species_breakdown'] = [dict(r) for r in rows]
+    stats['total_tubes'] = db.execute(
+        'select count(*) as n from raptor_tubes'
+    ).fetchone()['n']
 
-    rows = db.execute(f"""
-        SELECT strftime('%Y-%m', rt.collection_date) AS month,
-               COUNT(DISTINCT {_BASE_ID}) AS count
-        FROM raptor_tubes rt
-        GROUP BY month
-        ORDER BY month
-    """).fetchall()
-    stats['monthly_counts'] = [dict(r) for r in rows]
+    stats['species_breakdown'] = [dict(r) for r in db.execute(
+        f"""select s.common_name as species, s.banding_code as code,
+                   count(distinct {_BASE_ID}) as count
+            from raptor_tubes rt
+            join species s on rt.species_id = s.id
+            group by s.id, s.common_name, s.banding_code
+            order by count desc, s.common_name"""
+    ).fetchall()]
 
-    rows = db.execute(f"""
-        SELECT rt.age, COUNT(DISTINCT {_BASE_ID}) AS count
-        FROM raptor_tubes rt
-        WHERE rt.age IS NOT NULL AND rt.age != ''
-        GROUP BY rt.age
-        ORDER BY count DESC
-    """).fetchall()
-    stats['age_distribution'] = [dict(r) for r in rows]
+    stats['monthly_counts'] = [dict(r) for r in db.execute(
+        f"""select to_char(rt.collection_date, 'YYYY-MM') as month,
+                   count(distinct {_BASE_ID}) as count
+            from raptor_tubes rt
+            group by month
+            order by month"""
+    ).fetchall()]
 
-    rows = db.execute(f"""
-        SELECT rt.sex, COUNT(DISTINCT {_BASE_ID}) AS count
-        FROM raptor_tubes rt
-        WHERE rt.sex IS NOT NULL AND rt.sex != ''
-        GROUP BY rt.sex
-    """).fetchall()
-    stats['sex_distribution'] = [dict(r) for r in rows]
+    stats['age_distribution'] = [dict(r) for r in db.execute(
+        f"""select rt.age, count(distinct {_BASE_ID}) as count
+            from raptor_tubes rt
+            where rt.age is not null and rt.age <> ''
+            group by rt.age
+            order by count desc"""
+    ).fetchall()]
 
-    val = db.execute(
-        "SELECT ROUND(AVG(freeze_thaw_cycles), 1) FROM raptor_tubes"
-    ).fetchone()[0]
-    stats['avg_freeze_thaw_cycles'] = val if val is not None else 0
+    stats['sex_distribution'] = [dict(r) for r in db.execute(
+        f"""select rt.sex, count(distinct {_BASE_ID}) as count
+            from raptor_tubes rt
+            where rt.sex is not null and rt.sex <> ''
+            group by rt.sex
+            order by count desc"""
+    ).fetchall()]
+
+    # Cast to float8 so the JSON encoder sees a number rather than a Decimal.
+    stats['avg_freeze_thaw_cycles'] = db.execute(
+        """select coalesce(round(avg(freeze_thaw_cycles), 1), 0)::float8 as avg
+           from raptor_tubes"""
+    ).fetchone()['avg']
 
     return stats
 
@@ -63,30 +62,32 @@ def get_research_stats(db):
     stats = {}
 
     stats['total_samples'] = db.execute(
-        "SELECT COUNT(*) FROM research_tubes"
-    ).fetchone()[0]
+        'select count(*) as n from research_tubes'
+    ).fetchone()['n']
 
     stats['boxes_with_samples'] = db.execute(
-        "SELECT COUNT(DISTINCT box_id) FROM research_tubes"
-    ).fetchone()[0]
+        'select count(distinct box_id) as n from research_tubes'
+    ).fetchone()['n']
 
-    # Total research boxes available
     stats['total_boxes'] = db.execute(
-        "SELECT COUNT(*) FROM boxes WHERE section = 'research'"
-    ).fetchone()[0]
+        "select count(*) as n from boxes where section = 'research'"
+    ).fetchone()['n']
 
-    # Occupancy per rack
-    rows = db.execute("""
-        SELECT r.label AS rack, COUNT(rt.id) AS count
-        FROM racks r
-        JOIN drawers d ON d.rack_id = r.id
-        JOIN boxes b ON b.drawer_id = d.id
-        LEFT JOIN research_tubes rt ON rt.box_id = b.id
-        WHERE b.section = 'research'
-        GROUP BY r.id
-        ORDER BY r.label
-    """).fetchall()
-    stats['occupancy_by_rack'] = [dict(r) for r in rows]
+    stats['occupancy_by_rack'] = [dict(r) for r in db.execute(
+        """select r.label as rack, count(rt.id) as count
+           from racks r
+           join drawers d on d.rack_id = r.id
+           join boxes b on b.drawer_id = d.id
+           left join research_tubes rt on rt.box_id = b.id
+           where b.section = 'research'
+           group by r.id, r.label
+           order by r.label"""
+    ).fetchall()]
+
+    stats['avg_freeze_thaw_cycles'] = db.execute(
+        """select coalesce(round(avg(freeze_thaw_cycles), 1), 0)::float8 as avg
+           from research_tubes"""
+    ).fetchone()['avg']
 
     return stats
 
@@ -94,24 +95,30 @@ def get_research_stats(db):
 def get_freezer_stats(db):
     stats = {}
 
-    # Total capacity (all boxes * grid size)
-    row = db.execute(
-        "SELECT COUNT(*) AS box_count, SUM(grid_rows * grid_cols) AS total_capacity FROM boxes"
+    totals = db.execute(
+        """select count(*) as box_count,
+                  coalesce(sum(grid_rows * grid_cols), 0) as total_capacity
+           from boxes"""
     ).fetchone()
-    stats['total_boxes'] = row[0]
-    stats['total_capacity'] = row[1] or 0
+    stats['total_boxes'] = totals['box_count']
+    stats['total_capacity'] = totals['total_capacity']
 
-    raptor_count = db.execute(
-        f"SELECT COUNT(DISTINCT {_BASE_ID}) FROM raptor_tubes rt"
-    ).fetchone()[0]
-    research_count = db.execute("SELECT COUNT(*) FROM research_tubes").fetchone()[0]
-    stats['total_stored'] = raptor_count + research_count
-    stats['raptor_count'] = raptor_count
-    stats['research_count'] = research_count
+    stats['raptor_count'] = db.execute(
+        f'select count(distinct {_BASE_ID}) as n from raptor_tubes rt'
+    ).fetchone()['n']
+    stats['research_count'] = db.execute(
+        'select count(*) as n from research_tubes'
+    ).fetchone()['n']
 
-    if stats['total_capacity'] > 0:
-        stats['percent_full'] = round(stats['total_stored'] / stats['total_capacity'] * 100, 1)
-    else:
-        stats['percent_full'] = 0
+    # Physical occupancy is one slot per tube, so multi-tube samples count
+    # individually here even though the biobank totals count them as one bird.
+    stats['tubes_stored'] = db.execute(
+        """select (select count(*) from raptor_tubes)
+                + (select count(*) from research_tubes) as n"""
+    ).fetchone()['n']
+    stats['total_stored'] = stats['raptor_count'] + stats['research_count']
+
+    capacity = stats['total_capacity']
+    stats['percent_full'] = round(stats['tubes_stored'] / capacity * 100, 1) if capacity else 0
 
     return stats
