@@ -152,48 +152,49 @@ def create_app():
     def retrievals_page():
         return render_template('retrievals.html')
 
-    # Columns the code depends on, and the migration that adds each. Migrations
-    # are applied by hand, so a forgotten one otherwise shows up as an
-    # unexplained 500 on one page. This turns it into a named file to run.
-    REQUIRED_SCHEMA = {
-        ('raptor_tubes', 'sample_type'): '20260815000002_add_sample_type.sql',
-        ('drawers', 'note'): '20260815000003_retrievals_and_drawer_notes.sql',
-        ('retrievals', 'retrieved_by'): '20260815000003_retrievals_and_drawer_notes.sql',
-    }
-
     @app.route('/api/health')
     def health():
         """Liveness probe: is the database reachable, and is its schema current?"""
         from db import get_db
+        from services.migrator import pending
 
         try:
             db = get_db()
-            present = {
-                (r['table_name'], r['column_name'])
-                for r in db.execute(
-                    """select table_name, column_name from information_schema.columns
-                       where table_schema = 'public'"""
-                ).fetchall()
-            }
+            outstanding = pending(db)
+            db.commit()
         except Exception:
             log.exception('Health check could not reach the database')
             return jsonify({'status': 'error', 'database': 'unreachable'}), 503
 
-        missing = sorted({
-            migration for key, migration in REQUIRED_SCHEMA.items() if key not in present
-        })
-
-        if missing:
+        if outstanding:
             return jsonify({
                 'status': 'error',
                 'database': 'connected',
                 'schema': 'out of date',
-                'pending_migrations': missing,
-                'detail': 'Run these files from migrations/ against the database, '
-                          'oldest first.',
+                'pending_migrations': outstanding,
+                'detail': 'Apply them from the banner in the app, or POST to '
+                          '/api/admin/migrate.',
             }), 503
 
         return jsonify({'status': 'ok', 'database': 'connected', 'schema': 'current'})
+
+    @app.route('/api/admin/migrate', methods=['POST'])
+    def run_migrations():
+        """Bring the database schema up to date. Requires a signed-in session."""
+        from db import get_db
+        from services.migrator import apply_pending
+
+        try:
+            applied_now = apply_pending(get_db())
+        except Exception as exc:
+            log.exception('Applying migrations failed')
+            return jsonify({
+                'error': 'A migration failed. The database is unchanged past the '
+                         'last one that succeeded.',
+                'detail': str(exc).splitlines()[0] if str(exc) else '',
+            }), 500
+
+        return jsonify({'applied': applied_now, 'count': len(applied_now)})
 
     # ------------------------------------------------------------
     # Error handling — never leak schema details to the browser

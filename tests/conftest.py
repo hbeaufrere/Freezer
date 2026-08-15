@@ -5,9 +5,9 @@ testing here is SQL. Point DATABASE_URL at a scratch database with the
 migrations applied; without it the suite skips rather than failing.
 
     createdb freezer_test
-    psql -d freezer_test -f migrations/20260815000000_initial_schema.sql
-    psql -d freezer_test -f migrations/20260815000001_seed_reference_data.sql
     DATABASE_URL=postgresql://localhost/freezer_test pytest
+
+The suite applies the migrations itself, so an empty database is enough.
 """
 
 import os
@@ -33,6 +33,15 @@ def flask_app():
 
     application = create_app()
     application.config.update(TESTING=True)
+
+    # Bring the scratch database up to date the same way the app does, so the
+    # suite exercises the real migration path rather than a psql-loaded schema.
+    from db import get_db
+    from services.migrator import apply_pending
+
+    with application.app_context():
+        apply_pending(get_db())
+
     return application
 
 

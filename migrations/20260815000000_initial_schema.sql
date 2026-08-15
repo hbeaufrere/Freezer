@@ -89,7 +89,7 @@ create table if not exists research_tubes (
     unique (box_id, row_pos, col_pos)
 );
 
-create trigger research_tubes_set_updated_at
+create or replace trigger research_tubes_set_updated_at
     before update on research_tubes
     for each row execute function set_updated_at();
 
@@ -139,7 +139,7 @@ create table if not exists raptor_tubes (
 comment on column raptor_tubes.tube_id is
     'Format [BAND][YY][NNN], with -N suffix when one bird yields several tubes: RTHA26001-2';
 
-create trigger raptor_tubes_set_updated_at
+create or replace trigger raptor_tubes_set_updated_at
     before update on raptor_tubes
     for each row execute function set_updated_at();
 

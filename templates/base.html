@@ -72,6 +72,20 @@
         </div>
     </nav>
 
+    <!-- Shown only when the database schema is behind the deployed code. -->
+    <div class="schema-banner" id="schema-banner" hidden>
+        <div class="schema-banner-body">
+            <i class="bi bi-database-exclamation"></i>
+            <div>
+                <strong>The database needs an update.</strong>
+                <span id="schema-banner-detail"></span>
+            </div>
+            <button type="button" class="btn btn-sm btn-primary ms-auto" id="btn-apply-migrations">
+                Update now
+            </button>
+        </div>
+    </div>
+
     <main class="container-fluid py-3 px-lg-4">
         {% block content %}{% endblock %}
     </main>

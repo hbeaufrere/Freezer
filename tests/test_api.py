@@ -459,25 +459,56 @@ def test_health_is_public_and_checks_the_database(anon):
     assert body['schema'] == 'current'
 
 
-def test_health_names_the_migration_that_is_missing(anon, flask_app):
-    """A forgotten migration should say which file to run, not 500 elsewhere."""
+def test_health_names_pending_migrations(anon, flask_app):
+    """A missing migration should name itself, not surface as a 500 elsewhere."""
     from db import get_db
 
     with flask_app.app_context():
         db = get_db()
-        db.execute('alter table drawers drop column note')
+        db.execute("delete from schema_migrations where filename like '%add_sample_type%'")
         db.commit()
     try:
         response = anon.get('/api/health')
         assert response.status_code == 503
         body = response.get_json()
         assert body['schema'] == 'out of date'
-        assert '20260815000003_retrievals_and_drawer_notes.sql' in body['pending_migrations']
+        assert body['pending_migrations'] == ['20260815000002_add_sample_type.sql']
     finally:
         with flask_app.app_context():
             db = get_db()
-            db.execute('alter table drawers add column note text')
+            db.execute("insert into schema_migrations (filename) values "
+                       "('20260815000002_add_sample_type.sql') on conflict do nothing")
             db.commit()
+
+
+def test_migrations_are_applied_in_place_and_are_idempotent(client, flask_app):
+    """The upgrade path a deployed database actually takes: forget everything
+    that has been applied, replay it, and confirm nothing was lost."""
+    from db import get_db
+
+    with flask_app.app_context():
+        db = get_db()
+        db.execute('delete from schema_migrations')
+        db.commit()
+        before = db.execute('select count(*) as n from species').fetchone()['n']
+
+    first = client.post('/api/admin/migrate').get_json()
+    assert first['count'] == 4, first
+    assert first['applied'][0].startswith('20260815000000')
+
+    # Replaying the seed must not duplicate reference data.
+    with flask_app.app_context():
+        db = get_db()
+        assert db.execute('select count(*) as n from species').fetchone()['n'] == before
+        assert db.execute('select count(*) as n from boxes').fetchone()['n'] == 504
+
+    # And a second pass has nothing left to do.
+    assert client.post('/api/admin/migrate').get_json() == {'applied': [], 'count': 0}
+    assert client.get('/api/health').get_json()['schema'] == 'current'
+
+
+def test_migrate_requires_a_session(anon):
+    assert anon.post('/api/admin/migrate').status_code == 401
 
 
 # ------------------------------------------------------------
