@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Biorepository Freezer Management System.
 
-Flask + PostgreSQL (Supabase), deployed as a Vercel Function. Vercel looks for
+Flask + PostgreSQL, deployed as a Vercel Function. Vercel looks for
 a module-level ``app``, which is created at the bottom of this file.
 """
 

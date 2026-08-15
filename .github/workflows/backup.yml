@@ -1,0 +1,62 @@
+name: Database backup
+
+# A nightly pg_dump, kept as a workflow artifact. This is the safety net the
+# old SQLite setup never had: whatever happens to the hosting account, there is
+# always a recent, restorable copy of the biobank.
+#
+# Setup: add a repository secret named DATABASE_URL_UNPOOLED containing the
+# *direct* (non-pooled) connection string. pg_dump needs a real session for its
+# consistent snapshot and will not work reliably through a transaction pooler.
+
+on:
+  schedule:
+    - cron: '17 8 * * *'   # 08:17 UTC daily, off the hour so it isn't queued
+  workflow_dispatch:        # ...and on demand from the Actions tab
+
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Install a current pg_dump
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] \
+            https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+          pg_dump --version
+
+      - name: Dump the database
+        env:
+          # Never echoed; passed straight to pg_dump so it stays out of the log.
+          PGURL: ${{ secrets.DATABASE_URL_UNPOOLED }}
+        run: |
+          if [ -z "$PGURL" ]; then
+            echo "::error::DATABASE_URL_UNPOOLED secret is not set."
+            exit 1
+          fi
+          mkdir -p dump
+          stamp="$(date -u +%Y-%m-%d)"
+          pg_dump --no-owner --no-privileges --format=plain "$PGURL" \
+            | gzip -9 > "dump/freezer-${stamp}.sql.gz"
+          ls -lh dump/
+          # A dump that is suspiciously small usually means the connection
+          # succeeded but the schema did not come back.
+          size=$(stat -c%s dump/freezer-*.sql.gz)
+          if [ "$size" -lt 2000 ]; then
+            echo "::error::Dump is only ${size} bytes — treating that as a failure."
+            exit 1
+          fi
+
+      - name: Upload the dump
+        uses: actions/upload-artifact@v4
+        with:
+          name: freezer-backup
+          path: dump/*.sql.gz
+          retention-days: 90
+          if-no-files-found: error

@@ -1,8 +1,8 @@
-"""PostgreSQL access layer (Supabase).
+"""PostgreSQL access layer.
 
 Connections come from a small process-wide pool. On Vercel every function
-instance keeps its own pool, so the pool stays deliberately small — Supabase's
-transaction pooler is what actually multiplexes those onto Postgres.
+instance keeps its own pool, so the pool stays deliberately small — the
+provider's connection pooler is what actually multiplexes those onto Postgres.
 
 Routes use the connection directly, the same shape the sqlite3 version used:
 
@@ -22,12 +22,12 @@ _pool = None
 
 
 def database_url():
-    """The Supabase connection string, or a clear error explaining what's missing."""
+    """The Postgres connection string, or a clear error explaining what's missing."""
     url = os.environ.get('DATABASE_URL')
     if not url:
         raise RuntimeError(
-            "DATABASE_URL is not set. Use the Supabase 'Transaction pooler' "
-            "connection string (port 6543) from Project Settings -> Database."
+            'DATABASE_URL is not set. Use your provider\'s *pooled* connection '
+            'string — on Neon the host contains "-pooler".'
         )
     return url
 
@@ -46,10 +46,12 @@ def get_pool():
             check=ConnectionPool.check_connection,
             kwargs={
                 'row_factory': dict_row,
-                # The transaction pooler multiplexes sessions and cannot keep
+                # Transaction-mode poolers multiplex sessions and cannot keep
                 # server-side prepared statements around.
                 'prepare_threshold': None,
-                'connect_timeout': 10,
+                # Neon suspends idle compute, so the first connection after a
+                # quiet spell has to wait for it to wake.
+                'connect_timeout': 15,
             },
             name='freezer',
             open=True,
