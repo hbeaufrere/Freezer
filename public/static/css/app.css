@@ -1,9 +1,15 @@
 /* ============================================================
-   CLIPR Repository / Raptor Biobank — design system
+   CLIPR Sample Repository and Raptor Biobank — design system
 
-   Cold-storage palette: a glacial teal accent over cold-biased neutrals,
-   with monospace reserved for the things printed on the tubes themselves
-   (tube IDs, grid positions, box labels).
+   UC Davis palette: Aggie Blue #022851 and Aggie Gold #FFBF00, the same two
+   colours already carried by the CLIPR and California Raptor Center marks.
+
+   Light mode leads with Aggie Blue, because gold on white cannot hold text
+   contrast. Dark mode inverts the relationship — gold reads as the accent
+   over a navy ground, which is the more familiar UC Davis lockup.
+
+   Monospace is reserved for the things printed on the tubes themselves:
+   tube IDs, grid positions, box labels.
 
    Bootstrap 5.3 variables are remapped onto these tokens, so components we
    don't style directly still inherit the palette in both themes.
@@ -12,42 +18,49 @@
 :root {
     color-scheme: light;
 
-    --f-ground:      #eef2f3;
+    --f-ground:      #eef1f6;
     --f-surface:     #ffffff;
-    --f-surface-2:   #e4ebec;
-    --f-surface-3:   #d8e2e4;
-    --f-ink:         #0f1a1d;
-    --f-ink-soft:    #33474d;
-    --f-muted:       #61757b;
-    --f-hairline:    #d2dcde;
-    --f-hairline-2:  #bcc9cc;
+    --f-surface-2:   #e3e9f1;
+    --f-surface-3:   #d3dce8;
+    --f-ink:         #0a1c30;
+    --f-ink-soft:    #294764;
+    --f-muted:       #5c7189;
+    --f-hairline:    #d2dae5;
+    --f-hairline-2:  #b5c3d4;
 
-    --f-accent:      #0e6c76;
-    --f-accent-hot:  #0a545c;
-    --f-accent-wash: #dcecee;
+    --f-accent:      #022851;   /* Aggie Blue */
+    --f-accent-hot:  #0a3d75;
+    --f-accent-wash: #dde5f0;
     --f-accent-ink:  #ffffff;
 
-    --f-raptor:      #8a5a16;
-    --f-raptor-wash: #f4ead7;
-    --f-research:    #2f6f53;
-    --f-research-wash: #dcece4;
+    --f-gold:        #ffbf00;   /* Aggie Gold */
+    --f-gold-ink:    #022851;   /* text placed on gold */
+    --f-gold-deep:   #8a6600;   /* gold-family text on a light ground */
+    --f-gold-wash:   #fff3d4;
 
-    --f-warn:        #9a5b0c;
-    --f-danger:      #a83a32;
-    --f-ok:          #2f6f53;
+    --f-raptor:        #8a6600;
+    --f-raptor-wash:   #fff3d4;
+    --f-research:      #0a3d75;
+    --f-research-wash: #dde5f0;
 
-    /* Occupancy ramp — one hue, light to saturated, so "how full" reads as
-       a quantity rather than as an alarm. */
+    --f-warn:        #8a6600;
+    --f-danger:      #a3312a;
+    --f-ok:          #1f6b45;
+
+    /* Occupancy ramp — one hue, light to saturated, so "how full" reads as a
+       quantity rather than as an alarm. The first step has to clear the empty
+       colour by a wide margin: "has a few tubes in it" is the single most
+       useful thing to spot when scanning 504 boxes. */
     --f-occ-0: transparent;
-    --f-occ-1: #cfe6e8;
-    --f-occ-2: #9ed0d5;
-    --f-occ-3: #5fb0b9;
-    --f-occ-4: #2b8a95;
-    --f-occ-5: #0e6c76;
+    --f-occ-1: #a9c6e3;
+    --f-occ-2: #8fb2d6;
+    --f-occ-3: #5c8ec0;
+    --f-occ-4: #2e63a0;
+    --f-occ-5: #022851;
 
-    --f-shadow-sm: 0 1px 2px rgba(15, 26, 29, 0.06);
-    --f-shadow:    0 2px 8px rgba(15, 26, 29, 0.08);
-    --f-shadow-lg: 0 12px 32px rgba(15, 26, 29, 0.16);
+    --f-shadow-sm: 0 1px 2px rgba(2, 40, 81, 0.07);
+    --f-shadow:    0 2px 8px rgba(2, 40, 81, 0.10);
+    --f-shadow-lg: 0 12px 32px rgba(2, 40, 81, 0.20);
 
     --f-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
               'Helvetica Neue', Arial, sans-serif;
@@ -61,40 +74,46 @@
 [data-bs-theme="dark"] {
     color-scheme: dark;
 
-    --f-ground:      #0b1214;
-    --f-surface:     #121d20;
-    --f-surface-2:   #1a282c;
-    --f-surface-3:   #223338;
-    --f-ink:         #e3ebec;
-    --f-ink-soft:    #bccace;
-    --f-muted:       #8da1a7;
-    --f-hairline:    #243438;
-    --f-hairline-2:  #33474d;
+    --f-ground:      #05121f;
+    --f-surface:     #0b2138;
+    --f-surface-2:   #143050;
+    --f-surface-3:   #1d4066;
+    --f-ink:         #e7eef7;
+    --f-ink-soft:    #c2d4e6;
+    --f-muted:       #8ba4bd;
+    --f-hairline:    #1c3a5b;
+    --f-hairline-2:  #2b5580;
 
-    --f-accent:      #4fc2ce;
-    --f-accent-hot:  #7ad4dd;
-    --f-accent-wash: #14343a;
-    --f-accent-ink:  #06181b;
+    /* Gold carries the accent on navy, where Aggie Blue would disappear. */
+    --f-accent:      #ffbf00;
+    --f-accent-hot:  #ffd24d;
+    --f-accent-wash: #2b2410;
+    --f-accent-ink:  #05121f;
 
-    --f-raptor:      #d6a45a;
-    --f-raptor-wash: #2e2515;
-    --f-research:    #6fbf95;
-    --f-research-wash: #142b21;
+    --f-gold:        #ffbf00;
+    --f-gold-ink:    #05121f;
+    --f-gold-deep:   #ffcf40;
+    --f-gold-wash:   #2b2410;
 
-    --f-warn:        #d9a253;
-    --f-danger:      #e8837b;
-    --f-ok:          #6fbf95;
+    --f-raptor:        #ffcf40;
+    --f-raptor-wash:   #2b2410;
+    --f-research:      #7fb6ea;
+    --f-research-wash: #12314e;
+
+    --f-warn:        #e0a93f;
+    --f-danger:      #ef8b82;
+    --f-ok:          #6dc396;
 
     --f-occ-0: transparent;
-    --f-occ-1: #1f4247;
-    --f-occ-2: #275c64;
-    --f-occ-3: #2f7d88;
-    --f-occ-4: #3ea3af;
-    --f-occ-5: #56c7d3;
+    --f-occ-1: #1f5183;
+    --f-occ-2: #2a6ba8;
+    --f-occ-3: #3a86c4;
+    --f-occ-4: #56a2d8;
+    --f-occ-5: #7cc0ea;
 
-    --f-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-    --f-shadow:    0 2px 10px rgba(0, 0, 0, 0.45);
-    --f-shadow-lg: 0 14px 36px rgba(0, 0, 0, 0.6);
+    --f-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.45);
+    --f-shadow:    0 2px 10px rgba(0, 0, 0, 0.5);
+    --f-shadow-lg: 0 14px 36px rgba(0, 0, 0, 0.65);
 }
 
 /* ---- Bootstrap remapping ---------------------------------- */
@@ -712,10 +731,10 @@ body {
     color: #ffffff;
 }
 
-/* Research wells carry no species colour. This is a fixed mid-teal rather
-   than --f-accent, which is deliberately light in dark mode and would leave
-   white labels unreadable. */
-.tube-cell.filled.research { background: #12707c; }
+/* Research wells carry no species colour. This is a fixed mid Aggie Blue
+   rather than --f-accent, which is near-black in light mode and gold in dark
+   mode — neither of which would carry a white label at this size. */
+.tube-cell.filled.research { background: #14538d; }
 
 .tube-cell.filled:hover {
     transform: scale(1.12);
@@ -1021,19 +1040,77 @@ body {
     place-items: center;
     padding: 1.5rem;
     background:
-        radial-gradient(circle at 20% 0%,
-            color-mix(in srgb, var(--f-accent) 12%, transparent), transparent 55%),
+        radial-gradient(circle at 15% -10%,
+            color-mix(in srgb, var(--f-gold) 16%, transparent), transparent 45%),
+        radial-gradient(circle at 90% 110%,
+            color-mix(in srgb, var(--f-accent) 14%, transparent), transparent 50%),
         var(--f-ground);
 }
 
 .login-card {
     width: 100%;
-    max-width: 380px;
+    max-width: 460px;
     background: var(--f-surface);
     border: 1px solid var(--f-hairline);
+    border-top: 4px solid var(--f-gold);
     border-radius: 14px;
     box-shadow: var(--f-shadow-lg);
-    padding: 2rem 1.75rem;
+    padding: 2rem 2rem 2.25rem;
+}
+
+/* Co-branded lockup: each mark sits with the half of the name it belongs to. */
+.login-brands {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.login-brand {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.55rem;
+}
+
+/* Both marks are supplied on white, so they get their own plate and stay
+   legible when the app is in dark mode. */
+.login-brand img {
+    display: block;
+    max-width: 100%;
+    background: #ffffff;
+    border-radius: 8px;
+    padding: 6px 10px;
+    box-shadow: var(--f-shadow-sm);
+}
+
+.login-brand img.mark-clipr  { width: 178px; }
+.login-brand img.mark-raptor { width: 290px; }
+
+.login-brand-name {
+    font-size: 1.02rem;
+    font-weight: 650;
+    letter-spacing: -0.015em;
+    color: var(--f-ink);
+    text-align: center;
+}
+
+.login-brand-rule {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    color: var(--f-muted);
+    font-size: 0.78rem;
+    font-style: italic;
+}
+
+.login-brand-rule::before,
+.login-brand-rule::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--f-hairline);
 }
 
 .login-mark {
