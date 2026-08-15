@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light dark">
-    <title>Sign in &middot; CLIPR Repository</title>
+    <title>Sign in &middot; CLIPR Sample Repository and Raptor Biobank</title>
 
     <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
     <script src="/static/js/theme-init.js"></script>
@@ -14,9 +14,24 @@
 </head>
 <body class="login-page">
     <main class="login-card">
-        <div class="login-mark" aria-hidden="true">&minus;80</div>
-        <h1 class="login-title">CLIPR Repository</h1>
-        <p class="login-sub">Raptor Biobank &middot; Freezer Management</p>
+        <div class="login-brands">
+            <div class="login-brand">
+                <img class="mark-clipr" src="/static/img/logo-clipr.png"
+                     alt="CLIPR" onerror="this.remove()">
+                <span class="login-brand-name">CLIPR Sample Repository</span>
+            </div>
+
+            <div class="login-brand-rule">and</div>
+
+            <div class="login-brand">
+                <img class="mark-raptor" src="/static/img/logo-raptor.png"
+                     alt="UC Davis California Raptor Center, School of Veterinary Medicine"
+                     onerror="this.remove()">
+                <span class="login-brand-name">Raptor Biobank</span>
+            </div>
+        </div>
+
+        <p class="login-sub">&minus;80 &deg;C Freezer Management</p>
 
         {% if error %}
         <div class="alert alert-danger py-2 px-3 d-flex align-items-center gap-2" role="alert">

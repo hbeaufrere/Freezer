@@ -1,4 +1,4 @@
-# CLIPR Repository / Raptor Biobank
+# CLIPR Sample Repository and Raptor Biobank
 
 Freezer management for the biorepository: an Eppendorf CryoCube F740hi laid out
 as 3 shelves × 6 racks × 7 drawers × 4 boxes, each box a 10×10 grid — 5,040 tube
@@ -187,6 +187,8 @@ cannot be relied on. Routing everything through `api/index.py` makes the
 deployment independent of the project's framework preset. Flask keeps serving
 `/static` itself as well, so a missing CDN route degrades to a slower request
 rather than an unstyled page.
+
+**The palette is UC Davis Aggie Blue and Gold.** Light mode leads with Aggie Blue (#022851) because gold cannot hold text contrast on white; dark mode inverts it, with gold as the accent over a navy ground. The twelve species colours in the box grid stay outside the brand palette — categorical encoding needs hues that separate at 34px, which two brand colours cannot provide.
 
 **Assets are vendored, not loaded from a CDN.** Bootstrap and Chart.js live in
 `public/static/vendor/`, so the app has no third-party runtime dependency and
