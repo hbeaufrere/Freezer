@@ -25,8 +25,8 @@
     --f-ink:         #0a1c30;
     --f-ink-soft:    #294764;
     --f-muted:       #5c7189;
-    --f-hairline:    #d2dae5;
-    --f-hairline-2:  #b5c3d4;
+    --f-hairline:    #c2cedd;
+    --f-hairline-2:  #93a6bd;
 
     --f-accent:      #022851;   /* Aggie Blue */
     --f-accent-hot:  #0a3d75;
@@ -81,8 +81,8 @@
     --f-ink:         #e7eef7;
     --f-ink-soft:    #c2d4e6;
     --f-muted:       #8ba4bd;
-    --f-hairline:    #1c3a5b;
-    --f-hairline-2:  #2b5580;
+    --f-hairline:    #2a4d73;
+    --f-hairline-2:  #43719c;
 
     /* Gold carries the accent on navy, where Aggie Blue would disappear. */
     --f-accent:      #ffbf00;
@@ -386,7 +386,7 @@ body {
 
 .stat-card {
     background: var(--f-surface);
-    border: 1px solid var(--f-hairline);
+    border: 1px solid var(--f-hairline-2);
     border-radius: var(--f-radius);
     padding: 0.9rem 1rem;
     height: 100%;
@@ -436,7 +436,7 @@ body {
 .freezer-cabinet {
     max-width: 1180px;
     margin: 0 auto;
-    border: 1px solid var(--f-hairline-2);
+    border: 2px solid var(--f-hairline-2);
     border-radius: 14px;
     background: var(--f-surface);
     padding: 1.1rem;
@@ -482,7 +482,7 @@ body {
 
 .freezer-shelf {
     background: var(--f-ground);
-    border: 1px solid var(--f-hairline);
+    border: 1px solid var(--f-hairline-2);
     border-radius: var(--f-radius);
     padding: 0.75rem;
 }
@@ -541,7 +541,7 @@ body {
 
 .rack {
     background: var(--f-surface);
-    border: 1px solid var(--f-hairline);
+    border: 1px solid var(--f-hairline-2);
     border-radius: var(--f-radius-sm);
     padding: 0.5rem;
     min-width: 132px;
@@ -590,6 +590,7 @@ body {
     gap: 3px;
     padding: 3px;
     background: var(--f-surface-2);
+    border: 1px solid var(--f-hairline);
     border-radius: 4px;
 }
 
@@ -665,8 +666,9 @@ body {
 }
 
 /* Empty slots are filled rather than white — an outlined white rectangle at
-   this size reads as a text input. */
-.box-slot.occ-0 { background: var(--f-surface-2); border-color: var(--f-hairline); }
+   this size reads as a text input. The border stays strong so the grid of 504
+   still reads as discrete boxes. */
+.box-slot.occ-0 { background: var(--f-surface); border-color: var(--f-hairline-2); }
 .box-slot.occ-1 { background: var(--f-occ-1); }
 .box-slot.occ-2 { background: var(--f-occ-2); }
 .box-slot.occ-3 { background: var(--f-occ-3); }
@@ -709,7 +711,7 @@ body {
     width: 16px;
     height: 11px;
     border-radius: 3px;
-    border: 1px solid var(--f-hairline-2);
+    border: 1px solid var(--f-muted);
 }
 
 /* ============================================================
@@ -718,7 +720,7 @@ body {
 
 .box-grid-shell {
     background: var(--f-surface);
-    border: 1px solid var(--f-hairline);
+    border: 1px solid var(--f-hairline-2);
     border-radius: var(--f-radius);
     padding: 1rem;
     box-shadow: var(--f-shadow-sm);
@@ -769,7 +771,7 @@ body {
     aspect-ratio: 1;
     min-width: 34px;
     padding: 2px;
-    border: 1px solid var(--f-hairline-2);
+    border: 1.5px solid var(--f-hairline-2);
     border-radius: 50%;
     background: var(--f-surface);
     display: flex;
@@ -1194,6 +1196,15 @@ body {
     line-height: 1.5;
     color: var(--f-muted);
     margin: 0;
+}
+
+.label-scan-note {
+    font-family: var(--f-mono);
+    font-size: 0.6rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--f-muted);
+    margin: -0.55rem 0 0.75rem;
 }
 
 .label-help-warn {

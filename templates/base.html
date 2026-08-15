@@ -97,7 +97,7 @@
         <div class="modal-dialog modal-dialog-centered modal-sm">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h2 class="modal-title fs-6">Tube label</h2>
+                    <h2 class="modal-title fs-6">Send to label printer</h2>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body text-center">
@@ -107,6 +107,7 @@
                     <!-- Always white, whatever the app theme: scanners need the
                          contrast, and an inverted barcode will not read. -->
                     <div class="label-stage" id="label-stage"></div>
+                    <p class="label-scan-note">Scan this &mdash; it is not the label</p>
 
                     <div class="btn-group btn-group-sm mb-3" role="group" aria-label="Barcode type">
                         <button type="button" class="btn btn-outline-secondary"
@@ -116,16 +117,16 @@
                     </div>
 
                     <p class="label-help">
-                        Scan this with <strong>Brady Express Labels</strong> on your phone,
-                        pick the <strong>Vial</strong> preset, and print on the M211.
-                        <span class="d-block mt-1">Cartridge M21-500-7425 &middot; 1.5&nbsp;mL tubes</span>
+                        Scan with <strong>Brady Express Labels</strong>, pick the
+                        <strong>Vial</strong> preset, print on the M211.
+                        <span class="d-block mt-1">M21-500-7425 &middot; 1.5&nbsp;mL tubes</span>
                     </p>
                     <p class="label-help mt-2 label-help-warn">
-                        If Brady rejects the letters and lists
+                        On the label itself the tube ID should be a <strong>text</strong>
+                        field, not a barcode. If Brady lists
                         <em>allowed characters 0&ndash;9</em> with
-                        <em>start/stop A, B, C, D</em>, that label object is set to
-                        <strong>Codabar</strong>, which cannot hold letters. Switch it to
-                        <strong>Code 128</strong> or to a plain text field.
+                        <em>start/stop A, B, C, D</em>, that field is a Codabar barcode
+                        and cannot hold letters &mdash; change it to text.
                     </p>
                 </div>
             </div>
