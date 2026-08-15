@@ -12,6 +12,7 @@ Rows come back as dicts, so ``dict(row)`` and ``row['column']`` both work.
 """
 
 import os
+import threading
 
 import psycopg
 from flask import g
@@ -19,6 +20,11 @@ from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 
 _pool = None
+# Pool creation is lazy, and the pages fire several API calls at once. Without
+# this, concurrent first requests each see `_pool is None` and build their own
+# pool; connections then get handed back to a pool they did not come from,
+# which psycopg_pool rejects outright.
+_pool_lock = threading.Lock()
 
 
 def database_url():
@@ -34,7 +40,13 @@ def database_url():
 
 def get_pool():
     global _pool
-    if _pool is None:
+    if _pool is not None:
+        return _pool
+
+    with _pool_lock:
+        # Re-check inside the lock: another thread may have won the race.
+        if _pool is not None:
+            return _pool
         _pool = ConnectionPool(
             conninfo=database_url(),
             min_size=0,
@@ -76,9 +88,14 @@ def close_db(exc=None):
         # an error path or a bug — either way it should not be written.
         conn.rollback()
     except psycopg.Error:
-        pass  # Broken connection; putconn will discard it.
-    finally:
+        pass  # Broken connection; the pool will discard it.
+
+    try:
         get_pool().putconn(conn)
+    except ValueError:
+        # Belt and braces: if this connection somehow came from a different
+        # pool, closing it is better than losing the request to a 500.
+        conn.close()
 
 
 def insert_returning_id(db, sql, params):

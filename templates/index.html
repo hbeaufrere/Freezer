@@ -58,12 +58,64 @@
     <div class="skeleton skeleton-shelf"></div>
     <div class="skeleton skeleton-shelf"></div>
 </div>
+<!-- Drop-off QR for a satellite freezer. Nothing to do with tube labels:
+     this is a sign that gets printed and taped to a freezer door. -->
+<div class="modal fade" id="siteQrModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title fs-5">Drop-off QR code</h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center">
+                <div class="site-qr-site">
+                    <span class="site-qr-code" id="site-qr-code"></span>
+                    <span class="site-qr-name" id="site-qr-name"></span>
+                </div>
+
+                <div class="site-qr-stage" id="site-qr-stage"></div>
+
+                <div class="id-with-copy site-qr-url-row">
+                    <span class="site-qr-url" id="site-qr-url"></span>
+                    <button type="button" class="copy-btn" id="btn-copy-site-url"
+                            title="Copy the link" aria-label="Copy the drop-off link">
+                        <i class="bi bi-clipboard"></i>
+                    </button>
+                </div>
+
+                <p class="label-help mt-3">
+                    Print this and tape it to the freezer. Anyone leaving samples
+                    scans it and says how many &mdash; no login needed.
+                    <span class="d-block mt-1">
+                        The link is the credential, so keep the sign inside the lab.
+                    </span>
+                </p>
+            </div>
+            <div class="modal-footer justify-content-between">
+                <button type="button" class="btn btn-outline-secondary btn-sm"
+                        data-bs-dismiss="modal">Close</button>
+                <div class="d-flex flex-wrap gap-2">
+                    <button type="button" class="btn btn-outline-secondary btn-sm"
+                            id="btn-copy-site-qr" title="Copy the QR image to the clipboard">
+                        <i class="bi bi-images me-1"></i>Copy image
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm"
+                            id="btn-download-site-qr" title="Save the QR as a PNG">
+                        <i class="bi bi-download me-1"></i>PNG
+                    </button>
+                    <button type="button" class="btn btn-primary btn-sm" id="btn-print-site-qr">
+                        <i class="bi bi-printer me-1"></i>Print sign
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
-<script src="/static/vendor/jsbarcode.min.js"></script>
 <script src="/static/vendor/qrcode.js"></script>
-<script src="/static/js/label.js"></script>
+<script src="/static/js/site-qr.js"></script>
 <script src="/static/js/freezer-view.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', loadFreezerOverview);

@@ -279,16 +279,6 @@ async function markCollected(site) {
     }
 }
 
-/* The QR that goes on the satellite freezer door. */
-async function showSiteQr(site) {
-    try {
-        const info = await API.get(`/api/collection-sites/${site.id}/qr`);
-        showLabelBarcode(info.drop_url, `${info.code} drop-off — print and tape to the freezer`);
-    } catch (err) {
-        showToast(err.message, 'error');
-    }
-}
-
 /* Occupancy reads as a quantity: one hue, six steps from empty to full. */
 function occupancyClass(occupied, capacity) {
     if (!capacity || occupied === 0) return 'occ-0';

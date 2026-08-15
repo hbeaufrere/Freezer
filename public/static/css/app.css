@@ -766,6 +766,45 @@ body {
 .collect-site.is-ageing  .collect-age { color: var(--f-warn); }
 .collect-site.is-overdue .collect-age { color: var(--f-danger); font-weight: 600; }
 
+/* ---- Satellite drop-off QR (a sign, not a tube label) ------ */
+
+.site-qr-site {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    margin-bottom: 1rem;
+}
+
+.site-qr-code {
+    font-family: var(--f-mono);
+    font-size: 1.4rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--f-accent);
+}
+
+.site-qr-name { font-size: 0.82rem; color: var(--f-muted); }
+
+/* White ground in both themes — a phone camera needs the contrast. */
+.site-qr-stage {
+    width: 250px;
+    margin: 0 auto;
+    background: #ffffff;
+    border: 1px solid var(--f-hairline-2);
+    border-radius: var(--f-radius);
+    padding: 0.75rem;
+}
+
+.site-qr-url-row { margin-top: 0.85rem; }
+
+.site-qr-url {
+    font-family: var(--f-mono);
+    font-size: 0.62rem;
+    color: var(--f-muted);
+    word-break: break-all;
+    text-align: left;
+}
+
 /* ---- Public drop-off page --------------------------------- */
 
 .drop-card { max-width: 420px; }

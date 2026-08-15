@@ -751,3 +751,44 @@ def test_collection_admin_needs_a_session(anon, client):
     assert anon.get('/api/collection-sites').status_code == 401
     assert anon.post(f'/api/collection-sites/{site_id}/collect').status_code == 401
     assert anon.get(f'/api/collection-sites/{site_id}/qr').status_code == 401
+
+
+# ------------------------------------------------------------
+# Connection pool
+# ------------------------------------------------------------
+
+def test_concurrent_first_requests_share_one_pool(flask_app):
+    """Pages fire several API calls at once. If lazy pool creation races,
+    connections get returned to a pool they did not come from and psycopg
+    rejects it — which showed up as a 500 on whichever call lost."""
+    import threading
+
+    import db as db_module
+
+    original = db_module._pool
+    db_module._pool = None
+    pools, errors = [], []
+    start = threading.Barrier(8)
+
+    def grab():
+        try:
+            start.wait(timeout=5)
+            pools.append(id(db_module.get_pool()))
+        except Exception as exc:  # noqa: BLE001 - recorded, asserted below
+            errors.append(exc)
+
+    threads = [threading.Thread(target=grab) for _ in range(8)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=15)
+
+    created = None
+    try:
+        assert not errors, errors
+        assert len(set(pools)) == 1, f'{len(set(pools))} pools were created'
+        created = db_module._pool
+    finally:
+        if created is not None and created is not original:
+            created.close()
+        db_module._pool = original
