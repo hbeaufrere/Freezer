@@ -148,4 +148,47 @@ function attachSearchKeys(input, dropdown) {
     });
 }
 
-document.addEventListener('DOMContentLoaded', initTheme);
+/* ---- Schema drift ----------------------------------------- */
+
+/* Deploying a column the database has not got would otherwise surface as an
+   unexplained failure on whichever page happens to need it. Ask once per page
+   load, and offer to fix it in place. */
+async function checkSchema() {
+    const banner = document.getElementById('schema-banner');
+    if (!banner) return;
+
+    let health;
+    try {
+        health = await (await fetch('/api/health')).json();
+    } catch (e) {
+        return;  // Offline or asleep; the pages will report their own errors.
+    }
+    if (!health || health.schema !== 'out of date') return;
+
+    const count = (health.pending_migrations || []).length;
+    document.getElementById('schema-banner-detail').textContent =
+        `${count} update${count === 1 ? '' : 's'} to apply before the app will work properly.`;
+    banner.hidden = false;
+
+    document.getElementById('btn-apply-migrations').addEventListener('click', applyMigrations);
+}
+
+async function applyMigrations() {
+    const button = document.getElementById('btn-apply-migrations');
+    button.disabled = true;
+    button.textContent = 'Updating…';
+    try {
+        const result = await API.post('/api/admin/migrate');
+        showToast(`Database updated (${result.count} applied). Reloading…`);
+        setTimeout(() => window.location.reload(), 900);
+    } catch (err) {
+        showToast(err.message, 'error');
+        button.disabled = false;
+        button.textContent = 'Update now';
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    initTheme();
+    checkSchema();
+});

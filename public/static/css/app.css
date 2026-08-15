@@ -317,6 +317,29 @@ body {
 }
 
 /* ============================================================
+   SCHEMA BANNER
+   ============================================================ */
+
+.schema-banner {
+    background: var(--f-gold-wash);
+    border-bottom: 2px solid var(--f-gold);
+    color: var(--f-ink);
+}
+
+.schema-banner-body {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0.6rem 1rem;
+    font-size: 0.88rem;
+}
+
+.schema-banner .bi { color: var(--f-gold-deep); font-size: 1.1rem; }
+.schema-banner span { color: var(--f-ink-soft); }
+
+/* ============================================================
    PAGE HEADERS
    ============================================================ */
 

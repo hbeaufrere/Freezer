@@ -36,18 +36,24 @@ Confirm that `DATABASE_URL` is the **pooled** one; its host contains `-pooler`.
 Serverless functions open far more short-lived connections than a direct
 Postgres endpoint can absorb.
 
-### 2. Apply the migrations
+### 2. Build the schema
+
+Nothing to do by hand. Open the app and it shows a banner:
+
+> **The database needs an update.** 4 updates to apply. **[Update now]**
+
+Click it. That applies everything in `migrations/` and seeds 46 raptor species
+plus the full freezer structure (504 boxes, `U1-D1-B1` through `L6-D7-B4`).
+The same banner appears after any deploy that adds a migration.
+
+If you would rather do it from a terminal:
 
 ```bash
-psql "$DATABASE_URL_UNPOOLED" -f migrations/20260815000000_initial_schema.sql
-psql "$DATABASE_URL_UNPOOLED" -f migrations/20260815000001_seed_reference_data.sql
+for f in migrations/*.sql; do psql "$DATABASE_URL_UNPOOLED" -f "$f"; done
 ```
 
-Or paste each file into Neon's SQL Editor, in filename order. They are
-idempotent, so re-running them is safe.
-
-That creates the schema and seeds 46 raptor species plus the full freezer
-structure (504 boxes, labelled `U1-D1-B1` through `L6-D7-B4`).
+Either way is safe to repeat — every migration is written to be re-runnable,
+and `schema_migrations` records what has been applied.
 
 ### 3. Set the remaining environment variables
 
@@ -73,9 +79,8 @@ installed automatically.
 Check `/api/health` afterwards — it returns `{"status": "ok", "database":
 "connected", "schema": "current"}` once everything is in place.
 
-If a migration has been missed it returns 503 and names the files still to
-run, rather than letting the gap surface later as an unexplained error on one
-page:
+If the schema is behind the code it returns 503 and names what is outstanding,
+rather than letting the gap surface later as an unexplained error on one page:
 
 ```json
 {"status": "error", "schema": "out of date",
@@ -122,9 +127,9 @@ You can point `DATABASE_URL` at the hosted database, or run Postgres locally:
 
 ```bash
 createdb freezer
-psql -d freezer -f migrations/20260815000000_initial_schema.sql
-psql -d freezer -f migrations/20260815000001_seed_reference_data.sql
 ```
+
+Then start the app and click the update banner.
 
 ---
 
@@ -135,11 +140,11 @@ here is SQL. Without `DATABASE_URL` it skips rather than failing.
 
 ```bash
 createdb freezer_test
-psql -d freezer_test -f migrations/20260815000000_initial_schema.sql
-psql -d freezer_test -f migrations/20260815000001_seed_reference_data.sql
-
 DATABASE_URL=postgresql://localhost/freezer_test pytest
 ```
+
+An empty database is enough — the suite applies the migrations itself, which
+means the migration path is covered rather than bypassed.
 
 Each test truncates the tube tables first, so the freezer structure survives but
 no sample data leaks between tests. **Never point this at the production
@@ -162,6 +167,7 @@ routes/
   export.py              Excel/CSV downloads
   support.py             Shared request parsing and the write() transaction wrapper
 services/
+  migrator.py            Applies pending migrations under an advisory lock
   id_generator.py        RTHA26001-style tube IDs
   stats_service.py       Statistics queries
   export_service.py      Workbook and CSV generation
@@ -197,6 +203,15 @@ cannot be relied on. Routing everything through `api/index.py` makes the
 deployment independent of the project's framework preset. Flask keeps serving
 `/static` itself as well, so a missing CDN route degrades to a slower request
 rather than an unstyled page.
+
+**Migrations are applied from the app, not by hand.** A deploy that adds a
+column used to need someone to remember to run the SQL, and forgetting took a
+page down with an unhelpful error. `services/migrator.py` applies pending
+files under a Postgres advisory lock — so parallel cold starts cannot race —
+and records them in `schema_migrations`. Nothing runs on import; it happens
+when someone clicks the banner. Every migration is written to be re-runnable,
+which is also what lets a database created before the tracking table existed
+be brought under management by replaying everything.
 
 **The retrieval log outlives the tube.** `retrievals` keeps a snapshot of the
 tube ID, box and position alongside a nullable foreign key, so consuming a
