@@ -83,9 +83,11 @@ def create_app():
     from routes.freezer import freezer_bp
     from routes.raptor import raptor_bp
     from routes.research import research_bp
+    from routes.retrieval import retrieval_bp
     from routes.stats import stats_bp
 
-    for blueprint in (freezer_bp, research_bp, raptor_bp, stats_bp, export_bp):
+    for blueprint in (freezer_bp, research_bp, raptor_bp, stats_bp,
+                      export_bp, retrieval_bp):
         app.register_blueprint(blueprint)
 
     # ------------------------------------------------------------
@@ -146,17 +148,52 @@ def create_app():
     def stats_page():
         return render_template('stats.html')
 
+    @app.route('/retrievals')
+    def retrievals_page():
+        return render_template('retrievals.html')
+
+    # Columns the code depends on, and the migration that adds each. Migrations
+    # are applied by hand, so a forgotten one otherwise shows up as an
+    # unexplained 500 on one page. This turns it into a named file to run.
+    REQUIRED_SCHEMA = {
+        ('raptor_tubes', 'sample_type'): '20260815000002_add_sample_type.sql',
+        ('drawers', 'note'): '20260815000003_retrievals_and_drawer_notes.sql',
+        ('retrievals', 'retrieved_by'): '20260815000003_retrievals_and_drawer_notes.sql',
+    }
+
     @app.route('/api/health')
     def health():
-        """Liveness probe that also proves the database is reachable."""
+        """Liveness probe: is the database reachable, and is its schema current?"""
         from db import get_db
 
         try:
-            get_db().execute('select 1')
-            return jsonify({'status': 'ok', 'database': 'connected'})
+            db = get_db()
+            present = {
+                (r['table_name'], r['column_name'])
+                for r in db.execute(
+                    """select table_name, column_name from information_schema.columns
+                       where table_schema = 'public'"""
+                ).fetchall()
+            }
         except Exception:
-            log.exception('Health check failed')
+            log.exception('Health check could not reach the database')
             return jsonify({'status': 'error', 'database': 'unreachable'}), 503
+
+        missing = sorted({
+            migration for key, migration in REQUIRED_SCHEMA.items() if key not in present
+        })
+
+        if missing:
+            return jsonify({
+                'status': 'error',
+                'database': 'connected',
+                'schema': 'out of date',
+                'pending_migrations': missing,
+                'detail': 'Run these files from migrations/ against the database, '
+                          'oldest first.',
+            }), 503
+
+        return jsonify({'status': 'ok', 'database': 'connected', 'schema': 'current'})
 
     # ------------------------------------------------------------
     # Error handling — never leak schema details to the browser

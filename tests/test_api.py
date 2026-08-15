@@ -453,4 +453,142 @@ def test_raptor_export_respects_filters(client, boxes, species_id):
 def test_health_is_public_and_checks_the_database(anon):
     response = anon.get('/api/health')
     assert response.status_code == 200
-    assert response.get_json() == {'status': 'ok', 'database': 'connected'}
+    body = response.get_json()
+    assert body['status'] == 'ok'
+    assert body['database'] == 'connected'
+    assert body['schema'] == 'current'
+
+
+def test_health_names_the_migration_that_is_missing(anon, flask_app):
+    """A forgotten migration should say which file to run, not 500 elsewhere."""
+    from db import get_db
+
+    with flask_app.app_context():
+        db = get_db()
+        db.execute('alter table drawers drop column note')
+        db.commit()
+    try:
+        response = anon.get('/api/health')
+        assert response.status_code == 503
+        body = response.get_json()
+        assert body['schema'] == 'out of date'
+        assert '20260815000003_retrievals_and_drawer_notes.sql' in body['pending_migrations']
+    finally:
+        with flask_app.app_context():
+            db = get_db()
+            db.execute('alter table drawers add column note text')
+            db.commit()
+
+
+# ------------------------------------------------------------
+# Retrieval log
+# ------------------------------------------------------------
+
+def test_retrieval_logs_and_counts_a_thaw(client, boxes, species_id):
+    tube = client.post('/api/raptor/tubes', json={
+        'box_id': boxes['raptor']['id'], 'row_pos': 1, 'col_pos': 1,
+        'species_id': species_id, 'collection_date': '2026-04-01',
+    }).get_json()
+    assert tube['freeze_thaw_cycles'] == 0
+
+    entry = client.post('/api/retrievals', json={
+        'section': 'raptor', 'tube_id': tube['id'],
+        'retrieved_by': 'H. Beaufrere', 'purpose': 'PCV assay',
+    })
+    assert entry.status_code == 201
+    logged = entry.get_json()
+    assert logged['tube_label'] == 'RTHA26001'
+    assert logged['species_name'] == 'Red-tailed Hawk'
+    assert logged['position_label'] == 'A1'
+    assert logged['consumed'] is False
+
+    # Taking a tube out of a -80 freezer is a thaw.
+    box = client.get(f'/api/boxes/{boxes["raptor"]["id"]}').get_json()
+    assert box['tubes'][0]['freeze_thaw_cycles'] == 1
+
+
+def test_retrieval_survives_the_tube_being_deleted(client, boxes, species_id):
+    """Chain of custody has to outlive the specimen."""
+    tube = client.post('/api/raptor/tubes', json={
+        'box_id': boxes['raptor']['id'], 'row_pos': 2, 'col_pos': 2,
+        'species_id': species_id, 'collection_date': '2026-04-01',
+    }).get_json()
+    client.post('/api/retrievals', json={
+        'section': 'raptor', 'tube_id': tube['id'],
+        'retrieved_by': 'H. Beaufrere', 'consumed': True,
+    })
+    client.delete(f'/api/raptor/tubes/{tube["id"]}')
+
+    entries = client.get('/api/retrievals').get_json()['entries']
+    assert len(entries) == 1
+    assert entries[0]['tube_label'] == 'RTHA26001'
+    assert entries[0]['raptor_tube_id'] is None
+    assert entries[0]['consumed'] is True
+
+
+def test_retrieval_log_filters_and_paginates(client, boxes, species_id):
+    raptor = client.post('/api/raptor/tubes', json={
+        'box_id': boxes['raptor']['id'], 'row_pos': 3, 'col_pos': 3,
+        'species_id': species_id, 'collection_date': '2026-04-01',
+    }).get_json()
+    research = client.post('/api/research/tubes', json={
+        'box_id': boxes['research']['id'], 'row_pos': 1, 'col_pos': 1,
+        'sample_id': 'EXP-1',
+    }).get_json()
+
+    client.post('/api/retrievals', json={
+        'section': 'raptor', 'tube_id': raptor['id'],
+        'retrieved_by': 'Alice', 'purpose': 'Chemistry panel'})
+    client.post('/api/retrievals', json={
+        'section': 'research', 'tube_id': research['id'],
+        'retrieved_by': 'Bob', 'purpose': 'Shipment'})
+
+    assert client.get('/api/retrievals').get_json()['total'] == 2
+    assert client.get('/api/retrievals?section=raptor').get_json()['total'] == 1
+    assert client.get('/api/retrievals?q=alice').get_json()['total'] == 1
+    assert client.get('/api/retrievals?q=SHIPMENT').get_json()['total'] == 1
+
+    page = client.get('/api/retrievals?limit=1').get_json()
+    assert len(page['entries']) == 1 and page['total'] == 2
+
+    stats = client.get('/api/stats/retrievals').get_json()
+    assert stats['total'] == 2 and stats['people'] == 2
+
+
+def test_retrieval_requires_a_real_tube(client):
+    response = client.post('/api/retrievals', json={
+        'section': 'raptor', 'tube_id': 999999, 'retrieved_by': 'Alice'})
+    assert response.status_code == 404
+
+
+# ------------------------------------------------------------
+# Drawer notes
+# ------------------------------------------------------------
+
+def test_drawer_note_round_trips(client, flask_app):
+    from db import get_db
+
+    with flask_app.app_context():
+        drawer_id = get_db().execute('select id from drawers order by id limit 1').fetchone()['id']
+
+    saved = client.put(f'/api/drawers/{drawer_id}', json={'note': 'West Nile study 2026'})
+    assert saved.status_code == 200
+    assert saved.get_json()['note'] == 'West Nile study 2026'
+
+    shelves = client.get('/api/freezer').get_json()
+    notes = [d['note'] for s in shelves for r in s['racks'] for d in r['drawers']]
+    assert 'West Nile study 2026' in notes
+
+    cleared = client.put(f'/api/drawers/{drawer_id}', json={'note': ''})
+    assert cleared.get_json()['note'] is None
+
+
+def test_drawer_note_length_is_capped(client, flask_app):
+    from db import get_db
+
+    with flask_app.app_context():
+        drawer_id = get_db().execute('select id from drawers order by id limit 1').fetchone()['id']
+
+    response = client.put(f'/api/drawers/{drawer_id}', json={'note': 'x' * 201})
+    assert response.status_code == 400
+    assert '200 characters' in response.get_json()['error']

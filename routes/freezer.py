@@ -42,7 +42,7 @@ def get_freezer():
         'select id, shelf_id, position, label, designation from racks order by position'
     ).fetchall()
     drawers = db.execute(
-        'select id, rack_id, position, label from drawers order by position'
+        'select id, rack_id, position, label, note from drawers order by position'
     ).fetchall()
     boxes = db.execute(f'select {_BOX_COLUMNS} {_BOX_JOINS} order by b.position').fetchall()
 
@@ -92,7 +92,7 @@ def list_racks(shelf_id):
 @freezer_bp.route('/api/racks/<int:rack_id>/drawers')
 def list_drawers(rack_id):
     rows = get_db().execute(
-        'select id, rack_id, position, label from drawers where rack_id = %s order by position',
+        'select id, rack_id, position, label, note from drawers where rack_id = %s order by position',
         (rack_id,),
     ).fetchall()
     return jsonify([dict(r) for r in rows])
@@ -151,6 +151,25 @@ def get_box(box_id):
 
     box_data['tubes'] = [dict(t) for t in tubes]
     return jsonify(box_data)
+
+
+@freezer_bp.route('/api/drawers/<int:drawer_id>', methods=['PUT'])
+def update_drawer(drawer_id):
+    """Set the free-text note the lab writes on a drawer."""
+    db = get_db()
+    data = json_body()
+
+    note = text(data, 'note')
+    if len(note) > 200:
+        raise ApiError('Drawer notes are limited to 200 characters.')
+
+    with write(db):
+        row = db.execute(
+            'update drawers set note = %s where id = %s returning id, label, note',
+            (note or None, drawer_id),
+        ).fetchone()
+
+    return jsonify(dict(one_or_404(row, 'Drawer')))
 
 
 @freezer_bp.route('/api/boxes', methods=['POST'])

@@ -23,6 +23,7 @@ async function initResearchPage() {
     document.getElementById('btn-research-delete').addEventListener('click', deleteResearchTube);
     document.getElementById('btn-research-thaw').addEventListener('click', recordResearchThaw);
     document.getElementById('btn-research-barcode').addEventListener('click', showResearchBarcode);
+    document.getElementById('btn-research-retrieve').addEventListener('click', logResearchRetrieval);
 }
 
 async function loadResearchQuickStats() {
@@ -83,6 +84,7 @@ function openResearchAddModal(row, col) {
     setHidden('btn-research-delete', true);
     setHidden('btn-research-thaw', true);
     setHidden('btn-research-barcode', true);
+    setHidden('btn-research-retrieve', true);
 
     bootstrap.Modal.getOrCreateInstance(document.getElementById('researchTubeModal')).show();
 }
@@ -102,8 +104,15 @@ function openResearchEditModal(tube, row, col) {
     setHidden('btn-research-delete', false);
     setHidden('btn-research-thaw', false);
     setHidden('btn-research-barcode', false);
+    setHidden('btn-research-retrieve', false);
 
     bootstrap.Modal.getOrCreateInstance(document.getElementById('researchTubeModal')).show();
+}
+
+function logResearchRetrieval() {
+    const tubeId = document.getElementById('research-tube-id').value;
+    const label = document.getElementById('research-sample-id').value.trim() || 'Untitled sample';
+    openRetrievalModal('research', parseInt(tubeId, 10), label);
 }
 
 function showResearchBarcode() {
