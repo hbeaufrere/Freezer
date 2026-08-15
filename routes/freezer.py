@@ -130,7 +130,8 @@ def get_box(box_id):
         tubes = db.execute(
             """select rt.id, rt.tube_id, rt.row_pos, rt.col_pos, rt.species_id,
                       s.banding_code, s.common_name, s.scientific_name,
-                      rt.collection_date, rt.age, rt.sex, rt.freeze_thaw_cycles,
+                      rt.sample_type, rt.collection_date, rt.age, rt.sex,
+                      rt.freeze_thaw_cycles,
                       rt.wrmd_number, rt.vmth_number, rt.notes
                from raptor_tubes rt
                join species s on rt.species_id = s.id

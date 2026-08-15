@@ -188,6 +188,14 @@ deployment independent of the project's framework preset. Flask keeps serving
 `/static` itself as well, so a missing CDN route degrades to a slower request
 rather than an unstyled page.
 
+**Labels go out by barcode, not by print driver.** There is no workable web
+print path to a Brady M211, and the Bluetooth attempt never printed anything.
+Instead the tube's ID is rendered on screen as a barcode; Brady Express Labels
+scans it off the monitor and fills the label under the Vial preset. Both
+Code 128 and QR are offered because scanner implementations differ — the app
+remembers which one you used last. Verified by decoding the rendered output:
+both symbologies read back the exact tube ID.
+
 **The palette is UC Davis Aggie Blue and Gold.** Light mode leads with Aggie Blue (#022851) because gold cannot hold text contrast on white; dark mode inverts it, with gold as the accent over a navy ground. The twelve species colours in the box grid stay outside the brand palette — categorical encoding needs hues that separate at 34px, which two brand colours cannot provide.
 
 **Assets are vendored, not loaded from a CDN.** Bootstrap and Chart.js live in
@@ -206,6 +214,6 @@ works on a lab network that blocks outside requests.
 - **An audit trail.** Deletes are permanent and anonymous. For a specimen
   repository, `created_by` / `updated_by` columns and a `deleted_at` soft delete
   would make "who removed RTHA26014, and when" an answerable question.
-- **Label printing over Bluetooth.** `printer.js` has the hooks, but the Brady
-  Web SDK is not bundled, so labels currently go through the browser print
-  dialog. That works everywhere; direct BLE printing needs the SDK added.
+- **Sample-type reporting.** `sample_type` is recorded and exported but not yet
+  charted. A breakdown on the statistics page would answer "how much liver do
+  we hold" without an export.

@@ -6,7 +6,7 @@
     <div>
         <h1 class="page-title">
             <img src="/static/img/logo-raptor.png" alt="" height="26" onerror="this.remove()">
-            Raptor plasma biobank
+            Raptor Biobank
         </h1>
         <div class="page-sub">Upper shelf</div>
     </div>
@@ -81,6 +81,23 @@
                 </div>
 
                 <div class="row g-3 mt-0">
+                    <div class="col-md-4">
+                        <label for="raptor-sample-type" class="form-label">Sample type</label>
+                        <select class="form-select" id="raptor-sample-type">
+                            <option value="Plasma" selected>Plasma</option>
+                            <option value="Liver">Liver</option>
+                            <option value="Other">Other &mdash; specify in notes</option>
+                        </select>
+                    </div>
+                    <div class="col-md-8" id="raptor-sample-type-hint-wrap">
+                        <div class="form-label">&nbsp;</div>
+                        <div class="form-text pt-1" id="raptor-sample-type-hint" hidden>
+                            <i class="bi bi-info-circle me-1"></i>Describe the tissue in the notes below.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-3 mt-0">
                     <div class="col-md-8">
                         <label for="raptor-species" class="form-label">Species</label>
                         <select class="form-select" id="raptor-species">
@@ -144,8 +161,8 @@
                 <button type="button" class="btn btn-outline-danger me-auto" id="btn-raptor-delete" hidden>
                     <i class="bi bi-trash me-1"></i>Remove
                 </button>
-                <button type="button" class="btn btn-outline-secondary" id="btn-raptor-print" hidden>
-                    <i class="bi bi-printer me-1"></i>Print label
+                <button type="button" class="btn btn-outline-secondary" id="btn-raptor-barcode" hidden>
+                    <i class="bi bi-upc-scan me-1"></i>Label barcode
                 </button>
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
                 <button type="button" class="btn btn-primary" id="btn-raptor-save">
@@ -194,9 +211,10 @@
 {% block scripts %}
 <script src="/static/js/freezer-view.js"></script>
 <script src="/static/js/box-grid.js"></script>
+<script src="/static/vendor/jsbarcode.min.js"></script>
+<script src="/static/vendor/qrcode.js"></script>
+<script src="/static/js/label.js"></script>
 <script src="/static/js/raptor.js"></script>
-<script src="/static/js/printer.js"></script>
-<script src="/static/js/label-canvas.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', initRaptorPage);
 </script>

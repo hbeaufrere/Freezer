@@ -22,7 +22,7 @@ MAX_TUBES_PER_SAMPLE = 20
 _TUBE_SELECT = """
     select rt.id, rt.tube_id, rt.box_id, rt.row_pos, rt.col_pos, rt.species_id,
            s.banding_code, s.common_name, s.scientific_name,
-           rt.collection_date, rt.age, rt.sex, rt.freeze_thaw_cycles,
+           rt.sample_type, rt.collection_date, rt.age, rt.sex, rt.freeze_thaw_cycles,
            rt.wrmd_number, rt.vmth_number, rt.notes, rt.created_at, rt.updated_at
     from raptor_tubes rt
     join species s on rt.species_id = s.id
@@ -67,7 +67,7 @@ def list_tubes():
 
 @raptor_bp.route('/api/raptor/tubes', methods=['POST'])
 def create_tube():
-    """Store one bird's plasma, optionally split across several tubes.
+    """Store one bird's sample, optionally split across several tubes.
 
     A single tube keeps the plain ID (RTHA26001); several tubes from the same
     bird share that base and gain a suffix (RTHA26001-1, RTHA26001-2, ...).
@@ -97,6 +97,7 @@ def create_tube():
         raise ApiError('That box belongs to the research section.')
 
     shared = (
+        text(data, 'sample_type', 'Plasma') or 'Plasma',
         text(data, 'age'),
         text(data, 'sex'),
         as_int(data, 'freeze_thaw_cycles', minimum=0, default=0),
@@ -130,8 +131,9 @@ def create_tube():
             new_id = db.execute(
                 """insert into raptor_tubes
                        (tube_id, box_id, row_pos, col_pos, species_id, collection_date,
-                        age, sex, freeze_thaw_cycles, wrmd_number, vmth_number, notes)
-                   values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        sample_type, age, sex, freeze_thaw_cycles,
+                        wrmd_number, vmth_number, notes)
+                   values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                    returning id""",
                 (tube_id, box_id, r, c, species_id, collection_date, *shared),
             ).fetchone()['id']
@@ -152,12 +154,13 @@ def update_tube(tube_id):
     with write(db):
         updated = db.execute(
             """update raptor_tubes
-               set collection_date = %s, age = %s, sex = %s, freeze_thaw_cycles = %s,
-                   wrmd_number = %s, vmth_number = %s, notes = %s
+               set collection_date = %s, sample_type = %s, age = %s, sex = %s,
+                   freeze_thaw_cycles = %s, wrmd_number = %s, vmth_number = %s, notes = %s
                where id = %s
                returning id""",
             (
                 as_date(data, 'collection_date', required=True),
+                text(data, 'sample_type', 'Plasma') or 'Plasma',
                 text(data, 'age'),
                 text(data, 'sex'),
                 as_int(data, 'freeze_thaw_cycles', minimum=0, default=0),
@@ -238,8 +241,8 @@ def lookup_by_tube_id(tube_id_str):
     tube = get_db().execute(
         """select rt.id, rt.tube_id, rt.box_id, rt.row_pos, rt.col_pos, rt.species_id,
                   s.banding_code, s.common_name, s.scientific_name,
-                  rt.collection_date, rt.age, rt.sex, rt.freeze_thaw_cycles,
-                  rt.wrmd_number, rt.vmth_number, rt.notes,
+                  rt.sample_type, rt.collection_date, rt.age, rt.sex,
+                  rt.freeze_thaw_cycles, rt.wrmd_number, rt.vmth_number, rt.notes,
                   b.label as box_label, d.label as drawer_label,
                   r.label as rack_label, sh.name as shelf_name
            from raptor_tubes rt

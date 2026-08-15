@@ -1,4 +1,4 @@
-/* Raptor plasma biobank page. */
+/* Raptor Biobank page. */
 
 let currentRaptorBoxId = null;
 let currentRaptorBox = null;
@@ -33,7 +33,10 @@ async function initRaptorPage() {
     document.getElementById('btn-raptor-save').addEventListener('click', saveRaptorTube);
     document.getElementById('btn-raptor-delete').addEventListener('click', deleteRaptorTube);
     document.getElementById('btn-raptor-thaw').addEventListener('click', recordRaptorThaw);
-    document.getElementById('btn-raptor-print').addEventListener('click', printRaptorLabel);
+    document.getElementById('btn-raptor-barcode').addEventListener('click', showRaptorBarcode);
+
+    const sampleType = document.getElementById('raptor-sample-type');
+    sampleType.addEventListener('change', syncSampleTypeHint);
     document.getElementById('btn-add-species').addEventListener('click', addNewSpecies);
 }
 
@@ -207,6 +210,8 @@ function openRaptorAddModal(row, col) {
     speciesSelect.disabled = false;
 
     document.getElementById('raptor-collection-date').value = today();
+    document.getElementById('raptor-sample-type').value = 'Plasma';
+    syncSampleTypeHint();
     document.getElementById('raptor-age').value = '';
     document.getElementById('raptor-sex-u').checked = true;
     document.getElementById('raptor-freeze-thaw').value = 0;
@@ -218,7 +223,7 @@ function openRaptorAddModal(row, col) {
     setRaptorHidden('raptor-num-tubes-group', false);
     setRaptorHidden('btn-raptor-delete', true);
     setRaptorHidden('btn-raptor-thaw', true);
-    setRaptorHidden('btn-raptor-print', true);
+    setRaptorHidden('btn-raptor-barcode', true);
 
     bootstrap.Modal.getOrCreateInstance(document.getElementById('raptorTubeModal')).show();
 }
@@ -242,6 +247,8 @@ function openRaptorEditModal(tube, row, col) {
     speciesSelect.disabled = true;
 
     document.getElementById('raptor-collection-date').value = tube.collection_date || '';
+    document.getElementById('raptor-sample-type').value = tube.sample_type || 'Plasma';
+    syncSampleTypeHint();
     document.getElementById('raptor-age').value = tube.age || '';
     const sexRadio = document.querySelector(
         `input[name="raptor-sex"][value="${tube.sex || 'Unknown'}"]`
@@ -255,7 +262,7 @@ function openRaptorEditModal(tube, row, col) {
     setRaptorHidden('raptor-num-tubes-group', true);
     setRaptorHidden('btn-raptor-delete', false);
     setRaptorHidden('btn-raptor-thaw', false);
-    setRaptorHidden('btn-raptor-print', false);
+    setRaptorHidden('btn-raptor-barcode', false);
 
     document.getElementById('raptorTubeModal').dataset.tubeData = JSON.stringify(tube);
     bootstrap.Modal.getOrCreateInstance(document.getElementById('raptorTubeModal')).show();
@@ -275,6 +282,7 @@ async function saveRaptorTube() {
         col_pos: parseInt(document.getElementById('raptor-tube-col').value, 10),
         species_id: speciesId,
         collection_date: collectionDate,
+        sample_type: document.getElementById('raptor-sample-type').value,
         age: document.getElementById('raptor-age').value,
         sex: document.querySelector('input[name="raptor-sex"]:checked')?.value || 'Unknown',
         freeze_thaw_cycles: parseInt(document.getElementById('raptor-freeze-thaw').value, 10) || 0,
@@ -343,16 +351,21 @@ async function deleteRaptorTube() {
     }
 }
 
-async function printRaptorLabel() {
-    try {
-        const tube = JSON.parse(
-            document.getElementById('raptorTubeModal').dataset.tubeData || '{}'
-        );
-        if (!tube.tube_id) return showToast('Save the sample before printing a label.', 'warning');
-        await printLabel(generateRaptorLabel(tube));
-    } catch (err) {
-        showToast('Print failed: ' + err.message, 'error');
+/* "Other" only means anything if the tissue is written down, so say so. */
+function syncSampleTypeHint() {
+    const value = document.getElementById('raptor-sample-type').value;
+    document.getElementById('raptor-sample-type-hint').hidden = value !== 'Other';
+}
+
+function showRaptorBarcode() {
+    const tube = JSON.parse(
+        document.getElementById('raptorTubeModal').dataset.tubeData || '{}'
+    );
+    if (!tube.tube_id) {
+        showToast('Save the sample first — the tube ID is issued on save.', 'warning');
+        return;
     }
+    showLabelBarcode(tube.tube_id, `${tube.common_name} · ${tube.sample_type || 'Plasma'}`);
 }
 
 async function addNewSpecies() {
