@@ -66,8 +66,9 @@ guarding real data.
 ### 4. Deploy
 
 Import the repository at [vercel.com/new](https://vercel.com/new), add those
-environment variables, and deploy. Vercel detects Flask from the module-level
-`app` in `app.py` and installs `requirements.txt`.
+environment variables, and deploy. `api/index.py` is the entrypoint Vercel
+runs, and `vercel.json` rewrites every path onto it; `requirements.txt` is
+installed automatically.
 
 Check `/api/health` afterwards — it returns `{"status": "ok", "database":
 "connected"}` once the database is reachable.
@@ -140,6 +141,7 @@ database** — it empties the tube tables on every test.
 ## How it fits together
 
 ```
+api/index.py             Vercel entrypoint — re-exports the app from app.py
 app.py                   Flask app factory, auth, error handling, page routes
 db.py                    Connection pool, request-scoped connections, error translation
 routes/
@@ -178,6 +180,13 @@ searching `%` matches a literal percent sign.
 **Statistics count birds, not tubes.** Several tubes from one bird share a base
 ID with a `-N` suffix, and the sample counts use `split_part` to collapse them.
 `tubes_stored` on the freezer stats is the physical count, used for occupancy.
+
+**The entrypoint lives in `api/`.** Vercel's generic Python runtime only
+discovers functions inside an `api/` directory, and framework auto-detection
+cannot be relied on. Routing everything through `api/index.py` makes the
+deployment independent of the project's framework preset. Flask keeps serving
+`/static` itself as well, so a missing CDN route degrades to a slower request
+rather than an unstyled page.
 
 **Assets are vendored, not loaded from a CDN.** Bootstrap and Chart.js live in
 `public/static/vendor/`, so the app has no third-party runtime dependency and
