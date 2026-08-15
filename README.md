@@ -160,6 +160,7 @@ app.py                   Flask app factory, auth, error handling, page routes
 db.py                    Connection pool, request-scoped connections, error translation
 routes/
   freezer.py             Shelves, racks, drawers, boxes
+  collection.py          Satellite sites and the public drop-off page
   retrieval.py           Retrieval log
   raptor.py              Raptor samples, species
   research.py            Research tubes
@@ -213,6 +214,16 @@ when someone clicks the banner. Every migration is written to be re-runnable,
 which is also what lets a database created before the tracking table existed
 be brought under management by replaying everything.
 
+**The drop-off page has no login, on purpose.** Raptor samples are left in
+ordinary freezers at CRC and VMTH before being collected for the -80. Whoever
+drops them is standing at a freezer with a phone and does not have the lab
+password, so requiring a session would mean the count never gets recorded.
+The QR code carries an unguessable per-site token instead. What that protects
+is a counter, not specimen records: the worst case is an inflated number the
+lab can reset, and the token is compared in constant time and never included
+in the site list the rest of the app loads. Replaying migrations does not
+rotate the tokens, so printed QR codes keep working.
+
 **The retrieval log outlives the tube.** `retrievals` keeps a snapshot of the
 tube ID, box and position alongside a nullable foreign key, so consuming a
 tube and deleting its row does not erase the record of who took it out. For a
@@ -233,6 +244,21 @@ both symbologies read back the exact tube ID.
 **Assets are vendored, not loaded from a CDN.** Bootstrap and Chart.js live in
 `public/static/vendor/`, so the app has no third-party runtime dependency and
 works on a lab network that blocks outside requests.
+
+---
+
+## Samples waiting at CRC and VMTH
+
+The freezer overview shows a **Samples to collect** panel on the raptor shelf,
+with a count and the age of the oldest drop for each satellite site. Age is
+what escalates the colour, not count — plasma sitting in an ordinary freezer
+degrades. Each site is collected separately, since CRC and VMTH are separate
+trips, and collecting marks the drops rather than deleting them so the history
+survives.
+
+To put a QR code on a freezer door: open the overview, click the QR icon on
+that site's card, and print what appears. The URL contains the site's token,
+so treat the printed code as the credential it is.
 
 ---
 

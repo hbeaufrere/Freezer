@@ -3,9 +3,10 @@
 async function loadFreezerOverview() {
     const container = document.getElementById('freezer-visual');
     try {
-        const [shelves, stats] = await Promise.all([
+        const [shelves, stats, sites] = await Promise.all([
             API.get('/api/freezer'),
             API.get('/api/stats/freezer'),
+            API.get('/api/collection-sites').catch(() => []),
         ]);
 
         setText('stat-total-stored', stats.tubes_stored.toLocaleString());
@@ -15,7 +16,10 @@ async function loadFreezerOverview() {
         setText('stat-percent', `${stats.percent_full}% of capacity`);
         setText('stat-boxes', `${stats.total_boxes} boxes`);
 
-        renderFreezer(container, shelves, { percentFull: stats.percent_full });
+        renderFreezer(container, shelves, {
+            percentFull: stats.percent_full,
+            collectionSites: sites,
+        });
     } catch (err) {
         container.innerHTML = `
             <div class="empty-state">
@@ -64,6 +68,13 @@ function renderFreezer(container, shelves, options = {}) {
 
         const racks = shelfEl.querySelector('.shelf-racks');
         shelf.racks.forEach((rack) => racks.appendChild(createRackElement(rack, options)));
+
+        // Samples waiting in the satellite freezers belong with the raptor
+        // shelf: that is where they are headed.
+        if (isRaptor && options.collectionSites) {
+            shelfEl.appendChild(renderCollectionPanel(options.collectionSites));
+        }
+
         container.appendChild(shelfEl);
     });
 }
@@ -185,6 +196,97 @@ function drawerNoteInput(drawer) {
     input.addEventListener('click', (event) => event.stopPropagation());
 
     return input;
+}
+
+/* ---- Samples waiting at the satellite freezers ------------- */
+
+/* How urgent a backlog is, by the age of its oldest drop. Plasma left in an
+   ordinary freezer degrades, so age matters more than count. */
+function backlogClass(days) {
+    if (days === null || days === undefined) return '';
+    if (days >= 30) return 'is-overdue';
+    if (days >= 14) return 'is-ageing';
+    return '';
+}
+
+function renderCollectionPanel(sites) {
+    const panel = document.createElement('div');
+    panel.className = 'collect-panel';
+
+    const total = sites.reduce((sum, s) => sum + (s.pending_samples || 0), 0);
+
+    panel.innerHTML = `
+        <div class="collect-head">
+            <span class="collect-title">
+                <i class="bi bi-inboxes me-1"></i>Samples to collect
+            </span>
+            <span class="shelf-meta">${total} waiting</span>
+        </div>
+        <div class="collect-sites"></div>`;
+
+    const list = panel.querySelector('.collect-sites');
+
+    sites.forEach((site) => {
+        const waiting = site.pending_samples || 0;
+        const days = site.oldest_age_days;
+
+        const card = document.createElement('div');
+        card.className = `collect-site ${waiting ? backlogClass(days) : 'is-empty'}`;
+        card.innerHTML = `
+            <div class="collect-site-head">
+                <span class="collect-code">${escapeHtml(site.code)}</span>
+                <button type="button" class="copy-btn collect-qr" title="Show the QR code"
+                        aria-label="Show the drop-off QR code for ${escapeHtml(site.code)}">
+                    <i class="bi bi-qr-code"></i>
+                </button>
+            </div>
+            <div class="collect-count">${waiting}</div>
+            <div class="collect-age">${
+                waiting
+                    ? `oldest ${days ?? 0} day${days === 1 ? '' : 's'}`
+                    : 'nothing waiting'
+            }</div>`;
+
+        const collect = document.createElement('button');
+        collect.type = 'button';
+        collect.className = 'btn btn-sm btn-outline-secondary w-100 mt-2';
+        collect.textContent = 'Mark collected';
+        collect.disabled = !waiting;
+        collect.addEventListener('click', () => markCollected(site));
+        card.appendChild(collect);
+
+        card.querySelector('.collect-qr')
+            .addEventListener('click', () => showSiteQr(site));
+
+        list.appendChild(card);
+    });
+
+    return panel;
+}
+
+async function markCollected(site) {
+    const waiting = site.pending_samples || 0;
+    if (!confirm(`Mark ${waiting} sample(s) at ${site.code} as collected?`)) return;
+
+    try {
+        const who = (localStorage.getItem('freezer-retrieved-by') || '').trim();
+        const result = await API.post(`/api/collection-sites/${site.id}/collect`,
+                                      who ? { collected_by: who } : {});
+        showToast(`${result.collected_samples} sample(s) collected from ${site.code}`);
+        loadFreezerOverview();
+    } catch (err) {
+        showToast(err.message, 'error');
+    }
+}
+
+/* The QR that goes on the satellite freezer door. */
+async function showSiteQr(site) {
+    try {
+        const info = await API.get(`/api/collection-sites/${site.id}/qr`);
+        showLabelBarcode(info.drop_url, `${info.code} drop-off — print and tape to the freezer`);
+    } catch (err) {
+        showToast(err.message, 'error');
+    }
 }
 
 /* Occupancy reads as a quantity: one hue, six steps from empty to full. */

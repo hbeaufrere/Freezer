@@ -79,6 +79,7 @@ def create_app():
 
     app.teardown_appcontext(close_db)
 
+    from routes.collection import collection_bp
     from routes.export import export_bp
     from routes.freezer import freezer_bp
     from routes.raptor import raptor_bp
@@ -87,14 +88,20 @@ def create_app():
     from routes.stats import stats_bp
 
     for blueprint in (freezer_bp, research_bp, raptor_bp, stats_bp,
-                      export_bp, retrieval_bp):
+                      export_bp, retrieval_bp, collection_bp):
         app.register_blueprint(blueprint)
 
     # ------------------------------------------------------------
     # Authentication
     # ------------------------------------------------------------
 
-    PUBLIC_ENDPOINTS = {'login', 'static', 'health'}
+    # The drop-off page and its POST are reachable without a session: whoever
+    # is at the CRC or VMTH freezer has a phone and no lab password. The
+    # unguessable per-site token in the URL stands in for authentication.
+    PUBLIC_ENDPOINTS = {
+        'login', 'static', 'health',
+        'collection.dropoff_page', 'collection.record_dropoff',
+    }
 
     @app.before_request
     def require_login():

@@ -492,8 +492,14 @@ def test_migrations_are_applied_in_place_and_are_idempotent(client, flask_app):
         db.commit()
         before = db.execute('select count(*) as n from species').fetchone()['n']
 
+    from services.migrator import available
+
+    with flask_app.app_context():
+        token_before = get_db().execute(
+            "select token from collection_sites where code = 'CRC'").fetchone()['token']
+
     first = client.post('/api/admin/migrate').get_json()
-    assert first['count'] == 4, first
+    assert first['applied'] == available(), first
     assert first['applied'][0].startswith('20260815000000')
 
     # Replaying the seed must not duplicate reference data.
@@ -501,6 +507,13 @@ def test_migrations_are_applied_in_place_and_are_idempotent(client, flask_app):
         db = get_db()
         assert db.execute('select count(*) as n from species').fetchone()['n'] == before
         assert db.execute('select count(*) as n from boxes').fetchone()['n'] == 504
+        assert db.execute('select count(*) as n from collection_sites').fetchone()['n'] == 2
+
+        # Replaying must not rotate the site tokens — printed QR codes on the
+        # satellite freezers would stop working.
+        assert db.execute(
+            "select token from collection_sites where code = 'CRC'"
+        ).fetchone()['token'] == token_before
 
     # And a second pass has nothing left to do.
     assert client.post('/api/admin/migrate').get_json() == {'applied': [], 'count': 0}
@@ -623,3 +636,118 @@ def test_drawer_note_length_is_capped(client, flask_app):
     response = client.put(f'/api/drawers/{drawer_id}', json={'note': 'x' * 201})
     assert response.status_code == 400
     assert '200 characters' in response.get_json()['error']
+
+
+# ------------------------------------------------------------
+# Satellite collection sites
+# ------------------------------------------------------------
+
+def _site(client, code):
+    return next(s for s in client.get('/api/collection-sites').get_json()
+                if s['code'] == code)
+
+
+def _token(flask_app, code):
+    from db import get_db
+
+    with flask_app.app_context():
+        return get_db().execute(
+            'select token from collection_sites where code = %s', (code,)
+        ).fetchone()['token']
+
+
+def test_both_satellite_sites_exist_and_start_empty(client):
+    sites = client.get('/api/collection-sites').get_json()
+    assert [s['code'] for s in sites] == ['CRC', 'VMTH']
+    assert all(s['pending_samples'] == 0 for s in sites)
+    assert all(s['oldest_age_days'] is None for s in sites)
+    # The token must never ride along on the list used by every page.
+    assert all('token' not in s for s in sites)
+
+
+def test_dropoff_needs_no_login(anon, flask_app):
+    """People at the freezer have a phone and no lab password."""
+    token = _token(flask_app, 'CRC')
+
+    page = anon.get(f'/drop/{token}')
+    assert page.status_code == 200
+    assert b'How many samples' in page.data
+
+    recorded = anon.post(f'/api/drop/{token}', json={'sample_count': 3,
+                                                     'dropped_by': 'Volunteer'})
+    assert recorded.status_code == 201
+    assert recorded.get_json()['total_waiting'] == 3
+
+
+def test_a_bad_token_gets_nowhere(anon):
+    assert anon.get('/drop/' + 'f' * 32).status_code == 404
+    assert anon.get('/drop/short').status_code == 404
+    assert anon.post('/api/drop/' + 'f' * 32, json={'sample_count': 1}).status_code == 404
+
+
+def test_dropoff_count_is_bounded(anon, flask_app):
+    token = _token(flask_app, 'CRC')
+    assert anon.post(f'/api/drop/{token}', json={'sample_count': 0}).status_code == 400
+    assert anon.post(f'/api/drop/{token}', json={'sample_count': 501}).status_code == 400
+    assert anon.post(f'/api/drop/{token}', json={'sample_count': 'lots'}).status_code == 400
+
+
+def test_pending_counts_and_age_per_site(client, flask_app, anon):
+    from db import get_db
+
+    crc, vmth = _token(flask_app, 'CRC'), _token(flask_app, 'VMTH')
+    anon.post(f'/api/drop/{crc}', json={'sample_count': 4})
+    anon.post(f'/api/drop/{crc}', json={'sample_count': 2})
+    anon.post(f'/api/drop/{vmth}', json={'sample_count': 7})
+
+    # Age the oldest CRC drop so the days figure has something to report.
+    with flask_app.app_context():
+        db = get_db()
+        db.execute("""update pending_dropoffs set dropped_at = now() - interval '9 days'
+                      where id = (select min(id) from pending_dropoffs)""")
+        db.commit()
+
+    assert _site(client, 'CRC')['pending_samples'] == 6
+    assert _site(client, 'CRC')['oldest_age_days'] == 9
+    assert _site(client, 'VMTH')['pending_samples'] == 7
+    assert _site(client, 'VMTH')['oldest_age_days'] == 0
+
+
+def test_sites_are_collected_independently(client, flask_app, anon):
+    crc, vmth = _token(flask_app, 'CRC'), _token(flask_app, 'VMTH')
+    anon.post(f'/api/drop/{crc}', json={'sample_count': 5})
+    anon.post(f'/api/drop/{vmth}', json={'sample_count': 8})
+
+    result = client.post(f'/api/collection-sites/{_site(client, "CRC")["id"]}/collect',
+                         json={'collected_by': 'H. Beaufrere'}).get_json()
+    assert result == {'collected_dropoffs': 1, 'collected_samples': 5}
+
+    # CRC resets; VMTH is untouched.
+    assert _site(client, 'CRC')['pending_samples'] == 0
+    assert _site(client, 'CRC')['oldest_age_days'] is None
+    assert _site(client, 'VMTH')['pending_samples'] == 8
+
+    # Collecting keeps the history rather than deleting it.
+    history = client.get(
+        f'/api/collection-sites/{_site(client, "CRC")["id"]}/dropoffs').get_json()
+    assert len(history) == 1
+    assert history[0]['collected_at'] is not None
+    assert history[0]['collected_by'] == 'H. Beaufrere'
+
+    # And a drop after collection starts a fresh backlog.
+    anon.post(f'/api/drop/{crc}', json={'sample_count': 2})
+    assert _site(client, 'CRC')['pending_samples'] == 2
+
+
+def test_qr_endpoint_returns_the_drop_url(client, flask_app):
+    site = _site(client, 'VMTH')
+    info = client.get(f'/api/collection-sites/{site["id"]}/qr').get_json()
+    assert info['code'] == 'VMTH'
+    assert info['drop_url'].endswith('/drop/' + _token(flask_app, 'VMTH'))
+
+
+def test_collection_admin_needs_a_session(anon, client):
+    site_id = _site(client, 'CRC')['id']
+    assert anon.get('/api/collection-sites').status_code == 401
+    assert anon.post(f'/api/collection-sites/{site_id}/collect').status_code == 401
+    assert anon.get(f'/api/collection-sites/{site_id}/qr').status_code == 401
