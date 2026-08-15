@@ -1196,6 +1196,15 @@ body {
     margin: 0;
 }
 
+.label-help-warn {
+    text-align: left;
+    background: var(--f-gold-wash);
+    border-left: 2px solid var(--f-gold);
+    border-radius: 0 4px 4px 0;
+    padding: 0.5rem 0.6rem;
+    color: var(--f-ink-soft);
+}
+
 /* ============================================================
    LOGIN
    ============================================================ */
