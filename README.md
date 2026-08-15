@@ -256,9 +256,15 @@ degrades. Each site is collected separately, since CRC and VMTH are separate
 trips, and collecting marks the drops rather than deleting them so the history
 survives.
 
-To put a QR code on a freezer door: open the overview, click the QR icon on
-that site's card, and print what appears. The URL contains the site's token,
-so treat the printed code as the credential it is.
+To put a QR code on a freezer door: open the overview and click the QR icon on
+that site's card. The panel prints a ready-made sign, copies the code to the
+clipboard as an image, or saves it as a PNG for a poster or a slide. The URL
+contains the site's token, so treat the printed code as the credential it is.
+
+That panel is deliberately not the tube-label sheet. A tube label is scanned
+off the screen by Brady Express Labels and carries a Code 128 barcode; this is
+a sign a person points a phone camera at. Sharing one dialog between them only
+made both harder to read.
 
 ---
 
