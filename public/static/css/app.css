@@ -47,16 +47,16 @@
     --f-danger:      #a3312a;
     --f-ok:          #1f6b45;
 
-    /* Occupancy ramp — one hue, light to saturated, so "how full" reads as a
-       quantity rather than as an alarm. The first step has to clear the empty
-       colour by a wide margin: "has a few tubes in it" is the single most
-       useful thing to spot when scanning 504 boxes. */
+    /* Occupancy ramp — a yellow-to-red heat scale, deliberately outside the
+       blue chrome so a filling box reads as data rather than as more UI. The
+       first step has to clear the empty colour by a wide margin: "has a few
+       tubes in it" is the single most useful thing to spot across 504 boxes. */
     --f-occ-0: transparent;
-    --f-occ-1: #a9c6e3;
-    --f-occ-2: #8fb2d6;
-    --f-occ-3: #5c8ec0;
-    --f-occ-4: #2e63a0;
-    --f-occ-5: #022851;
+    --f-occ-1: #ffe49a;
+    --f-occ-2: #ffc849;
+    --f-occ-3: #f2913a;
+    --f-occ-4: #db5f2b;
+    --f-occ-5: #ad2a1c;
 
     --f-shadow-sm: 0 1px 2px rgba(2, 40, 81, 0.07);
     --f-shadow:    0 2px 8px rgba(2, 40, 81, 0.10);
@@ -105,11 +105,11 @@
     --f-ok:          #6dc396;
 
     --f-occ-0: transparent;
-    --f-occ-1: #1f5183;
-    --f-occ-2: #2a6ba8;
-    --f-occ-3: #3a86c4;
-    --f-occ-4: #56a2d8;
-    --f-occ-5: #7cc0ea;
+    --f-occ-1: #7a5a14;
+    --f-occ-2: #b0801f;
+    --f-occ-3: #d99b30;
+    --f-occ-4: #e0702f;
+    --f-occ-5: #e3452f;
 
     --f-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.45);
     --f-shadow:    0 2px 10px rgba(0, 0, 0, 0.5);
@@ -1028,6 +1028,49 @@ body {
     font-family: var(--f-mono);
     font-weight: 600;
     color: var(--f-accent);
+}
+
+/* ============================================================
+   LABEL BARCODE
+   ============================================================ */
+
+.label-value {
+    font-family: var(--f-mono);
+    font-size: 1.3rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    color: var(--f-ink);
+    word-break: break-all;
+}
+
+.label-caption {
+    font-size: 0.78rem;
+    color: var(--f-muted);
+    margin-bottom: 0.85rem;
+}
+
+/* The barcode keeps a white ground in both themes — an inverted barcode
+   will not scan, and the quiet zone around it is part of the symbology. */
+.label-stage {
+    background: #ffffff;
+    border: 1px solid var(--f-hairline-2);
+    border-radius: var(--f-radius-sm);
+    padding: 0.5rem;
+    margin-bottom: 0.9rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 130px;
+    overflow-x: auto;
+}
+
+.label-stage svg { display: block; max-width: 100%; height: auto; }
+
+.label-help {
+    font-size: 0.76rem;
+    line-height: 1.5;
+    color: var(--f-muted);
+    margin: 0;
 }
 
 /* ============================================================

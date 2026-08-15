@@ -242,6 +242,55 @@ def test_failed_insert_does_not_consume_a_tube_number(client, boxes, species_id)
     assert recovered['tube_id'] == 'RTHA26002'
 
 
+def test_sample_type_defaults_to_plasma(client, boxes, species_id):
+    tube = client.post('/api/raptor/tubes', json={
+        'box_id': boxes['raptor']['id'], 'row_pos': 1, 'col_pos': 1,
+        'species_id': species_id, 'collection_date': '2026-04-01',
+    }).get_json()
+    assert tube['sample_type'] == 'Plasma'
+
+
+def test_sample_type_round_trips(client, boxes, species_id):
+    box_id = boxes['raptor']['id']
+    tube = client.post('/api/raptor/tubes', json={
+        'box_id': box_id, 'row_pos': 2, 'col_pos': 2,
+        'species_id': species_id, 'collection_date': '2026-04-01',
+        'sample_type': 'Liver',
+    }).get_json()
+    assert tube['sample_type'] == 'Liver'
+
+    updated = client.put(f'/api/raptor/tubes/{tube["id"]}', json={
+        'collection_date': '2026-04-01', 'sample_type': 'Other',
+        'notes': 'Kidney, left',
+    }).get_json()
+    assert updated['sample_type'] == 'Other'
+    assert updated['notes'] == 'Kidney, left'
+
+    # The box view feeds the grid, so it has to carry the type as well.
+    box = client.get(f'/api/boxes/{box_id}').get_json()
+    assert box['tubes'][0]['sample_type'] == 'Other'
+
+
+def test_multi_tube_sample_shares_its_type(client, boxes, species_id):
+    result = client.post('/api/raptor/tubes', json={
+        'box_id': boxes['raptor']['id'], 'row_pos': 1, 'col_pos': 1,
+        'species_id': species_id, 'collection_date': '2026-04-01',
+        'sample_type': 'Liver', 'num_tubes': 3,
+    }).get_json()
+    assert [t['sample_type'] for t in result['tubes']] == ['Liver'] * 3
+
+
+def test_sample_type_reaches_the_export(client, boxes, species_id):
+    client.post('/api/raptor/tubes', json={
+        'box_id': boxes['raptor']['id'], 'row_pos': 1, 'col_pos': 1,
+        'species_id': species_id, 'collection_date': '2026-04-01',
+        'sample_type': 'Liver',
+    })
+    csv_bytes = client.get('/api/export/raptor/csv').data
+    assert b'Sample Type' in csv_bytes
+    assert b'Liver' in csv_bytes
+
+
 def test_raptor_tube_rejects_a_research_box(client, boxes, species_id):
     response = client.post('/api/raptor/tubes', json={
         'box_id': boxes['research']['id'], 'row_pos': 1, 'col_pos': 1,

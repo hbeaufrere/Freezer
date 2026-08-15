@@ -55,10 +55,6 @@
                 </ul>
 
                 <div class="d-flex align-items-center gap-2 ms-lg-auto">
-                    <button class="icon-btn" id="btn-printer-connect"
-                            title="Connect Brady M211 label printer" aria-label="Connect label printer">
-                        <i class="bi bi-bluetooth" id="printer-icon"></i>
-                    </button>
                     <button class="icon-btn" id="btn-theme" title="Switch theme" aria-label="Switch colour theme">
                         <i class="bi bi-circle-half" id="theme-icon"></i>
                     </button>
@@ -75,6 +71,39 @@
     </main>
 
     <div class="toast-container position-fixed bottom-0 end-0 p-3" id="toast-container"></div>
+
+    <!-- Tube label barcode. Scanned off the screen by Brady Express Labels. -->
+    <div class="modal fade" id="labelModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 class="modal-title fs-6">Tube label</h2>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <div class="label-value" id="label-value"></div>
+                    <div class="label-caption" id="label-caption"></div>
+
+                    <!-- Always white, whatever the app theme: scanners need the
+                         contrast, and an inverted barcode will not read. -->
+                    <div class="label-stage" id="label-stage"></div>
+
+                    <div class="btn-group btn-group-sm mb-3" role="group" aria-label="Barcode type">
+                        <button type="button" class="btn btn-outline-secondary"
+                                data-symbology="code128">Code 128</button>
+                        <button type="button" class="btn btn-outline-secondary"
+                                data-symbology="qr">QR</button>
+                    </div>
+
+                    <p class="label-help">
+                        Scan this with <strong>Brady Express Labels</strong> on your phone,
+                        pick the <strong>Vial</strong> preset, and print on the M211.
+                        <span class="d-block mt-1">Cartridge M21-500-7425 &middot; 1.5&nbsp;mL tubes</span>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script src="/static/vendor/bootstrap.bundle.min.js"></script>
     <script src="/static/js/app.js"></script>

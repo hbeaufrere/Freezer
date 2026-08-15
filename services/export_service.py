@@ -12,7 +12,7 @@ _ROW_LABELS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'J', 'K']
 
 RAPTOR_HEADERS = [
     'Tube ID', 'Species Code', 'Common Name', 'Scientific Name',
-    'Collection Date', 'Age', 'Sex', 'Freeze-Thaw Cycles',
+    'Sample Type', 'Collection Date', 'Age', 'Sex', 'Freeze-Thaw Cycles',
     'WRMD Number', 'VMTH Number',
     'Shelf', 'Rack', 'Drawer', 'Box', 'Position',
     'Notes', 'Date Added',
@@ -25,8 +25,8 @@ RESEARCH_HEADERS = [
 ]
 
 _HEADER_FONT = Font(bold=True, color='FFFFFF', size=11)
-_RAPTOR_FILL = PatternFill(start_color='0F6E78', end_color='0F6E78', fill_type='solid')
-_RESEARCH_FILL = PatternFill(start_color='2F6F53', end_color='2F6F53', fill_type='solid')
+_RAPTOR_FILL = PatternFill(start_color='022851', end_color='022851', fill_type='solid')
+_RESEARCH_FILL = PatternFill(start_color='0A3D75', end_color='0A3D75', fill_type='solid')
 
 
 def _format_position(row_pos, col_pos):
@@ -47,8 +47,8 @@ def _excel_safe(value):
 def _raptor_query(filters=None):
     query = """
         select rt.tube_id, s.banding_code, s.common_name, s.scientific_name,
-               rt.collection_date, rt.age, rt.sex, rt.freeze_thaw_cycles,
-               rt.wrmd_number, rt.vmth_number,
+               rt.sample_type, rt.collection_date, rt.age, rt.sex,
+               rt.freeze_thaw_cycles, rt.wrmd_number, rt.vmth_number,
                sh.name as shelf, r.label as rack, d.label as drawer, b.label as box,
                rt.row_pos, rt.col_pos, rt.notes, rt.created_at
         from raptor_tubes rt
@@ -92,7 +92,8 @@ def _research_query():
 def _raptor_row(row):
     return [
         row['tube_id'], row['banding_code'], row['common_name'], row['scientific_name'],
-        row['collection_date'], row['age'], row['sex'], row['freeze_thaw_cycles'],
+        row['sample_type'], row['collection_date'], row['age'], row['sex'],
+        row['freeze_thaw_cycles'],
         row['wrmd_number'], row['vmth_number'],
         row['shelf'], row['rack'], row['drawer'], row['box'],
         _format_position(row['row_pos'], row['col_pos']),
@@ -151,7 +152,7 @@ def export_raptor_xlsx(db, filters=None):
     query, params = _raptor_query(filters)
     rows = db.execute(query, params).fetchall()
     return _build_workbook(
-        'Raptor Plasma Biobank', RAPTOR_HEADERS, _RAPTOR_FILL, rows, _raptor_row
+        'Raptor Biobank', RAPTOR_HEADERS, _RAPTOR_FILL, rows, _raptor_row
     )
 
 

@@ -75,7 +75,8 @@ function renderBoxGrid(container, boxData, options = {}) {
                 if (isRaptor) {
                     const index = speciesIndexMap[tube.banding_code] % 12;
                     cell.classList.add(`species-${index}`);
-                    cell.title = `${tube.tube_id}\n${tube.common_name}\nPosition ${position}`;
+                    cell.title = `${tube.tube_id}\n${tube.common_name}`
+                        + `\n${tube.sample_type || 'Plasma'}\nPosition ${position}`;
                     cell.setAttribute('aria-label', `${tube.tube_id}, ${tube.common_name}, position ${position}`);
                 } else {
                     cell.classList.add('research');
