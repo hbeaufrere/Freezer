@@ -1,66 +1,68 @@
 {% extends "base.html" %}
-{% block title %}Freezer Overview - CLIPR Repository{% endblock %}
+{% block title %}Freezer &middot; CLIPR Repository{% endblock %}
 
 {% block content %}
-<div class="row mb-3">
-    <div class="col">
-        <h4 class="mb-0"><i class="bi bi-box-seam me-2"></i>Freezer Overview</h4>
-        <small class="text-muted">Click on any box to view its contents</small>
+<div class="page-head">
+    <div>
+        <h1 class="page-title"><i class="bi bi-grid-3x3 text-body-secondary"></i>Freezer overview</h1>
+        <div class="page-sub">Eppendorf CryoCube F740hi</div>
+    </div>
+    <div class="occupancy-legend">
+        <span>Box occupancy</span>
+        <div class="legend-item"><span class="legend-swatch" style="background:var(--f-surface)"></span>Empty</div>
+        <div class="legend-item"><span class="legend-swatch" style="background:var(--f-occ-1)"></span>1&ndash;25%</div>
+        <div class="legend-item"><span class="legend-swatch" style="background:var(--f-occ-2)"></span>25&ndash;50%</div>
+        <div class="legend-item"><span class="legend-swatch" style="background:var(--f-occ-3)"></span>50&ndash;75%</div>
+        <div class="legend-item"><span class="legend-swatch" style="background:var(--f-occ-4)"></span>75&ndash;99%</div>
+        <div class="legend-item"><span class="legend-swatch" style="background:var(--f-occ-5)"></span>Full</div>
     </div>
 </div>
 
-<!-- Summary stats -->
-<div class="row g-3 mb-4" id="overview-stats">
-    <div class="col-6 col-md-3">
-        <div class="stat-card">
-            <div class="stat-value" id="stat-total-stored">--</div>
-            <div class="stat-label">Total Tubes Stored</div>
+<div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3">
+        <div class="stat-card is-accent">
+            <div class="stat-value" id="stat-total-stored">&ndash;&ndash;</div>
+            <div class="stat-label">Tubes stored</div>
+            <div class="stat-note" id="stat-percent">&nbsp;</div>
         </div>
     </div>
-    <div class="col-6 col-md-3">
+    <div class="col-6 col-lg-3">
         <div class="stat-card">
-            <div class="stat-value" id="stat-capacity">--</div>
-            <div class="stat-label">Total Capacity</div>
+            <div class="stat-value" id="stat-capacity">&ndash;&ndash;</div>
+            <div class="stat-label">Total capacity</div>
+            <div class="stat-note" id="stat-boxes">&nbsp;</div>
         </div>
     </div>
-    <div class="col-6 col-md-3">
-        <div class="stat-card">
-            <div class="stat-value" id="stat-raptor">--</div>
-            <div class="stat-label">Raptor Samples</div>
+    <div class="col-6 col-lg-3">
+        <div class="stat-card is-raptor">
+            <div class="stat-value" id="stat-raptor">&ndash;&ndash;</div>
+            <div class="stat-label">Raptor samples</div>
+            <div class="stat-note">Birds, not tubes</div>
         </div>
     </div>
-    <div class="col-6 col-md-3">
-        <div class="stat-card">
-            <div class="stat-value" id="stat-research">--</div>
-            <div class="stat-label">CLIPR Research Samples</div>
+    <div class="col-6 col-lg-3">
+        <div class="stat-card is-research">
+            <div class="stat-value" id="stat-research">&ndash;&ndash;</div>
+            <div class="stat-label">CLIPR research samples</div>
+            <div class="stat-note">&nbsp;</div>
         </div>
     </div>
 </div>
 
-<!-- Occupancy legend -->
-<div class="occupancy-legend mb-3">
-    <div class="legend-item"><div class="legend-swatch" style="background:#f1f5f9"></div> Empty</div>
-    <div class="legend-item"><div class="legend-swatch" style="background:#bbf7d0"></div> &lt;25%</div>
-    <div class="legend-item"><div class="legend-swatch" style="background:#fde68a"></div> 25-75%</div>
-    <div class="legend-item"><div class="legend-swatch" style="background:#fca5a5"></div> 75-99%</div>
-    <div class="legend-item"><div class="legend-swatch" style="background:#ef4444"></div> Full</div>
-</div>
-
-<!-- Freezer visual -->
 <div class="freezer-cabinet" id="freezer-visual">
-    <div class="loading-spinner">
-        <div class="spinner-border text-primary" role="status">
-            <span class="visually-hidden">Loading...</span>
-        </div>
+    <div class="cabinet-plate">
+        <span class="cabinet-model">Eppendorf CryoCube F740hi</span>
+        <span class="cabinet-temp">&minus;80 &deg;C</span>
     </div>
+    <div class="skeleton skeleton-shelf"></div>
+    <div class="skeleton skeleton-shelf"></div>
+    <div class="skeleton skeleton-shelf"></div>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script src="/static/js/freezer-view.js"></script>
 <script>
-    document.addEventListener('DOMContentLoaded', () => {
-        loadFreezerOverview();
-    });
+    document.addEventListener('DOMContentLoaded', loadFreezerOverview);
 </script>
 {% endblock %}

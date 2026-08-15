@@ -1,89 +1,94 @@
 {% extends "base.html" %}
-{% block title %}CLIPR Research - CLIPR Repository{% endblock %}
+{% block title %}CLIPR Research &middot; CLIPR Repository{% endblock %}
 
 {% block content %}
-<div class="row mb-3">
-    <div class="col">
-        <h4 class="mb-0">
-            <img src="/static/img/logo-clipr.jpg" alt="" height="28" class="me-2" onerror="this.style.display='none'">
+<div class="page-head">
+    <div>
+        <h1 class="page-title">
+            <img src="/static/img/logo-clipr.jpg" alt="" height="26" class="rounded"
+                 onerror="this.remove()">
             CLIPR Research
-        </h4>
-        <small class="text-muted">Middle and Lower Shelves</small>
+        </h1>
+        <div class="page-sub">Middle &amp; lower shelves</div>
     </div>
-    <div class="col-auto">
-        <div class="position-relative" style="min-width: 300px;">
-            <input type="text" class="form-control" id="research-search" placeholder="Search by sample ID or description...">
-            <div class="search-results-dropdown" id="research-search-results"></div>
+    <div class="d-flex flex-wrap align-items-center gap-2">
+        <span class="count-pill"><strong id="research-stat-total">0</strong> tubes</span>
+        <span class="count-pill"><strong id="research-stat-boxes">0</strong> boxes in use</span>
+        <div class="search-shell">
+            <input type="search" class="form-control" id="research-search"
+                   placeholder="Search sample ID or description&hellip;"
+                   autocomplete="off" role="combobox" aria-expanded="false"
+                   aria-controls="research-search-results">
+            <div class="search-results-dropdown" id="research-search-results" role="listbox"></div>
         </div>
-    </div>
-</div>
-
-<!-- Quick stats -->
-<div class="row g-3 mb-3" id="research-quick-stats">
-    <div class="col-auto">
-        <span class="badge bg-success fs-6" id="research-stat-total">0 tubes</span>
-    </div>
-    <div class="col-auto">
-        <span class="badge bg-secondary fs-6" id="research-stat-boxes">0 boxes in use</span>
     </div>
 </div>
 
 <div class="section-layout">
-    <!-- Left sidebar: racks -->
-    <div class="rack-sidebar" id="research-rack-sidebar">
-        <h6 class="text-muted mb-2">Select a rack &amp; drawer</h6>
-        <div class="loading-spinner">
-            <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
-        </div>
-    </div>
+    <aside class="rack-sidebar" id="research-rack-sidebar">
+        <div class="sidebar-heading">Racks</div>
+        <div class="skeleton skeleton-rack"></div>
+        <div class="skeleton skeleton-rack"></div>
+        <div class="skeleton skeleton-rack"></div>
+    </aside>
 
-    <!-- Main panel: box grid -->
-    <div class="main-panel">
+    <div>
         <div class="breadcrumb-nav" id="research-breadcrumb"></div>
         <div id="research-grid-area">
-            <div class="text-center text-muted py-5">
-                <i class="bi bi-arrow-left fs-1 d-block mb-2"></i>
-                Select a rack and drawer from the sidebar, then click a box to view its tubes.
+            <div class="empty-state">
+                <i class="bi bi-box2 empty-icon"></i>
+                <div class="empty-title">No box selected</div>
+                <div class="empty-hint">
+                    Pick a rack in the sidebar, then click one of its box slots to open the grid.
+                </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Add/Edit Tube Modal -->
-<div class="modal fade" id="researchTubeModal" tabindex="-1">
-    <div class="modal-dialog">
+<!-- Add / edit tube -->
+<div class="modal fade" id="researchTubeModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="researchTubeModalTitle">Add CLIPR Research Tube</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <h2 class="modal-title fs-5" id="researchTubeModalTitle">Add research tube</h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
                 <input type="hidden" id="research-tube-id">
                 <input type="hidden" id="research-tube-box-id">
                 <input type="hidden" id="research-tube-row">
                 <input type="hidden" id="research-tube-col">
+
                 <div class="mb-3">
-                    <label class="form-label fw-bold">Position</label>
-                    <div id="research-tube-position" class="form-control-plaintext fw-bold text-primary"></div>
+                    <div class="form-label">Position</div>
+                    <div class="position-readout" id="research-tube-position"></div>
                 </div>
+
                 <div class="mb-3">
                     <label for="research-sample-id" class="form-label">Sample ID</label>
-                    <input type="text" class="form-control" id="research-sample-id" placeholder="e.g., EXP-2026-042">
+                    <input type="text" class="form-control" id="research-sample-id"
+                           placeholder="e.g. EXP-2026-042">
                 </div>
+
                 <div class="mb-3">
                     <label for="research-description" class="form-label">Description</label>
-                    <textarea class="form-control" id="research-description" rows="2" placeholder="Notes about this sample..."></textarea>
+                    <textarea class="form-control" id="research-description" rows="2"
+                              placeholder="What is in this tube?"></textarea>
                 </div>
+
                 <div class="row g-3">
-                    <div class="col-md-6">
-                        <label for="research-date-stored" class="form-label">Date Stored</label>
+                    <div class="col-sm-6">
+                        <label for="research-date-stored" class="form-label">Date stored</label>
                         <input type="date" class="form-control" id="research-date-stored">
                     </div>
-                    <div class="col-md-6">
-                        <label for="research-freeze-thaw" class="form-label">Freeze-Thaw Cycles</label>
+                    <div class="col-sm-6">
+                        <label for="research-freeze-thaw" class="form-label">Freeze-thaw cycles</label>
                         <div class="input-group">
-                            <input type="number" class="form-control" id="research-freeze-thaw" min="0" value="0">
-                            <button class="btn btn-outline-warning" type="button" id="btn-research-thaw" title="Record thaw (+1)" style="display:none;">
+                            <input type="number" class="form-control" id="research-freeze-thaw"
+                                   min="0" value="0">
+                            <button class="btn btn-outline-secondary" type="button"
+                                    id="btn-research-thaw" title="Record a thaw" hidden>
                                 <i class="bi bi-thermometer-half"></i> +1
                             </button>
                         </div>
@@ -91,8 +96,8 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-danger me-auto" id="btn-research-delete" style="display:none;">
-                    <i class="bi bi-trash me-1"></i>Delete
+                <button type="button" class="btn btn-outline-danger me-auto" id="btn-research-delete" hidden>
+                    <i class="bi bi-trash me-1"></i>Remove
                 </button>
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
                 <button type="button" class="btn btn-primary" id="btn-research-save">
@@ -109,8 +114,6 @@
 <script src="/static/js/box-grid.js"></script>
 <script src="/static/js/research.js"></script>
 <script>
-    document.addEventListener('DOMContentLoaded', () => {
-        initResearchPage();
-    });
+    document.addEventListener('DOMContentLoaded', initResearchPage);
 </script>
 {% endblock %}

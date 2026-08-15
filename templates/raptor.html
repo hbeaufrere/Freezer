@@ -1,68 +1,58 @@
 {% extends "base.html" %}
-{% block title %}Raptor Biobank - CLIPR Repository{% endblock %}
+{% block title %}Raptor Biobank &middot; CLIPR Repository{% endblock %}
 
 {% block content %}
-<div class="row mb-3">
-    <div class="col">
-        <h4 class="mb-0">
-            <img src="/static/img/logo-raptor.png" alt="" height="28" class="me-2" onerror="this.style.display='none'">
-            Raptor Plasma Biobank
-        </h4>
-        <small class="text-muted">Upper Shelf Only</small>
+<div class="page-head">
+    <div>
+        <h1 class="page-title">
+            <img src="/static/img/logo-raptor.png" alt="" height="26" onerror="this.remove()">
+            Raptor plasma biobank
+        </h1>
+        <div class="page-sub">Upper shelf</div>
     </div>
-    <div class="col-auto">
-        <div class="position-relative" style="min-width: 350px;">
-            <input type="text" class="form-control" id="raptor-search" placeholder="Search by tube ID, species, WRMD#, VMTH#...">
-            <div class="search-results-dropdown" id="raptor-search-results"></div>
+    <div class="d-flex flex-wrap align-items-center gap-2">
+        <span class="count-pill"><strong id="raptor-stat-total">0</strong> samples</span>
+        <span class="count-pill"><strong id="raptor-stat-species">0</strong> species</span>
+        <div class="search-shell">
+            <input type="search" class="form-control" id="raptor-search"
+                   placeholder="Tube ID, species, WRMD or VMTH number&hellip;"
+                   autocomplete="off" role="combobox" aria-expanded="false"
+                   aria-controls="raptor-search-results">
+            <div class="search-results-dropdown" id="raptor-search-results" role="listbox"></div>
         </div>
-    </div>
-</div>
-
-<!-- Quick stats -->
-<div class="row g-3 mb-3" id="raptor-quick-stats">
-    <div class="col-auto">
-        <span class="badge bg-primary fs-6" id="raptor-stat-total">0 samples</span>
-    </div>
-    <div class="col-auto">
-        <span class="badge bg-info fs-6" id="raptor-stat-species">0 species</span>
     </div>
 </div>
 
 <div class="section-layout">
-    <!-- Left sidebar: racks -->
-    <div class="rack-sidebar" id="raptor-rack-sidebar">
-        <h6 class="text-muted mb-2">Upper Shelf Racks</h6>
-        <div class="loading-spinner">
-            <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
-        </div>
-    </div>
+    <aside class="rack-sidebar" id="raptor-rack-sidebar">
+        <div class="sidebar-heading">Upper shelf racks</div>
+        <div class="skeleton skeleton-rack"></div>
+        <div class="skeleton skeleton-rack"></div>
+        <div class="skeleton skeleton-rack"></div>
+    </aside>
 
-    <!-- Main panel: box grid -->
-    <div class="main-panel">
+    <div>
         <div class="breadcrumb-nav" id="raptor-breadcrumb"></div>
-
-        <!-- Species color legend (shown when a box is loaded) -->
-        <div class="mb-2" id="raptor-species-legend" style="display:none;">
-            <small class="text-muted">Species colors:</small>
-            <div class="d-flex flex-wrap gap-2 mt-1" id="raptor-legend-items"></div>
-        </div>
-
+        <div class="species-legend" id="raptor-species-legend" hidden></div>
         <div id="raptor-grid-area">
-            <div class="text-center text-muted py-5">
-                <i class="bi bi-arrow-left fs-1 d-block mb-2"></i>
-                Select a rack and drawer from the sidebar, then click a box to view its tubes.
+            <div class="empty-state">
+                <i class="bi bi-box2 empty-icon"></i>
+                <div class="empty-title">No box selected</div>
+                <div class="empty-hint">
+                    Pick a rack in the sidebar, then click one of its box slots to open the grid.
+                </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Add/Edit Raptor Tube Modal -->
-<div class="modal fade" id="raptorTubeModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+<!-- Add / edit sample -->
+<div class="modal fade" id="raptorTubeModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="raptorTubeModalTitle">Add Raptor Sample</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <h2 class="modal-title fs-5" id="raptorTubeModalTitle">Add raptor sample</h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
                 <input type="hidden" id="raptor-tube-db-id">
@@ -70,32 +60,23 @@
                 <input type="hidden" id="raptor-tube-row">
                 <input type="hidden" id="raptor-tube-col">
 
-                <!-- Tube ID (shown after creation) -->
-                <div class="text-center mb-3" id="raptor-tube-id-display" style="display:none;">
-                    <span class="badge bg-primary badge-tube-id" id="raptor-tube-id-badge"></span>
+                <div class="text-center mb-3" id="raptor-tube-id-display" hidden>
+                    <span class="tube-id-badge" id="raptor-tube-id-badge"></span>
                 </div>
 
                 <div class="row g-3">
-                    <div class="col-md-3">
-                        <label class="form-label fw-bold">Position</label>
-                        <div id="raptor-tube-position" class="form-control-plaintext fw-bold text-primary"></div>
+                    <div class="col-sm-4">
+                        <div class="form-label">Position</div>
+                        <div class="position-readout pt-1" id="raptor-tube-position"></div>
                     </div>
-                    <div class="col-md-3">
-                        <label for="raptor-freeze-thaw" class="form-label">Freeze-Thaw Cycles</label>
-                        <div class="input-group">
-                            <input type="number" class="form-control" id="raptor-freeze-thaw" min="0" value="0">
-                            <button class="btn btn-outline-warning" type="button" id="btn-raptor-thaw" title="Record thaw (+1)" style="display:none;">
-                                <i class="bi bi-thermometer-half"></i> +1
-                            </button>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <label for="raptor-collection-date" class="form-label">Collection Date</label>
+                    <div class="col-sm-4">
+                        <label for="raptor-collection-date" class="form-label">Collection date</label>
                         <input type="date" class="form-control" id="raptor-collection-date">
                     </div>
-                    <div class="col-md-3" id="raptor-num-tubes-group">
-                        <label for="raptor-num-tubes" class="form-label">Number of Tubes</label>
-                        <input type="number" class="form-control" id="raptor-num-tubes" min="1" max="20" value="1">
+                    <div class="col-sm-4" id="raptor-num-tubes-group">
+                        <label for="raptor-num-tubes" class="form-label">Tubes from this bird</label>
+                        <input type="number" class="form-control" id="raptor-num-tubes"
+                               min="1" max="20" value="1">
                     </div>
                 </div>
 
@@ -103,62 +84,68 @@
                     <div class="col-md-8">
                         <label for="raptor-species" class="form-label">Species</label>
                         <select class="form-select" id="raptor-species">
-                            <option value="">-- Select Species --</option>
+                            <option value="">Select a species&hellip;</option>
                         </select>
                     </div>
                     <div class="col-md-4">
-                        <label class="form-label">Sex</label>
-                        <div>
-                            <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="radio" name="raptor-sex" id="raptor-sex-m" value="Male">
-                                <label class="form-check-label" for="raptor-sex-m">Male</label>
-                            </div>
-                            <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="radio" name="raptor-sex" id="raptor-sex-f" value="Female">
-                                <label class="form-check-label" for="raptor-sex-f">Female</label>
-                            </div>
-                            <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="radio" name="raptor-sex" id="raptor-sex-u" value="Unknown" checked>
-                                <label class="form-check-label" for="raptor-sex-u">Unk</label>
-                            </div>
-                        </div>
+                        <label for="raptor-age" class="form-label">Age</label>
+                        <select class="form-select" id="raptor-age">
+                            <option value="">Not recorded</option>
+                            <option>Adult</option>
+                            <option>Subadult</option>
+                            <option>Juvenile</option>
+                            <option>Hatch Year</option>
+                            <option>After Hatch Year</option>
+                            <option>Unknown</option>
+                        </select>
                     </div>
                 </div>
 
                 <div class="row g-3 mt-0">
                     <div class="col-md-4">
-                        <label for="raptor-age" class="form-label">Age</label>
-                        <select class="form-select" id="raptor-age">
-                            <option value="">-- Select --</option>
-                            <option value="Adult">Adult</option>
-                            <option value="Subadult">Subadult</option>
-                            <option value="Juvenile">Juvenile</option>
-                            <option value="Hatch Year">Hatch Year</option>
-                            <option value="After Hatch Year">After Hatch Year</option>
-                            <option value="Unknown">Unknown</option>
-                        </select>
+                        <div class="form-label">Sex</div>
+                        <div class="btn-group w-100" role="group" aria-label="Sex">
+                            <input type="radio" class="btn-check" name="raptor-sex" id="raptor-sex-m" value="Male">
+                            <label class="btn btn-outline-secondary btn-sm" for="raptor-sex-m">Male</label>
+                            <input type="radio" class="btn-check" name="raptor-sex" id="raptor-sex-f" value="Female">
+                            <label class="btn btn-outline-secondary btn-sm" for="raptor-sex-f">Female</label>
+                            <input type="radio" class="btn-check" name="raptor-sex" id="raptor-sex-u" value="Unknown" checked>
+                            <label class="btn btn-outline-secondary btn-sm" for="raptor-sex-u">Unknown</label>
+                        </div>
                     </div>
                     <div class="col-md-4">
-                        <label for="raptor-wrmd" class="form-label">WRMD Number</label>
-                        <input type="text" class="form-control" id="raptor-wrmd" placeholder="e.g., 12345">
+                        <label for="raptor-wrmd" class="form-label">WRMD number</label>
+                        <input type="text" class="form-control" id="raptor-wrmd" placeholder="e.g. 12345">
                     </div>
                     <div class="col-md-4">
-                        <label for="raptor-vmth" class="form-label">VMTH Number</label>
-                        <input type="text" class="form-control" id="raptor-vmth" placeholder="e.g., V-67890">
+                        <label for="raptor-vmth" class="form-label">VMTH number</label>
+                        <input type="text" class="form-control" id="raptor-vmth" placeholder="e.g. V-67890">
                     </div>
                 </div>
 
-                <div class="mt-3">
-                    <label for="raptor-notes" class="form-label">Notes</label>
-                    <textarea class="form-control" id="raptor-notes" rows="2"></textarea>
+                <div class="row g-3 mt-0">
+                    <div class="col-md-4">
+                        <label for="raptor-freeze-thaw" class="form-label">Freeze-thaw cycles</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" id="raptor-freeze-thaw" min="0" value="0">
+                            <button class="btn btn-outline-secondary" type="button"
+                                    id="btn-raptor-thaw" title="Record a thaw" hidden>
+                                <i class="bi bi-thermometer-half"></i> +1
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-md-8">
+                        <label for="raptor-notes" class="form-label">Notes</label>
+                        <textarea class="form-control" id="raptor-notes" rows="1"></textarea>
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-danger me-auto" id="btn-raptor-delete" style="display:none;">
-                    <i class="bi bi-trash me-1"></i>Delete
+                <button type="button" class="btn btn-outline-danger me-auto" id="btn-raptor-delete" hidden>
+                    <i class="bi bi-trash me-1"></i>Remove
                 </button>
-                <button type="button" class="btn btn-outline-info" id="btn-raptor-print" style="display:none;">
-                    <i class="bi bi-printer me-1"></i>Print Label
+                <button type="button" class="btn btn-outline-secondary" id="btn-raptor-print" hidden>
+                    <i class="bi bi-printer me-1"></i>Print label
                 </button>
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
                 <button type="button" class="btn btn-primary" id="btn-raptor-save">
@@ -169,31 +156,35 @@
     </div>
 </div>
 
-<!-- Add Species Modal -->
-<div class="modal fade" id="addSpeciesModal" tabindex="-1">
-    <div class="modal-dialog modal-sm">
+<!-- Add species -->
+<div class="modal fade" id="addSpeciesModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Add New Species</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <h2 class="modal-title fs-5">Add a species</h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
                 <div class="mb-3">
-                    <label class="form-label">Common Name</label>
-                    <input type="text" class="form-control" id="new-species-common">
+                    <label for="new-species-common" class="form-label">Common name</label>
+                    <input type="text" class="form-control" id="new-species-common"
+                           placeholder="e.g. Snail Kite">
                 </div>
                 <div class="mb-3">
-                    <label class="form-label">Scientific Name</label>
-                    <input type="text" class="form-control" id="new-species-scientific" placeholder="Genus species">
+                    <label for="new-species-scientific" class="form-label">Scientific name</label>
+                    <input type="text" class="form-control" id="new-species-scientific"
+                           placeholder="Genus species">
                 </div>
-                <div class="mb-3">
-                    <label class="form-label">4-Letter Banding Code</label>
-                    <input type="text" class="form-control" id="new-species-code" maxlength="4" style="text-transform:uppercase">
+                <div>
+                    <label for="new-species-code" class="form-label">Banding code</label>
+                    <input type="text" class="form-control font-monospace text-uppercase"
+                           id="new-species-code" maxlength="4" placeholder="SNKI">
+                    <div class="form-text">Four letters, per the Bird Banding Laboratory alpha codes.</div>
                 </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary" id="btn-add-species">Add</button>
+                <button type="button" class="btn btn-primary" id="btn-add-species">Add species</button>
             </div>
         </div>
     </div>
@@ -207,8 +198,6 @@
 <script src="/static/js/printer.js"></script>
 <script src="/static/js/label-canvas.js"></script>
 <script>
-    document.addEventListener('DOMContentLoaded', () => {
-        initRaptorPage();
-    });
+    document.addEventListener('DOMContentLoaded', initRaptorPage);
 </script>
 {% endblock %}

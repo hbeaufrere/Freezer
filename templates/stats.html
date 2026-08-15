@@ -1,186 +1,169 @@
 {% extends "base.html" %}
-{% block title %}Statistics - CLIPR Repository{% endblock %}
+{% block title %}Statistics &middot; CLIPR Repository{% endblock %}
 
 {% block head %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="/static/vendor/chart.umd.min.js"></script>
 {% endblock %}
 
 {% block content %}
-<div class="row mb-3">
-    <div class="col">
-        <h4 class="mb-0"><i class="bi bi-bar-chart me-2"></i>Statistics &amp; Reports</h4>
+<div class="page-head">
+    <div>
+        <h1 class="page-title"><i class="bi bi-bar-chart text-body-secondary"></i>Statistics</h1>
+        <div class="page-sub">Holdings &amp; exports</div>
     </div>
 </div>
 
-<!-- Nav tabs -->
-<ul class="nav nav-tabs mb-4" id="statsTabs" role="tablist">
-    <li class="nav-item">
-        <button class="nav-link active" id="tab-raptor" data-bs-toggle="tab" data-bs-target="#pane-raptor" type="button">
-            <i class="bi bi-feather me-1"></i>Raptor Biobank
+<ul class="nav nav-pills mb-4 gap-1" id="statsTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="tab-raptor" data-bs-toggle="tab"
+                data-bs-target="#pane-raptor" type="button" role="tab">
+            <i class="bi bi-feather me-1"></i>Raptor biobank
         </button>
     </li>
-    <li class="nav-item">
-        <button class="nav-link" id="tab-research" data-bs-toggle="tab" data-bs-target="#pane-research" type="button">
-            <i class="bi bi-flask me-1"></i>CLIPR Research
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="tab-research" data-bs-toggle="tab"
+                data-bs-target="#pane-research" type="button" role="tab">
+            <i class="bi bi-droplet-half me-1"></i>CLIPR research
         </button>
     </li>
 </ul>
 
 <div class="tab-content">
-    <!-- Raptor Stats Tab -->
-    <div class="tab-pane fade show active" id="pane-raptor">
-        <!-- Summary cards -->
+    <!-- Raptor -->
+    <div class="tab-pane fade show active" id="pane-raptor" role="tabpanel">
         <div class="row g-3 mb-4">
-            <div class="col-6 col-md-3">
-                <div class="stat-card">
-                    <div class="stat-value text-primary" id="raptor-total">--</div>
-                    <div class="stat-label">Total Samples</div>
+            <div class="col-6 col-lg-3">
+                <div class="stat-card is-raptor">
+                    <div class="stat-value" id="raptor-total">&ndash;&ndash;</div>
+                    <div class="stat-label">Birds sampled</div>
+                    <div class="stat-note" id="raptor-tube-note">&nbsp;</div>
                 </div>
             </div>
-            <div class="col-6 col-md-3">
-                <div class="stat-card">
-                    <div class="stat-value text-info" id="raptor-species-count">--</div>
-                    <div class="stat-label">Species Represented</div>
+            <div class="col-6 col-lg-3">
+                <div class="stat-card is-accent">
+                    <div class="stat-value" id="raptor-species-count">&ndash;&ndash;</div>
+                    <div class="stat-label">Species represented</div>
                 </div>
             </div>
-            <div class="col-6 col-md-3">
+            <div class="col-6 col-lg-3">
                 <div class="stat-card">
-                    <div class="stat-value text-warning" id="raptor-avg-ft">--</div>
-                    <div class="stat-label">Avg Freeze-Thaw Cycles</div>
+                    <div class="stat-value" id="raptor-avg-ft">&ndash;&ndash;</div>
+                    <div class="stat-label">Mean freeze-thaw cycles</div>
                 </div>
             </div>
-            <div class="col-6 col-md-3">
+            <div class="col-6 col-lg-3">
                 <div class="stat-card">
-                    <div class="stat-value text-success" id="raptor-most-common">--</div>
-                    <div class="stat-label">Most Common Species</div>
+                    <div class="stat-value font-monospace" id="raptor-most-common">&ndash;&ndash;</div>
+                    <div class="stat-label">Most sampled species</div>
                 </div>
             </div>
         </div>
 
-        <!-- Charts -->
-        <div class="row g-4 mb-4">
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header fw-bold">Samples by Species</div>
-                    <div class="card-body">
-                        <canvas id="chart-species" height="300"></canvas>
-                    </div>
+        <div class="row g-3 mb-3">
+            <div class="col-lg-6">
+                <div class="card h-100">
+                    <div class="card-header">Samples by species</div>
+                    <div class="card-body"><canvas id="chart-species" height="300"></canvas></div>
                 </div>
             </div>
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header fw-bold">Samples by Month</div>
-                    <div class="card-body">
-                        <canvas id="chart-monthly" height="300"></canvas>
-                    </div>
+            <div class="col-lg-6">
+                <div class="card h-100">
+                    <div class="card-header">Samples by month</div>
+                    <div class="card-body"><canvas id="chart-monthly" height="300"></canvas></div>
                 </div>
             </div>
         </div>
-        <div class="row g-4 mb-4">
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header fw-bold">Age Distribution</div>
-                    <div class="card-body">
-                        <canvas id="chart-age" height="250"></canvas>
-                    </div>
+        <div class="row g-3 mb-4">
+            <div class="col-lg-6">
+                <div class="card h-100">
+                    <div class="card-header">Age distribution</div>
+                    <div class="card-body"><canvas id="chart-age" height="240"></canvas></div>
                 </div>
             </div>
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header fw-bold">Sex Distribution</div>
-                    <div class="card-body">
-                        <canvas id="chart-sex" height="250"></canvas>
-                    </div>
+            <div class="col-lg-6">
+                <div class="card h-100">
+                    <div class="card-header">Sex distribution</div>
+                    <div class="card-body"><canvas id="chart-sex" height="240"></canvas></div>
                 </div>
             </div>
         </div>
 
-        <!-- Export controls -->
         <div class="card">
-            <div class="card-header fw-bold">Export Raptor Data</div>
+            <div class="card-header">Export raptor data</div>
             <div class="card-body">
                 <div class="row g-3 align-items-end">
-                    <div class="col-md-3">
-                        <label class="form-label">Species Filter</label>
+                    <div class="col-md-4">
+                        <label for="export-raptor-species" class="form-label">Species</label>
                         <select class="form-select" id="export-raptor-species">
-                            <option value="">All Species</option>
+                            <option value="">All species</option>
                         </select>
                     </div>
-                    <div class="col-md-2">
-                        <label class="form-label">Date From</label>
+                    <div class="col-6 col-md-2">
+                        <label for="export-raptor-from" class="form-label">Collected from</label>
                         <input type="date" class="form-control" id="export-raptor-from">
                     </div>
-                    <div class="col-md-2">
-                        <label class="form-label">Date To</label>
+                    <div class="col-6 col-md-2">
+                        <label for="export-raptor-to" class="form-label">Collected to</label>
                         <input type="date" class="form-control" id="export-raptor-to">
                     </div>
-                    <div class="col-md-2">
-                        <a class="btn btn-success w-100" id="btn-export-raptor-xlsx">
-                            <i class="bi bi-file-earmark-excel me-1"></i>Excel
-                        </a>
+                    <div class="col-6 col-md-2">
+                        <button class="btn btn-primary w-100" id="btn-export-raptor-xlsx">
+                            <i class="bi bi-file-earmark-spreadsheet me-1"></i>Excel
+                        </button>
                     </div>
-                    <div class="col-md-2">
-                        <a class="btn btn-outline-success w-100" id="btn-export-raptor-csv">
+                    <div class="col-6 col-md-2">
+                        <button class="btn btn-outline-secondary w-100" id="btn-export-raptor-csv">
                             <i class="bi bi-filetype-csv me-1"></i>CSV
-                        </a>
+                        </button>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Research Stats Tab -->
-    <div class="tab-pane fade" id="pane-research">
-        <!-- Summary cards -->
+    <!-- Research -->
+    <div class="tab-pane fade" id="pane-research" role="tabpanel">
         <div class="row g-3 mb-4">
-            <div class="col-6 col-md-4">
-                <div class="stat-card">
-                    <div class="stat-value text-success" id="research-total">--</div>
-                    <div class="stat-label">Total Samples</div>
+            <div class="col-6 col-lg-3">
+                <div class="stat-card is-research">
+                    <div class="stat-value" id="research-total">&ndash;&ndash;</div>
+                    <div class="stat-label">Tubes stored</div>
                 </div>
             </div>
-            <div class="col-6 col-md-4">
-                <div class="stat-card">
-                    <div class="stat-value text-info" id="research-boxes-used">--</div>
-                    <div class="stat-label">Boxes In Use</div>
+            <div class="col-6 col-lg-3">
+                <div class="stat-card is-accent">
+                    <div class="stat-value" id="research-boxes-used">&ndash;&ndash;</div>
+                    <div class="stat-label">Boxes in use</div>
                 </div>
             </div>
-            <div class="col-6 col-md-4">
+            <div class="col-6 col-lg-3">
                 <div class="stat-card">
-                    <div class="stat-value text-secondary" id="research-total-boxes">--</div>
-                    <div class="stat-label">Total Boxes Available</div>
+                    <div class="stat-value" id="research-total-boxes">&ndash;&ndash;</div>
+                    <div class="stat-label">Boxes available</div>
+                </div>
+            </div>
+            <div class="col-6 col-lg-3">
+                <div class="stat-card">
+                    <div class="stat-value" id="research-avg-ft">&ndash;&ndash;</div>
+                    <div class="stat-label">Mean freeze-thaw cycles</div>
                 </div>
             </div>
         </div>
 
-        <!-- Charts -->
-        <div class="row g-4 mb-4">
-            <div class="col-md-8">
-                <div class="card">
-                    <div class="card-header fw-bold">Samples by Rack</div>
-                    <div class="card-body">
-                        <canvas id="chart-research-rack" height="300"></canvas>
-                    </div>
-                </div>
-            </div>
+        <div class="card mb-4">
+            <div class="card-header">Tubes by rack</div>
+            <div class="card-body"><canvas id="chart-research-rack" height="280"></canvas></div>
         </div>
 
-        <!-- Export -->
         <div class="card">
-            <div class="card-header fw-bold">Export CLIPR Research Data</div>
-            <div class="card-body">
-                <div class="row g-3">
-                    <div class="col-auto">
-                        <a class="btn btn-success" id="btn-export-research-xlsx">
-                            <i class="bi bi-file-earmark-excel me-1"></i>Export Excel
-                        </a>
-                    </div>
-                    <div class="col-auto">
-                        <a class="btn btn-outline-success" id="btn-export-research-csv">
-                            <i class="bi bi-filetype-csv me-1"></i>Export CSV
-                        </a>
-                    </div>
-                </div>
+            <div class="card-header">Export research data</div>
+            <div class="card-body d-flex flex-wrap gap-2">
+                <button class="btn btn-primary" id="btn-export-research-xlsx">
+                    <i class="bi bi-file-earmark-spreadsheet me-1"></i>Export Excel
+                </button>
+                <button class="btn btn-outline-secondary" id="btn-export-research-csv">
+                    <i class="bi bi-filetype-csv me-1"></i>Export CSV
+                </button>
             </div>
         </div>
     </div>

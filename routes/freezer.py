@@ -1,143 +1,152 @@
 """Freezer structure API endpoints (shelves, racks, drawers, boxes)."""
 
-from flask import Blueprint, jsonify, request
+from collections import defaultdict
+
+from flask import Blueprint, jsonify
+
+from db import ApiError, get_db, insert_returning_id
+from routes.support import as_int, json_body, one_or_404, require, text, write
 
 freezer_bp = Blueprint('freezer', __name__)
 
+# Occupancy per box, counting both sections. Used wherever boxes are listed.
+_BOX_COLUMNS = """
+    b.id, b.drawer_id, b.position, b.label, b.grid_rows, b.grid_cols, b.section,
+    coalesce(rc.cnt, 0) + coalesce(rp.cnt, 0) as occupied,
+    b.grid_rows * b.grid_cols as capacity
+"""
 
-def get_db():
-    from app import get_db as _get_db
-    return _get_db()
+_BOX_JOINS = """
+    from boxes b
+    left join (select box_id, count(*) as cnt from research_tubes group by box_id) rc
+           on rc.box_id = b.id
+    left join (select box_id, count(*) as cnt from raptor_tubes group by box_id) rp
+           on rp.box_id = b.id
+"""
 
 
 @freezer_bp.route('/api/freezer')
 def get_freezer():
-    """Full freezer structure with nested shelves → racks → drawers → boxes and occupancy counts."""
+    """The whole freezer as nested shelves -> racks -> drawers -> boxes.
+
+    Four flat queries assembled in Python. Walking the hierarchy level by level
+    instead would cost ~148 round-trips, which is free against a local file and
+    very much not free against a hosted database.
+    """
     db = get_db()
 
     shelves = db.execute(
-        "SELECT id, name, position, section FROM shelves ORDER BY position"
+        'select id, name, position, section from shelves order by position'
     ).fetchall()
+    racks = db.execute(
+        'select id, shelf_id, position, label, designation from racks order by position'
+    ).fetchall()
+    drawers = db.execute(
+        'select id, rack_id, position, label from drawers order by position'
+    ).fetchall()
+    boxes = db.execute(f'select {_BOX_COLUMNS} {_BOX_JOINS} order by b.position').fetchall()
+
+    boxes_by_drawer = defaultdict(list)
+    for box in boxes:
+        boxes_by_drawer[box['drawer_id']].append(dict(box))
+
+    drawers_by_rack = defaultdict(list)
+    for drawer in drawers:
+        entry = dict(drawer)
+        entry['boxes'] = boxes_by_drawer.get(drawer['id'], [])
+        drawers_by_rack[drawer['rack_id']].append(entry)
+
+    racks_by_shelf = defaultdict(list)
+    for rack in racks:
+        entry = dict(rack)
+        entry['drawers'] = drawers_by_rack.get(rack['id'], [])
+        racks_by_shelf[rack['shelf_id']].append(entry)
 
     result = []
     for shelf in shelves:
-        shelf_data = dict(shelf)
-        racks = db.execute(
-            "SELECT id, position, label, designation FROM racks WHERE shelf_id = ? ORDER BY position",
-            (shelf['id'],)
-        ).fetchall()
-
-        shelf_data['racks'] = []
-        for rack in racks:
-            rack_data = dict(rack)
-            drawers = db.execute(
-                "SELECT id, position, label FROM drawers WHERE rack_id = ? ORDER BY position",
-                (rack['id'],)
-            ).fetchall()
-
-            rack_data['drawers'] = []
-            for drawer in drawers:
-                drawer_data = dict(drawer)
-                boxes = db.execute("""
-                    SELECT b.id, b.position, b.label, b.grid_rows, b.grid_cols, b.section,
-                           COALESCE(rc.cnt, 0) + COALESCE(rp.cnt, 0) AS occupied,
-                           b.grid_rows * b.grid_cols AS capacity
-                    FROM boxes b
-                    LEFT JOIN (SELECT box_id, COUNT(*) AS cnt FROM research_tubes GROUP BY box_id) rc ON rc.box_id = b.id
-                    LEFT JOIN (SELECT box_id, COUNT(*) AS cnt FROM raptor_tubes GROUP BY box_id) rp ON rp.box_id = b.id
-                    WHERE b.drawer_id = ?
-                    ORDER BY b.position
-                """, (drawer['id'],)).fetchall()
-
-                drawer_data['boxes'] = [dict(b) for b in boxes]
-                rack_data['drawers'].append(drawer_data)
-
-            shelf_data['racks'].append(rack_data)
-        result.append(shelf_data)
+        entry = dict(shelf)
+        entry['racks'] = racks_by_shelf.get(shelf['id'], [])
+        result.append(entry)
 
     return jsonify(result)
 
 
 @freezer_bp.route('/api/shelves')
 def list_shelves():
-    db = get_db()
-    rows = db.execute("SELECT id, name, position, section FROM shelves ORDER BY position").fetchall()
+    rows = get_db().execute(
+        'select id, name, position, section from shelves order by position'
+    ).fetchall()
     return jsonify([dict(r) for r in rows])
 
 
 @freezer_bp.route('/api/shelves/<int:shelf_id>/racks')
 def list_racks(shelf_id):
-    db = get_db()
-    rows = db.execute(
-        "SELECT id, shelf_id, position, label, designation FROM racks WHERE shelf_id = ? ORDER BY position",
-        (shelf_id,)
+    rows = get_db().execute(
+        """select id, shelf_id, position, label, designation
+           from racks where shelf_id = %s order by position""",
+        (shelf_id,),
     ).fetchall()
     return jsonify([dict(r) for r in rows])
 
 
 @freezer_bp.route('/api/racks/<int:rack_id>/drawers')
 def list_drawers(rack_id):
-    db = get_db()
-    rows = db.execute(
-        "SELECT id, rack_id, position, label FROM drawers WHERE rack_id = ? ORDER BY position",
-        (rack_id,)
+    rows = get_db().execute(
+        'select id, rack_id, position, label from drawers where rack_id = %s order by position',
+        (rack_id,),
     ).fetchall()
     return jsonify([dict(r) for r in rows])
 
 
 @freezer_bp.route('/api/drawers/<int:drawer_id>/boxes')
 def list_boxes(drawer_id):
-    db = get_db()
-    rows = db.execute("""
-        SELECT b.id, b.position, b.label, b.grid_rows, b.grid_cols, b.section,
-               COALESCE(rc.cnt, 0) + COALESCE(rp.cnt, 0) AS occupied,
-               b.grid_rows * b.grid_cols AS capacity
-        FROM boxes b
-        LEFT JOIN (SELECT box_id, COUNT(*) AS cnt FROM research_tubes GROUP BY box_id) rc ON rc.box_id = b.id
-        LEFT JOIN (SELECT box_id, COUNT(*) AS cnt FROM raptor_tubes GROUP BY box_id) rp ON rp.box_id = b.id
-        WHERE b.drawer_id = ?
-        ORDER BY b.position
-    """, (drawer_id,)).fetchall()
+    rows = get_db().execute(
+        f'select {_BOX_COLUMNS} {_BOX_JOINS} where b.drawer_id = %s order by b.position',
+        (drawer_id,),
+    ).fetchall()
     return jsonify([dict(r) for r in rows])
 
 
 @freezer_bp.route('/api/boxes/<int:box_id>')
 def get_box(box_id):
-    """Get box details with all tube positions."""
+    """Box details plus every tube it holds."""
     db = get_db()
 
-    box = db.execute("""
-        SELECT b.id, b.position, b.label, b.grid_rows, b.grid_cols, b.section,
-               d.label AS drawer_label, r.label AS rack_label, r.designation AS rack_designation,
-               sh.name AS shelf_name
-        FROM boxes b
-        JOIN drawers d ON b.drawer_id = d.id
-        JOIN racks r ON d.rack_id = r.id
-        JOIN shelves sh ON r.shelf_id = sh.id
-        WHERE b.id = ?
-    """, (box_id,)).fetchone()
-
-    if not box:
-        return jsonify({'error': 'Box not found'}), 404
+    box = one_or_404(db.execute(
+        """select b.id, b.position, b.label, b.grid_rows, b.grid_cols, b.section,
+                  d.label as drawer_label, r.label as rack_label,
+                  r.designation as rack_designation, sh.name as shelf_name
+           from boxes b
+           join drawers d on b.drawer_id = d.id
+           join racks r on d.rack_id = r.id
+           join shelves sh on r.shelf_id = sh.id
+           where b.id = %s""",
+        (box_id,),
+    ).fetchone(), 'Box')
 
     box_data = dict(box)
 
     if box['section'] == 'raptor':
-        tubes = db.execute("""
-            SELECT rt.id, rt.tube_id, rt.row_pos, rt.col_pos,
-                   s.banding_code, s.common_name, s.scientific_name,
-                   rt.collection_date, rt.age, rt.sex, rt.freeze_thaw_cycles,
-                   rt.wrmd_number, rt.vmth_number, rt.notes
-            FROM raptor_tubes rt
-            JOIN species s ON rt.species_id = s.id
-            WHERE rt.box_id = ?
-        """, (box_id,)).fetchall()
+        tubes = db.execute(
+            """select rt.id, rt.tube_id, rt.row_pos, rt.col_pos, rt.species_id,
+                      s.banding_code, s.common_name, s.scientific_name,
+                      rt.collection_date, rt.age, rt.sex, rt.freeze_thaw_cycles,
+                      rt.wrmd_number, rt.vmth_number, rt.notes
+               from raptor_tubes rt
+               join species s on rt.species_id = s.id
+               where rt.box_id = %s
+               order by rt.row_pos, rt.col_pos""",
+            (box_id,),
+        ).fetchall()
     else:
-        tubes = db.execute("""
-            SELECT id, row_pos, col_pos, sample_id, description, date_stored
-            FROM research_tubes
-            WHERE box_id = ?
-        """, (box_id,)).fetchall()
+        tubes = db.execute(
+            """select id, row_pos, col_pos, sample_id, description,
+                      date_stored, freeze_thaw_cycles
+               from research_tubes
+               where box_id = %s
+               order by row_pos, col_pos""",
+            (box_id,),
+        ).fetchall()
 
     box_data['tubes'] = [dict(t) for t in tubes]
     return jsonify(box_data)
@@ -146,44 +155,83 @@ def get_box(box_id):
 @freezer_bp.route('/api/boxes', methods=['POST'])
 def create_box():
     db = get_db()
-    data = request.get_json()
-    try:
-        db.execute(
-            "INSERT INTO boxes (drawer_id, position, label, grid_rows, grid_cols, section) VALUES (?, ?, ?, ?, ?, ?)",
-            (data['drawer_id'], data['position'], data.get('label', ''),
-             data.get('grid_rows', 10), data.get('grid_cols', 10), data.get('section', 'research'))
+    data = json_body()
+    require(data, 'drawer_id', 'position')
+
+    section = text(data, 'section', 'research')
+    if section not in ('raptor', 'research'):
+        raise ApiError("Section must be either 'raptor' or 'research'.")
+
+    with write(db):
+        box_id = insert_returning_id(
+            db,
+            """insert into boxes (drawer_id, position, label, grid_rows, grid_cols, section)
+               values (%s, %s, %s, %s, %s, %s)
+               returning id""",
+            (
+                as_int(data, 'drawer_id'),
+                as_int(data, 'position', minimum=1),
+                text(data, 'label'),
+                as_int(data, 'grid_rows', minimum=1, maximum=26, default=10),
+                as_int(data, 'grid_cols', minimum=1, maximum=26, default=10),
+                section,
+            ),
         )
-        db.commit()
-        return jsonify({'id': db.execute("SELECT last_insert_rowid()").fetchone()[0]}), 201
-    except Exception as e:
-        db.rollback()
-        return jsonify({'error': str(e)}), 400
+    return jsonify({'id': box_id}), 201
 
 
 @freezer_bp.route('/api/boxes/<int:box_id>', methods=['PUT'])
 def update_box(box_id):
     db = get_db()
-    data = request.get_json()
-    try:
-        db.execute(
-            "UPDATE boxes SET label = ?, grid_rows = ?, grid_cols = ? WHERE id = ?",
-            (data.get('label'), data.get('grid_rows', 10), data.get('grid_cols', 10), box_id)
+    data = json_body()
+
+    rows = as_int(data, 'grid_rows', minimum=1, maximum=26, default=10)
+    cols = as_int(data, 'grid_cols', minimum=1, maximum=26, default=10)
+
+    one_or_404(db.execute('select id from boxes where id = %s', (box_id,)).fetchone(), 'Box')
+
+    # Shrinking a grid must not strand tubes outside the new bounds, where they
+    # would still count towards occupancy but never appear in the grid again.
+    stranded = db.execute(
+        """select count(*) as n from (
+               select row_pos, col_pos from research_tubes where box_id = %(box)s
+               union all
+               select row_pos, col_pos from raptor_tubes where box_id = %(box)s
+           ) t
+           where t.row_pos > %(rows)s or t.col_pos > %(cols)s""",
+        {'box': box_id, 'rows': rows, 'cols': cols},
+    ).fetchone()['n']
+
+    if stranded:
+        raise ApiError(
+            f'{stranded} tube(s) sit outside a {rows}x{cols} grid. '
+            'Move them first, then resize the box.'
         )
-        db.commit()
-        return jsonify({'success': True})
-    except Exception as e:
-        db.rollback()
-        return jsonify({'error': str(e)}), 400
+
+    with write(db):
+        db.execute(
+            'update boxes set label = %s, grid_rows = %s, grid_cols = %s where id = %s',
+            (text(data, 'label'), rows, cols, box_id),
+        )
+    return jsonify({'success': True})
 
 
 @freezer_bp.route('/api/boxes/<int:box_id>', methods=['DELETE'])
 def delete_box(box_id):
     db = get_db()
-    # Check if box has tubes
-    research_count = db.execute("SELECT COUNT(*) FROM research_tubes WHERE box_id = ?", (box_id,)).fetchone()[0]
-    raptor_count = db.execute("SELECT COUNT(*) FROM raptor_tubes WHERE box_id = ?", (box_id,)).fetchone()[0]
-    if research_count + raptor_count > 0:
-        return jsonify({'error': 'Cannot delete box with tubes in it'}), 400
-    db.execute("DELETE FROM boxes WHERE id = ?", (box_id,))
-    db.commit()
+
+    occupied = db.execute(
+        """select (select count(*) from research_tubes where box_id = %(box)s)
+                + (select count(*) from raptor_tubes where box_id = %(box)s) as n""",
+        {'box': box_id},
+    ).fetchone()['n']
+
+    if occupied:
+        raise ApiError(f'This box still holds {occupied} tube(s). Empty it first.')
+
+    with write(db):
+        deleted = db.execute('delete from boxes where id = %s', (box_id,)).rowcount
+
+    if not deleted:
+        raise ApiError('Box not found.', 404)
     return jsonify({'success': True})
