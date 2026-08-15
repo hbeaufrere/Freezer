@@ -39,6 +39,9 @@ async function initRaptorPage() {
     const sampleType = document.getElementById('raptor-sample-type');
     sampleType.addEventListener('change', syncSampleTypeHint);
     document.getElementById('btn-add-species').addEventListener('click', addNewSpecies);
+
+    attachCopyButton(document.getElementById('btn-copy-tube-id'),
+                     () => document.getElementById('raptor-tube-id-badge').textContent);
 }
 
 /* ---- Species filtering by rack designation ---------------- */

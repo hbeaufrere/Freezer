@@ -87,6 +87,7 @@ function initLabelUI() {
     document.querySelectorAll('[data-symbology]').forEach((btn) => {
         btn.addEventListener('click', () => setSymbology(btn.dataset.symbology));
     });
+    attachCopyButton(document.getElementById('btn-copy-label-value'), () => labelValue);
 }
 
 document.addEventListener('DOMContentLoaded', initLabelUI);

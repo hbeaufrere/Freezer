@@ -1100,6 +1100,41 @@ body {
     border: 1px solid color-mix(in srgb, var(--f-accent) 35%, transparent);
 }
 
+/* Discreet copy affordance sitting beside an identifier. */
+.id-with-copy {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+}
+
+.copy-btn {
+    display: inline-grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    flex-shrink: 0;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: var(--f-radius-sm);
+    background: transparent;
+    color: var(--f-muted);
+    font-size: 0.82rem;
+    transition: background-color 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.copy-btn:hover {
+    background: var(--f-surface-2);
+    border-color: var(--f-hairline);
+    color: var(--f-ink);
+}
+
+.copy-btn.is-copied {
+    color: var(--f-ok);
+    border-color: color-mix(in srgb, var(--f-ok) 45%, transparent);
+    background: color-mix(in srgb, var(--f-ok) 12%, transparent);
+}
+
 .position-readout {
     font-family: var(--f-mono);
     font-weight: 600;

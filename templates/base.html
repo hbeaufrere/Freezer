@@ -101,7 +101,13 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body text-center">
-                    <div class="label-value" id="label-value"></div>
+                    <div class="id-with-copy">
+                        <span class="label-value" id="label-value"></span>
+                        <button type="button" class="copy-btn" id="btn-copy-label-value"
+                                title="Copy" aria-label="Copy ID">
+                            <i class="bi bi-clipboard"></i>
+                        </button>
+                    </div>
                     <div class="label-caption" id="label-caption"></div>
 
                     <!-- Always white, whatever the app theme: scanners need the
