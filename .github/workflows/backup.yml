@@ -19,6 +19,25 @@ jobs:
     timeout-minutes: 10
 
     steps:
+      # Checked before the apt install, so a missing secret fails in seconds
+      # with an actionable message instead of after a minute of setup.
+      - name: Check the connection string is configured
+        env:
+          PGURL: ${{ secrets.DATABASE_URL_UNPOOLED }}
+        run: |
+          if [ -z "$PGURL" ]; then
+            echo "::error::No DATABASE_URL_UNPOOLED secret, so there is nothing to back up. \
+          Copy the DATABASE_URL_UNPOOLED value from the Vercel project's environment variables \
+          into Settings -> Secrets and variables -> Actions -> New repository secret. \
+          It must be the direct connection string, not the -pooler one."
+            exit 1
+          fi
+
+      # pg_dump refuses to dump a server newer than itself, and the runner image
+      # ships an older client than the hosted Postgres. The unversioned
+      # `postgresql-client` package tracks the newest release, which can always
+      # dump an older server — so this keeps working when the database is
+      # upgraded to a new major version rather than needing a pin bumped here.
       - name: Install a current pg_dump
         run: |
           sudo install -d /usr/share/postgresql-common/pgdg
@@ -28,18 +47,23 @@ jobs:
             https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
             | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
           sudo apt-get update -qq
-          sudo apt-get install -y -qq postgresql-client-17
-          pg_dump --version
+          sudo apt-get install -y -qq postgresql-client
+          # Installing it is not enough: /usr/bin/pg_dump still resolves to the
+          # version the image came with, so put the newest one first on PATH.
+          newest="$(ls -d /usr/lib/postgresql/*/bin | sort -V | tail -1)"
+          echo "$newest" >> "$GITHUB_PATH"
+          "$newest/pg_dump" --version
 
       - name: Dump the database
         env:
           # Never echoed; passed straight to pg_dump so it stays out of the log.
           PGURL: ${{ secrets.DATABASE_URL_UNPOOLED }}
         run: |
-          if [ -z "$PGURL" ]; then
-            echo "::error::DATABASE_URL_UNPOOLED secret is not set."
-            exit 1
-          fi
+          # Without pipefail the step takes gzip's exit code, so a pg_dump that
+          # died still looks like a success and the real reason scrolls past
+          # unremarked.
+          set -o pipefail
+          pg_dump --version
           mkdir -p dump
           stamp="$(date -u +%Y-%m-%d)"
           pg_dump --no-owner --no-privileges --format=plain "$PGURL" \
