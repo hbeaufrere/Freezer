@@ -10,7 +10,7 @@ number that the lab can reset, and every drop is attributable by time.
 
 import hmac
 
-from flask import Blueprint, jsonify, render_template, request
+from flask import Blueprint, current_app, jsonify, render_template, request
 
 from db import ApiError, get_db
 from routes.support import as_int, json_body, one_or_404, require, text, write
@@ -176,8 +176,33 @@ def record_dropoff(token):
             (site['id'],),
         ).fetchone()['n']
 
+    # After the commit, so the email can never describe a drop that was rolled
+    # back — and so a slow mail server cannot hold a write transaction open.
+    _email_the_lab(db, site, count, text(data, 'dropped_by'), text(data, 'note'))
+
     return jsonify({
         'recorded': dict(entry),
         'site': site['name'],
         'total_waiting': waiting,
     }), 201
+
+
+def _email_the_lab(db, site, count, dropped_by, note):
+    """Best-effort notification. The drop is already saved either way."""
+    from services import notify
+
+    if not notify.configured():
+        return
+    try:
+        sites = [dict(r) for r in db.execute(_SITE_SUMMARY).fetchall()]
+        notify.notify_dropoff(
+            site, count, sites,
+            dropped_by=dropped_by or None,
+            note=note or None,
+            app_url=request.url_root.rstrip('/') + '/',
+        )
+    except Exception:
+        # notify swallows its own errors; this guards the summary query, which
+        # must not turn a recorded drop-off into a 500 for the person at the
+        # freezer.
+        current_app.logger.exception('Could not send the drop-off notification')
