@@ -913,3 +913,33 @@ def test_test_email_says_when_nothing_is_configured(client, monkeypatch):
     response = client.post('/api/notifications/test')
     assert response.status_code == 400
     assert 'SMTP_USER' in response.get_json()['error']
+
+
+def test_the_sample_type_menu_lists_plasma_then_packed_rbcs(client):
+    """Order matters here: the two blood fractions belong together, above the
+    tissues, because they are what most of the biobank actually holds."""
+    import re
+
+    page = client.get('/raptor').get_data(as_text=True)
+    menu = re.search(r'id="raptor-sample-type".*?</select>', page, re.S).group(0)
+    assert re.findall(r'value="([^"]+)"', menu) == [
+        'Plasma', 'Packed RBCs', 'Liver', 'Other',
+    ]
+
+
+def test_packed_rbcs_round_trips(client, boxes, species_id):
+    box_id = boxes['raptor']['id']
+    tube = client.post('/api/raptor/tubes', json={
+        'box_id': box_id, 'row_pos': 3, 'col_pos': 1,
+        'species_id': species_id, 'collection_date': '2026-05-04',
+        'sample_type': 'Packed RBCs',
+    }).get_json()
+    assert tube['sample_type'] == 'Packed RBCs'
+
+    # The space must survive the round trip — "PackedRBCs" in an export would
+    # not match anything anyone later searches for.
+    stored = client.get(f'/api/boxes/{box_id}').get_json()
+    assert stored['tubes'][0]['sample_type'] == 'Packed RBCs'
+
+    csv_bytes = client.get('/api/export/raptor/csv').data
+    assert b'Packed RBCs' in csv_bytes
