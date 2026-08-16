@@ -34,6 +34,7 @@
 
     <div>
         <div class="breadcrumb-nav" id="research-breadcrumb"></div>
+        <div class="box-type-bar" id="research-box-type" hidden></div>
         <div id="research-grid-area">
             <div class="empty-state">
                 <i class="bi bi-box2 empty-icon"></i>
@@ -96,8 +97,10 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-outline-danger me-auto" id="btn-research-delete" hidden>
-                    <i class="bi bi-trash me-1"></i>Remove
+                <button type="button" class="btn reconcile-btn me-auto" id="btn-research-delete"
+                        title="Reconciling only — deletes the record with no entry in the retrieval log"
+                        hidden>
+                    <i class="bi bi-eraser me-1"></i>Delete record
                 </button>
                 <button type="button" class="btn btn-outline-secondary" id="btn-research-retrieve" hidden>
                     <i class="bi bi-box-arrow-up me-1"></i>Log retrieval

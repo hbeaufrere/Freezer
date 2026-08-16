@@ -551,6 +551,25 @@ def test_retrieval_logs_and_counts_a_thaw(client, boxes, species_id):
     assert box['tubes'][0]['freeze_thaw_cycles'] == 1
 
 
+def test_a_consumed_sample_leaves_the_freezer(client, boxes, species_id):
+    """A record that still lists a sample somebody used up is worse than none:
+    it sends the next person hunting for a tube that is not there."""
+    tube = client.post('/api/raptor/tubes', json={
+        'box_id': boxes['raptor']['id'], 'row_pos': 2, 'col_pos': 2,
+        'species_id': species_id, 'collection_date': '2026-04-01',
+    }).get_json()
+
+    logged = client.post('/api/retrievals', json={
+        'section': 'raptor', 'tube_id': tube['id'],
+        'retrieved_by': 'H. Beaufrere', 'consumed': True,
+    }).get_json()
+    assert logged['tube_removed'] is True
+
+    box = client.get(f'/api/boxes/{boxes["raptor"]["id"]}').get_json()
+    assert box['tubes'] == [], 'the box should no longer show a consumed sample'
+    assert client.get('/api/stats/freezer').get_json()['raptor_count'] == 0
+
+
 def test_retrieval_survives_the_tube_being_deleted(client, boxes, species_id):
     """Chain of custody has to outlive the specimen."""
     tube = client.post('/api/raptor/tubes', json={
@@ -561,13 +580,54 @@ def test_retrieval_survives_the_tube_being_deleted(client, boxes, species_id):
         'section': 'raptor', 'tube_id': tube['id'],
         'retrieved_by': 'H. Beaufrere', 'consumed': True,
     })
-    client.delete(f'/api/raptor/tubes/{tube["id"]}')
 
     entries = client.get('/api/retrievals').get_json()['entries']
     assert len(entries) == 1
+    # The tube row is gone, but every column the log needs was snapshotted.
     assert entries[0]['tube_label'] == 'RTHA26001'
+    assert entries[0]['box_label'] and entries[0]['position_label'] == 'B2'
+    assert entries[0]['species_name'] == 'Red-tailed Hawk'
     assert entries[0]['raptor_tube_id'] is None
     assert entries[0]['consumed'] is True
+
+
+def test_a_returned_sample_stays_and_counts_the_thaw(client, boxes):
+    """The other half: put it back and only the freeze-thaw count moves."""
+    tube = client.post('/api/research/tubes', json={
+        'box_id': boxes['research']['id'], 'row_pos': 1, 'col_pos': 1,
+        'sample_id': 'CLIPR-2026-001',
+    }).get_json()
+
+    first = client.post('/api/retrievals', json={
+        'section': 'research', 'tube_id': tube['id'], 'retrieved_by': 'Alice',
+    }).get_json()
+    assert first['tube_removed'] is False
+    assert first['freeze_thaw_cycles'] == 1
+
+    second = client.post('/api/retrievals', json={
+        'section': 'research', 'tube_id': tube['id'], 'retrieved_by': 'Alice',
+    }).get_json()
+    assert second['freeze_thaw_cycles'] == 2
+
+    box = client.get(f'/api/boxes/{boxes["research"]["id"]}').get_json()
+    assert len(box['tubes']) == 1
+    assert box['tubes'][0]['freeze_thaw_cycles'] == 2
+
+
+def test_a_consumed_research_sample_also_leaves(client, boxes):
+    tube = client.post('/api/research/tubes', json={
+        'box_id': boxes['research']['id'], 'row_pos': 5, 'col_pos': 5,
+        'sample_id': 'CLIPR-2026-009',
+    }).get_json()
+    client.post('/api/retrievals', json={
+        'section': 'research', 'tube_id': tube['id'],
+        'retrieved_by': 'Alice', 'consumed': True,
+    })
+
+    assert client.get(f'/api/boxes/{boxes["research"]["id"]}').get_json()['tubes'] == []
+    entry = client.get('/api/retrievals').get_json()['entries'][0]
+    assert entry['tube_label'] == 'CLIPR-2026-009'
+    assert entry['research_tube_id'] is None
 
 
 def test_retrieval_log_filters_and_paginates(client, boxes, species_id):
@@ -943,3 +1003,126 @@ def test_packed_rbcs_round_trips(client, boxes, species_id):
 
     csv_bytes = client.get('/api/export/raptor/csv').data
     assert b'Packed RBCs' in csv_bytes
+
+
+# ------------------------------------------------------------
+# Plain boxes — samples without a position
+# ------------------------------------------------------------
+
+def _set_type(client, box_id, box_type):
+    return client.put(f'/api/boxes/{box_id}/type', json={'box_type': box_type})
+
+
+def test_boxes_start_as_grids(client, boxes):
+    box = client.get(f'/api/boxes/{boxes["research"]["id"]}').get_json()
+    assert box['box_type'] == 'grid'
+
+
+def test_a_grid_box_still_demands_a_position(client, boxes):
+    response = client.post('/api/research/tubes', json={
+        'box_id': boxes['research']['id'], 'sample_id': 'NO-POSITION',
+    })
+    assert response.status_code == 400
+    assert 'row_pos' in response.get_json()['error']
+
+
+def test_a_plain_box_takes_samples_with_no_position(client, boxes):
+    box_id = boxes['research']['id']
+    assert _set_type(client, box_id, 'plain').get_json()['box_type'] == 'plain'
+
+    for name in ('WP-01', 'WP-02', 'WP-03'):
+        created = client.post('/api/research/tubes', json={
+            'box_id': box_id, 'sample_id': name, 'description': 'Liver, whirl-pak',
+        })
+        assert created.status_code == 201, created.get_json()
+        assert created.get_json()['row_pos'] is None
+        assert created.get_json()['col_pos'] is None
+
+    box = client.get(f'/api/boxes/{box_id}').get_json()
+    assert [t['sample_id'] for t in box['tubes']] == ['WP-01', 'WP-02', 'WP-03']
+    # They still count as stored, so the freezer's occupancy stays honest.
+    assert box['tubes'] and all(t['row_pos'] is None for t in box['tubes'])
+
+
+def test_a_position_sent_to_a_plain_box_is_ignored(client, boxes):
+    """Storing a coordinate nobody can act on is worse than storing none."""
+    box_id = boxes['research']['id']
+    _set_type(client, box_id, 'plain')
+
+    tube = client.post('/api/research/tubes', json={
+        'box_id': box_id, 'row_pos': 4, 'col_pos': 7, 'sample_id': 'STRAY',
+    }).get_json()
+    assert tube['row_pos'] is None and tube['col_pos'] is None
+
+
+def test_switching_to_plain_keeps_positions_so_it_can_be_undone(client, boxes):
+    box_id = boxes['research']['id']
+    client.post('/api/research/tubes', json={
+        'box_id': box_id, 'row_pos': 2, 'col_pos': 5, 'sample_id': 'PLACED',
+    })
+
+    _set_type(client, box_id, 'plain')
+    assert _set_type(client, box_id, 'grid').status_code == 200
+
+    box = client.get(f'/api/boxes/{box_id}').get_json()
+    assert (box['tubes'][0]['row_pos'], box['tubes'][0]['col_pos']) == (2, 5)
+
+
+def test_going_back_to_a_grid_is_refused_while_samples_have_no_position(client, boxes):
+    """Inventing coordinates would put a confident wrong answer in the record."""
+    box_id = boxes['research']['id']
+    _set_type(client, box_id, 'plain')
+    client.post('/api/research/tubes', json={'box_id': box_id, 'sample_id': 'LOOSE'})
+
+    response = _set_type(client, box_id, 'grid')
+    assert response.status_code == 400
+    assert '1 sample(s) in this box have no position' in response.get_json()['error']
+
+    # And the box is unchanged, rather than half-converted.
+    assert client.get(f'/api/boxes/{box_id}').get_json()['box_type'] == 'plain'
+
+
+def test_a_plain_box_respects_its_capacity(client, boxes, flask_app):
+    from db import get_db
+
+    box_id = boxes['research']['id']
+    _set_type(client, box_id, 'plain')
+
+    # Fill it to the 10x10 capacity without 100 round trips.
+    with flask_app.app_context():
+        db = get_db()
+        db.execute(
+            'insert into research_tubes (box_id, sample_id) '
+            "select %s, 'BULK-' || g from generate_series(1, 100) g", (box_id,)
+        )
+        db.commit()
+
+    response = client.post('/api/research/tubes', json={'box_id': box_id, 'sample_id': 'ONE-MORE'})
+    assert response.status_code == 400
+    assert 'capacity' in response.get_json()['error']
+
+
+def test_raptor_boxes_cannot_be_made_plain(client, boxes):
+    """Finding one bird's plasma is the point of the biobank layout."""
+    response = _set_type(client, boxes['raptor']['id'], 'plain')
+    assert response.status_code == 400
+    assert 'research' in response.get_json()['error']
+
+
+def test_unknown_box_types_are_rejected(client, boxes):
+    response = _set_type(client, boxes['research']['id'], 'freeform')
+    assert response.status_code == 400
+    assert "'grid' or 'plain'" in response.get_json()['error']
+
+
+def test_positionless_samples_export_without_a_fake_position(client, boxes):
+    box_id = boxes['research']['id']
+    _set_type(client, box_id, 'plain')
+    client.post('/api/research/tubes', json={
+        'box_id': box_id, 'sample_id': 'WP-42', 'description': 'Spleen',
+    })
+
+    csv_text = client.get('/api/export/research/csv').get_data(as_text=True)
+    assert 'WP-42' in csv_text
+    # Not "A0", not "@null" — nothing at all.
+    assert 'A0' not in csv_text

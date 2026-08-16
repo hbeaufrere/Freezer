@@ -45,11 +45,25 @@ async function saveRetrieval() {
     const button = document.getElementById('btn-retrieval-save');
     button.disabled = true;
     try {
-        await API.post('/api/retrievals', payload);
+        const result = await API.post('/api/retrievals', payload);
         try { localStorage.setItem(RETRIEVER_KEY, who); } catch (e) { /* private mode */ }
-        showToast('Retrieval logged');
+
+        showToast(result.tube_removed
+            ? `Retrieval logged — ${result.tube_label} removed from the freezer`
+            : `Retrieval logged — freeze-thaw now ${result.freeze_thaw_cycles}`);
+
         bootstrap.Modal.getInstance(document.getElementById('retrievalModal')).hide();
-        document.dispatchEvent(new CustomEvent('retrievallogged'));
+
+        // The page that opened this sheet still shows the tube as it was
+        // before. Tell it what happened so it can catch up.
+        document.dispatchEvent(new CustomEvent('retrievallogged', {
+            detail: {
+                section: payload.section,
+                tubeId: payload.tube_id,
+                tubeRemoved: Boolean(result.tube_removed),
+                freezeThawCycles: result.freeze_thaw_cycles,
+            },
+        }));
     } catch (err) {
         showToast(err.message, 'error');
     } finally {
@@ -100,7 +114,7 @@ async function loadRetrievalStats() {
         const stats = await API.get('/api/stats/retrievals');
         document.getElementById('retrieval-total').textContent = stats.total;
         document.getElementById('retrieval-recent').textContent = stats.last_30_days;
-        document.getElementById('retrieval-consumed').textContent = stats.consumed;
+        document.getElementById('retrieval-consumed-count').textContent = stats.consumed;
         document.getElementById('retrieval-people').textContent = stats.people;
     } catch (err) {
         console.error('Retrieval stats failed to load:', err);

@@ -36,6 +36,8 @@ async function initRaptorPage() {
     document.getElementById('btn-raptor-barcode').addEventListener('click', showRaptorBarcode);
     document.getElementById('btn-raptor-retrieve').addEventListener('click', logRaptorRetrieval);
 
+    document.addEventListener('retrievallogged', onRaptorRetrievalLogged);
+
     const sampleType = document.getElementById('raptor-sample-type');
     sampleType.addEventListener('change', syncSampleTypeHint);
     document.getElementById('btn-add-species').addEventListener('click', addNewSpecies);
@@ -133,6 +135,23 @@ async function loadRaptorQuickStats() {
     } catch (err) {
         console.error('Raptor stats failed to load:', err);
     }
+}
+
+/* A retrieval changes the tube under the open modal, so the modal has to
+   follow: either the sample has left the freezer and the sheet should go with
+   it, or it went back and its freeze-thaw count has just gone up. */
+function onRaptorRetrievalLogged(event) {
+    const detail = event.detail || {};
+    if (detail.section !== 'raptor') return;
+
+    if (detail.tubeRemoved) {
+        bootstrap.Modal.getInstance(document.getElementById('raptorTubeModal'))?.hide();
+    } else if (detail.freezeThawCycles !== null && detail.freezeThawCycles !== undefined) {
+        document.getElementById('raptor-freeze-thaw').value = detail.freezeThawCycles;
+    }
+
+    if (currentRaptorBoxId) openRaptorBox(currentRaptorBoxId);
+    loadRaptorQuickStats();
 }
 
 /* ---- Box view --------------------------------------------- */
@@ -344,7 +363,7 @@ async function deleteRaptorTube() {
     if (!dbId) return;
 
     const tubeId = document.getElementById('raptor-tube-id-badge').textContent || 'this sample';
-    if (!confirm(`Remove ${tubeId} from the biobank record? This cannot be undone.`)) return;
+    if (!confirm(reconcileWarning(tubeId))) return;
 
     try {
         await API.del(`/api/raptor/tubes/${dbId}`);

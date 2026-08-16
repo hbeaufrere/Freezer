@@ -30,7 +30,8 @@ def list_tubes():
 
     rows = get_db().execute(
         f"""select {_TUBE_COLUMNS} from research_tubes
-            where box_id = %s order by row_pos, col_pos""",
+            where box_id = %s
+            order by row_pos nulls last, col_pos nulls last, id""",
         (box_id,),
     ).fetchall()
     return jsonify([dict(r) for r in rows])
@@ -40,7 +41,35 @@ def list_tubes():
 def create_tube():
     db = get_db()
     data = json_body()
-    require(data, 'box_id', 'row_pos', 'col_pos')
+    require(data, 'box_id')
+    box_id = as_int(data, 'box_id')
+
+    box = one_or_404(
+        db.execute(
+            'select id, box_type, grid_rows, grid_cols from boxes where id = %s', (box_id,)
+        ).fetchone(),
+        'Box',
+    )
+
+    if box['box_type'] == 'plain':
+        # A plain box has no wells, so any position sent with the sample is
+        # dropped rather than stored: a coordinate nobody can act on is worse
+        # than none at all.
+        row_pos = col_pos = None
+
+        capacity = box['grid_rows'] * box['grid_cols']
+        held = db.execute(
+            'select count(*) as n from research_tubes where box_id = %s', (box_id,)
+        ).fetchone()['n']
+        if held >= capacity:
+            raise ApiError(
+                f'This box already holds {held} samples, which is its capacity. '
+                'Use another box.'
+            )
+    else:
+        require(data, 'row_pos', 'col_pos')
+        row_pos = as_int(data, 'row_pos', minimum=1)
+        col_pos = as_int(data, 'col_pos', minimum=1)
 
     with write(db):
         tube = db.execute(
@@ -50,9 +79,9 @@ def create_tube():
                 values (%s, %s, %s, %s, %s, %s, %s)
                 returning {_TUBE_COLUMNS}""",
             (
-                as_int(data, 'box_id'),
-                as_int(data, 'row_pos', minimum=1),
-                as_int(data, 'col_pos', minimum=1),
+                box_id,
+                row_pos,
+                col_pos,
                 text(data, 'sample_id'),
                 text(data, 'description'),
                 as_date(data, 'date_stored'),

@@ -24,6 +24,25 @@ async function initResearchPage() {
     document.getElementById('btn-research-thaw').addEventListener('click', recordResearchThaw);
     document.getElementById('btn-research-barcode').addEventListener('click', showResearchBarcode);
     document.getElementById('btn-research-retrieve').addEventListener('click', logResearchRetrieval);
+
+    document.addEventListener('retrievallogged', onResearchRetrievalLogged);
+}
+
+/* A retrieval changes the tube under the open modal, so the modal has to
+   follow: either the sample has left the freezer and the sheet should go with
+   it, or it went back and its freeze-thaw count has just gone up. */
+function onResearchRetrievalLogged(event) {
+    const detail = event.detail || {};
+    if (detail.section !== 'research') return;
+
+    if (detail.tubeRemoved) {
+        bootstrap.Modal.getInstance(document.getElementById('researchTubeModal'))?.hide();
+    } else if (detail.freezeThawCycles !== null && detail.freezeThawCycles !== undefined) {
+        document.getElementById('research-freeze-thaw').value = detail.freezeThawCycles;
+    }
+
+    if (currentResearchBoxId) openResearchBox(currentResearchBoxId);
+    loadResearchQuickStats();
 }
 
 async function loadResearchQuickStats() {
@@ -56,6 +75,7 @@ async function openResearchBox(boxId) {
             `<span>&rsaquo;</span><span>${escapeHtml(box.drawer_label)}</span>` +
             `<span>&rsaquo;</span><strong>${escapeHtml(box.label)}</strong>`;
 
+        renderBoxTypeSwitch(box);
         renderBoxGrid(document.getElementById('research-grid-area'), box, {
             onTubeClick: openResearchEditModal,
             onEmptyClick: openResearchAddModal,
@@ -69,12 +89,62 @@ function setHidden(id, hidden) {
     document.getElementById(id).hidden = hidden;
 }
 
+/* Two kinds of box, chosen per box: a 10x10 cryobox with addressed wells, or a
+   plain box that just holds things — whirl-paks of tissue, bagged samples,
+   anything without a slot to sit in. */
+function renderBoxTypeSwitch(box) {
+    const host = document.getElementById('research-box-type');
+    if (!host) return;
+
+    const isPlain = box.box_type === 'plain';
+    host.hidden = false;
+    host.innerHTML = `
+        <span class="box-type-label">Box type</span>
+        <div class="btn-group btn-group-sm" role="group" aria-label="Box type">
+            <button type="button" class="btn ${isPlain ? 'btn-outline-secondary' : 'btn-primary'}"
+                    data-type="grid" ${isPlain ? '' : 'aria-current="true"'}>
+                <i class="bi bi-grid-3x3 me-1"></i>${box.grid_rows}&times;${box.grid_cols} grid
+            </button>
+            <button type="button" class="btn ${isPlain ? 'btn-primary' : 'btn-outline-secondary'}"
+                    data-type="plain" ${isPlain ? 'aria-current="true"' : ''}>
+                <i class="bi bi-bag me-1"></i>Plain box
+            </button>
+        </div>
+        <span class="box-type-hint">${isPlain
+            ? 'Samples are listed, with no fixed position.'
+            : 'Each sample sits in a numbered well.'}</span>`;
+
+    host.querySelectorAll('button[data-type]').forEach((button) => {
+        button.addEventListener('click', () => changeBoxType(box, button.dataset.type));
+    });
+}
+
+async function changeBoxType(box, boxType) {
+    if (box.box_type === boxType) return;
+
+    if (boxType === 'plain' && (box.tubes || []).length) {
+        const ok = confirm(
+            `${box.tubes.length} sample(s) in this box have positions. Switching to a `
+            + 'plain box hides them; the positions are kept, so switching back restores them.'
+        );
+        if (!ok) return;
+    }
+
+    try {
+        await API.put(`/api/boxes/${box.id}/type`, { box_type: boxType });
+        showToast(boxType === 'plain' ? 'Now a plain box' : 'Now a 10×10 grid');
+        await openResearchBox(box.id);
+    } catch (err) {
+        showToast(err.message, 'error');
+    }
+}
+
 function openResearchAddModal(row, col) {
     document.getElementById('researchTubeModalTitle').textContent = 'Add research tube';
     document.getElementById('research-tube-id').value = '';
     document.getElementById('research-tube-box-id').value = currentResearchBoxId;
-    document.getElementById('research-tube-row').value = row;
-    document.getElementById('research-tube-col').value = col;
+    document.getElementById('research-tube-row').value = row ?? '';
+    document.getElementById('research-tube-col').value = col ?? '';
     document.getElementById('research-tube-position').textContent =
         `${currentResearchBox.label} · ${positionLabel(row, col)}`;
     document.getElementById('research-sample-id').value = '';
@@ -93,8 +163,8 @@ function openResearchEditModal(tube, row, col) {
     document.getElementById('researchTubeModalTitle').textContent = 'Edit research tube';
     document.getElementById('research-tube-id').value = tube.id;
     document.getElementById('research-tube-box-id').value = tube.box_id;
-    document.getElementById('research-tube-row').value = row;
-    document.getElementById('research-tube-col').value = col;
+    document.getElementById('research-tube-row').value = row ?? '';
+    document.getElementById('research-tube-col').value = col ?? '';
     document.getElementById('research-tube-position').textContent =
         `${currentResearchBox.label} · ${positionLabel(row, col)}`;
     document.getElementById('research-sample-id').value = tube.sample_id || '';
@@ -122,10 +192,13 @@ function showResearchBarcode() {
 
 async function saveResearchTube() {
     const tubeId = document.getElementById('research-tube-id').value;
+    const row = document.getElementById('research-tube-row').value;
+    const col = document.getElementById('research-tube-col').value;
     const payload = {
         box_id: parseInt(document.getElementById('research-tube-box-id').value, 10),
-        row_pos: parseInt(document.getElementById('research-tube-row').value, 10),
-        col_pos: parseInt(document.getElementById('research-tube-col').value, 10),
+        // Blank in a plain box: sending NaN here would be rejected as a bad
+        // integer rather than understood as "this sample has no position".
+        ...(row && col ? { row_pos: parseInt(row, 10), col_pos: parseInt(col, 10) } : {}),
         sample_id: document.getElementById('research-sample-id').value.trim(),
         description: document.getElementById('research-description').value.trim(),
         date_stored: document.getElementById('research-date-stored').value || null,
@@ -168,8 +241,8 @@ async function deleteResearchTube() {
     const tubeId = document.getElementById('research-tube-id').value;
     if (!tubeId) return;
 
-    const label = document.getElementById('research-sample-id').value.trim() || 'this tube';
-    if (!confirm(`Remove ${label} from the freezer record? This cannot be undone.`)) return;
+    const label = document.getElementById('research-sample-id').value.trim() || 'this sample';
+    if (!confirm(reconcileWarning(label))) return;
 
     try {
         await API.del(`/api/research/tubes/${tubeId}`);

@@ -125,12 +125,20 @@ function createRackElement(rack, options = {}) {
             const pct = box.capacity ? Math.round((box.occupied / box.capacity) * 100) : 0;
 
             // Buttons rather than divs, so the grid is reachable by keyboard.
+            // A plain box holds samples rather than filling positions, so it
+            // is described — and outlined — differently.
+            const isPlain = box.box_type === 'plain';
+            const unit = isPlain ? 'samples' : 'positions';
+
             const boxEl = document.createElement('button');
             boxEl.type = 'button';
-            boxEl.className = `box-slot ${occupancyClass(box.occupied, box.capacity)}`;
+            boxEl.className = `box-slot ${occupancyClass(box.occupied, box.capacity)}`
+                + (isPlain ? ' is-plain' : '');
             boxEl.dataset.boxId = box.id;
-            boxEl.title = `${box.label}\n${box.occupied} of ${box.capacity} positions (${pct}%)`;
-            boxEl.setAttribute('aria-label', `Box ${box.label}, ${box.occupied} of ${box.capacity} filled`);
+            boxEl.title = `${box.label}${isPlain ? ' (plain box)' : ''}`
+                + `\n${box.occupied} of ${box.capacity} ${unit} (${pct}%)`;
+            boxEl.setAttribute('aria-label',
+                `Box ${box.label}, ${box.occupied} of ${box.capacity} ${unit} filled`);
 
             boxEl.addEventListener('click', (event) => {
                 event.stopPropagation();

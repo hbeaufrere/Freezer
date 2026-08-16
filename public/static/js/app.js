@@ -70,7 +70,24 @@ function showToast(message, type = 'success') {
 /* Row letters skip I, which reads as 1 on a frosted label. */
 const ROW_LABELS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'J', 'K'];
 
+/* Deleting a record and retrieving a sample look alike and are not.
+   Retrieving leaves an entry in the log; this leaves nothing at all, which is
+   only ever what you want when the database and the freezer disagree. */
+function reconcileWarning(label) {
+    return `Delete the record for ${label}?\n\n`
+        + 'This is for reconciling the biobank when the database and the freezer '
+        + 'disagree. It erases the record outright and writes nothing to the '
+        + 'retrieval log.\n\n'
+        + 'If the sample was actually taken out of the freezer, cancel and use '
+        + '"Log retrieval" instead — that keeps the history.';
+}
+
 function positionLabel(row, col) {
+    // Samples in a plain box have no coordinates. Without this the arithmetic
+    // below quietly produces "@null" and prints it next to a sample ID.
+    if (row === null || row === undefined || col === null || col === undefined) {
+        return 'no fixed position';
+    }
     const letter = ROW_LABELS[row - 1] || String.fromCharCode(64 + row);
     return `${letter}${col}`;
 }
