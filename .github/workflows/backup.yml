@@ -19,6 +19,20 @@ jobs:
     timeout-minutes: 10
 
     steps:
+      # Checked before the apt install, so a missing secret fails in seconds
+      # with an actionable message instead of after a minute of setup.
+      - name: Check the connection string is configured
+        env:
+          PGURL: ${{ secrets.DATABASE_URL_UNPOOLED }}
+        run: |
+          if [ -z "$PGURL" ]; then
+            echo "::error::No DATABASE_URL_UNPOOLED secret, so there is nothing to back up. \
+          Copy the DATABASE_URL_UNPOOLED value from the Vercel project's environment variables \
+          into Settings -> Secrets and variables -> Actions -> New repository secret. \
+          It must be the direct connection string, not the -pooler one."
+            exit 1
+          fi
+
       - name: Install a current pg_dump
         run: |
           sudo install -d /usr/share/postgresql-common/pgdg
@@ -36,10 +50,6 @@ jobs:
           # Never echoed; passed straight to pg_dump so it stays out of the log.
           PGURL: ${{ secrets.DATABASE_URL_UNPOOLED }}
         run: |
-          if [ -z "$PGURL" ]; then
-            echo "::error::DATABASE_URL_UNPOOLED secret is not set."
-            exit 1
-          fi
           mkdir -p dump
           stamp="$(date -u +%Y-%m-%d)"
           pg_dump --no-owner --no-privileges --format=plain "$PGURL" \
