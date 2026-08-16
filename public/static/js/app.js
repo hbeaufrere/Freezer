@@ -70,6 +70,18 @@ function showToast(message, type = 'success') {
 /* Row letters skip I, which reads as 1 on a frosted label. */
 const ROW_LABELS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'J', 'K'];
 
+/* Depth is the one axis a flat screen cannot show. Drawers pull out towards
+   you and boxes sit one behind another inside them, so position 1 is the one
+   you reach first — which has to be said in words, because no arrangement of
+   rectangles conveys it. */
+function depthLabel(position, total) {
+    if (!position) return '';
+    if (total && total <= 1) return 'only box in the drawer';
+    if (position === 1) return 'front of the drawer';
+    if (total && position === total) return 'back of the drawer';
+    return `${position}${total ? ` of ${total}` : ''} from the front`;
+}
+
 /* Deleting a record and retrieving a sample look alike and are not.
    Retrieving leaves an entry in the log; this leaves nothing at all, which is
    only ever what you want when the database and the freezer disagree. */

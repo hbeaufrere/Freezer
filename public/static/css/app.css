@@ -480,6 +480,37 @@ body {
     font-variant-numeric: tabular-nums;
 }
 
+/* Which way the freezer faces, stated once at the top rather than left for
+   the reader to infer from the numbering. */
+.cabinet-orient {
+    font-size: 0.72rem;
+    color: var(--f-accent);
+    background: var(--f-accent-wash);
+    border: 1px solid color-mix(in srgb, var(--f-accent) 25%, transparent);
+    border-radius: 999px;
+    padding: 0.15rem 0.6rem;
+}
+
+.cabinet-orient i { margin-right: 0.3rem; }
+
+/* Same fact, repeated where a box is actually open. */
+.depth-badge {
+    font-size: 0.72rem;
+    color: var(--f-muted);
+    border: 1px solid var(--f-hairline);
+    border-radius: 999px;
+    padding: 0.1rem 0.55rem;
+    white-space: nowrap;
+}
+
+.depth-badge.is-front {
+    color: var(--f-accent);
+    background: var(--f-accent-wash);
+    border-color: color-mix(in srgb, var(--f-accent) 25%, transparent);
+}
+
+.depth-badge i { margin-right: 0.3rem; }
+
 .freezer-shelf {
     background: var(--f-ground);
     border: 1px solid var(--f-hairline-2);
@@ -607,6 +638,42 @@ body {
     display: flex;
     gap: 3px;
     align-items: center;
+}
+
+/* Column numbers above the box strip, on the same flex rhythm as a drawer row
+   so each number lands over its own box. */
+.drawer-axis {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    padding: 0 3px 1px;
+}
+
+.axis-spacer {
+    min-width: 15px;
+    flex-shrink: 0;
+}
+
+.axis-cell {
+    width: 22px;
+    text-align: center;
+    font-family: var(--f-mono);
+    font-size: 0.5rem;
+    line-height: 1;
+    color: var(--f-muted);
+}
+
+/* The front column is the one you reach into first. It is picked out here and
+   on every box in that column, so the near edge of the drawer reads as an edge
+   rather than as an arbitrary first rectangle. */
+.axis-cell.is-front {
+    color: var(--f-accent);
+    font-weight: 700;
+}
+
+.box-slot.is-front {
+    border-left-width: 3px;
+    border-left-color: var(--f-accent);
 }
 
 /* Free-text drawer label — experiment, species, project. */
@@ -1231,6 +1298,8 @@ body {
 .rack-sidebar .drawer-slot { gap: 4px; }
 .rack-sidebar .drawer-boxes { flex: 0 0 auto; }
 .rack-sidebar .box-slot { width: 15px; height: 15px; }
+.rack-sidebar .drawer-axis { gap: 4px; }
+.rack-sidebar .axis-cell { width: 15px; }
 
 /* ============================================================
    BREADCRUMB

@@ -1126,3 +1126,52 @@ def test_positionless_samples_export_without_a_fake_position(client, boxes):
     assert 'WP-42' in csv_text
     # Not "A0", not "@null" — nothing at all.
     assert 'A0' not in csv_text
+
+
+# ------------------------------------------------------------
+# Which way the freezer faces
+# ------------------------------------------------------------
+
+def test_box_detail_says_how_deep_it_sits(client, boxes):
+    """The page can only say "front of the drawer" if it knows both the box's
+    depth and how deep the drawer goes."""
+    box = client.get(f'/api/boxes/{boxes["research"]["id"]}').get_json()
+    assert box['position'] == 1
+    assert box['drawer_box_count'] == 4
+    assert box['drawer_position'] == 1
+
+
+def test_boxes_come_back_front_to_back(client):
+    """Ordering is the other half of the convention: whatever the UI draws
+    first has to be the box nearest the front."""
+    shelves = client.get('/api/freezer').get_json()
+    for shelf in shelves:
+        for rack in shelf['racks']:
+            for drawer in rack['drawers']:
+                positions = [b['position'] for b in drawer['boxes']]
+                assert positions == sorted(positions) == [1, 2, 3, 4]
+            assert [d['position'] for d in rack['drawers']] == list(range(1, 8))
+
+
+def test_the_schema_records_which_end_is_the_front(client, flask_app):
+    """A convention that lives only in the JavaScript is one migration away
+    from being reversed by someone who never saw the screen."""
+    from db import get_db
+
+    with flask_app.app_context():
+        db = get_db()
+        comments = {}
+        for table in ('drawers', 'boxes'):
+            comments[table] = db.execute(
+                """select col_description(%s::regclass, ordinal_position) as note
+                   from information_schema.columns
+                   where table_name = %s and column_name = 'position'""",
+                (table, table),
+            ).fetchone()['note']
+
+    # The two levels count along different axes, which is the whole reason
+    # this is worth recording: drawers stack, boxes sit one behind another.
+    assert 'top drawer' in (comments['drawers'] or '')
+    assert 'downwards' in comments['drawers']
+    assert 'front' in (comments['boxes'] or '')
+    assert 'back of the drawer' in comments['boxes']

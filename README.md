@@ -191,6 +191,21 @@ migrations/              Schema and reference data
 
 ### Notes on a few decisions
 
+**Depth is stated, not implied.** The two levels count along different axes:
+drawers stack vertically, so `D1` is the top drawer, while the boxes inside a
+drawer sit one behind another, so `B1` is the one at the front. The stacking is
+visible — the screen draws drawers in a column — but depth is not, and `B4` is
+a name rather than a direction, so nothing told you which end of an open drawer
+you were looking at.
+
+The box axis is now said four times over: on the cabinet plate, as numbered
+columns above each rack with the front one picked out, as a heavier front edge
+on every box in that column, and as a badge on the open box reading "front of
+the drawer" or "3 of 4 from the front". Tooltips and aria-labels carry the same
+wording, so it is neither hover-only nor sighted-only. The column comments in
+`migrations/` say the same thing, so the rule survives someone reading only the
+schema.
+
 **One query per level, not per node.** `/api/freezer` builds the whole tree from
 four flat queries assembled in Python. The obvious nested-loop version issues
 about 148 queries, which is invisible against a local file and adds seconds of

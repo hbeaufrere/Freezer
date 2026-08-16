@@ -25,6 +25,16 @@ function researchCellText(tube) {
         : { code: tail, seq: '' };
 }
 
+/* Where this box sits in its drawer, said plainly. "B1" is a name, not a
+   direction, and someone standing at an open drawer needs the direction. */
+function depthBadge(boxData) {
+    const where = depthLabel(boxData.position, boxData.drawer_box_count);
+    if (!where) return '';
+    const front = boxData.position === 1;
+    return `<span class="depth-badge${front ? ' is-front' : ''}">
+        <i class="bi bi-box-arrow-in-down-left"></i>${escapeHtml(where)}</span>`;
+}
+
 function renderBoxGrid(container, boxData, options = {}) {
     if (boxData.box_type === 'plain') {
         renderPlainBox(container, boxData, options);
@@ -52,6 +62,7 @@ function renderBoxGrid(container, boxData, options = {}) {
     shell.innerHTML = `
         <div class="box-grid-head">
             <span class="box-grid-title">${escapeHtml(boxData.label || 'Box')}</span>
+            ${depthBadge(boxData)}
             <span class="box-grid-count">${tubes.length} / ${rows * cols} positions filled</span>
         </div>
         <div class="box-grid-scroll"></div>`;
@@ -127,6 +138,7 @@ function renderPlainBox(container, boxData, options = {}) {
     shell.innerHTML = `
         <div class="box-grid-head">
             <span class="box-grid-title">${escapeHtml(boxData.label || 'Box')}</span>
+            ${depthBadge(boxData)}
             <span class="box-grid-count">${tubes.length} of ${capacity} stored</span>
         </div>
         <div class="plain-list"></div>`;
