@@ -71,6 +71,11 @@ function showToast(message, type = 'success') {
 const ROW_LABELS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'J', 'K'];
 
 function positionLabel(row, col) {
+    // Samples in a plain box have no coordinates. Without this the arithmetic
+    // below quietly produces "@null" and prints it next to a sample ID.
+    if (row === null || row === undefined || col === null || col === undefined) {
+        return 'no fixed position';
+    }
     const letter = ROW_LABELS[row - 1] || String.fromCharCode(64 + row);
     return `${letter}${col}`;
 }

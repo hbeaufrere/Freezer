@@ -952,6 +952,101 @@ body {
 
 .box-grid-scroll { overflow-x: auto; }
 
+/* ---- Box type switch ---------------------------------------- */
+
+.box-type-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 0.75rem;
+}
+
+.box-type-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--f-muted);
+}
+
+.box-type-hint {
+    font-size: 0.78rem;
+    color: var(--f-muted);
+}
+
+/* ---- Plain box: a list, not a grid -------------------------- */
+
+.plain-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.plain-item {
+    display: grid;
+    grid-template-columns: minmax(7rem, 14rem) 1fr auto;
+    align-items: baseline;
+    gap: 0.75rem;
+    width: 100%;
+    text-align: left;
+    padding: 0.55rem 0.7rem;
+    background: var(--f-surface);
+    border: 1px solid var(--f-hairline-2);
+    border-left: 3px solid var(--f-accent);
+    border-radius: calc(var(--f-radius) - 3px);
+    color: inherit;
+    transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.plain-item:hover,
+.plain-item:focus-visible {
+    background: var(--f-surface-2);
+    border-color: var(--f-accent);
+}
+
+.plain-item-id {
+    font-family: var(--f-mono);
+    font-weight: 600;
+    font-size: 0.85rem;
+    overflow-wrap: anywhere;
+}
+
+.plain-item-meta {
+    font-size: 0.82rem;
+    color: var(--f-muted);
+    overflow-wrap: anywhere;
+}
+
+.plain-item-side {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-family: var(--f-mono);
+    font-size: 0.72rem;
+    color: var(--f-muted);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.plain-item-ft i { margin-right: 0.15rem; }
+
+.plain-add { align-self: flex-start; margin-top: 0.5rem; }
+
+@media (max-width: 640px) {
+    .plain-item {
+        grid-template-columns: 1fr;
+        gap: 0.15rem;
+    }
+    .plain-item-side { justify-content: flex-start; }
+}
+
+/* A plain box in the freezer overview: dashed, because it has no wells. */
+.box-slot.is-plain {
+    border-style: dashed;
+    border-width: 1.5px;
+}
+
 .box-grid {
     display: grid;
     gap: 5px;

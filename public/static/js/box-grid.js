@@ -26,6 +26,11 @@ function researchCellText(tube) {
 }
 
 function renderBoxGrid(container, boxData, options = {}) {
+    if (boxData.box_type === 'plain') {
+        renderPlainBox(container, boxData, options);
+        return null;
+    }
+
     const rows = boxData.grid_rows || 10;
     const cols = boxData.grid_cols || 10;
     const tubes = boxData.tubes || [];
@@ -106,6 +111,69 @@ function renderBoxGrid(container, boxData, options = {}) {
     container.appendChild(shell);
 
     return isRaptor ? { speciesIndexMap, tubes } : null;
+}
+
+/* A plain box: contents as a list, because there are no wells to draw.
+
+   The grid earns its space by answering "what is in C7". A box of whirl-paks
+   has no C7, so the same question becomes "what is in here", and a list
+   answers that better than a hundred identical circles would. */
+function renderPlainBox(container, boxData, options = {}) {
+    const tubes = boxData.tubes || [];
+    const capacity = boxData.capacity || (boxData.grid_rows || 10) * (boxData.grid_cols || 10);
+
+    const shell = document.createElement('div');
+    shell.className = 'box-grid-shell plain-box';
+    shell.innerHTML = `
+        <div class="box-grid-head">
+            <span class="box-grid-title">${escapeHtml(boxData.label || 'Box')}</span>
+            <span class="box-grid-count">${tubes.length} of ${capacity} stored</span>
+        </div>
+        <div class="plain-list"></div>`;
+
+    const list = shell.querySelector('.plain-list');
+
+    if (!tubes.length) {
+        list.innerHTML = `
+            <div class="empty-state py-4">
+                <i class="bi bi-bag empty-icon"></i>
+                <div class="empty-title">Nothing in this box yet</div>
+                <div class="empty-hint">Samples here are listed rather than placed in wells.</div>
+            </div>`;
+    }
+
+    tubes.forEach((tube) => {
+        const item = document.createElement('button');
+        item.type = 'button';
+        item.className = 'plain-item';
+        item.innerHTML = `
+            <span class="plain-item-id">${escapeHtml(tube.sample_id || 'Untitled sample')}</span>
+            <span class="plain-item-meta">
+                ${tube.description ? escapeHtml(tube.description) : '<em>No description</em>'}
+            </span>
+            <span class="plain-item-side">
+                ${tube.date_stored ? escapeHtml(tube.date_stored) : ''}
+                ${tube.freeze_thaw_cycles
+                    ? `<span class="plain-item-ft" title="Freeze-thaw cycles">
+                           <i class="bi bi-thermometer-half"></i>${tube.freeze_thaw_cycles}</span>`
+                    : ''}
+            </span>`;
+        item.addEventListener('click', () => options.onTubeClick?.(tube, null, null));
+        list.appendChild(item);
+    });
+
+    const add = document.createElement('button');
+    add.type = 'button';
+    add.className = 'btn btn-primary plain-add';
+    add.disabled = tubes.length >= capacity;
+    add.innerHTML = tubes.length >= capacity
+        ? '<i class="bi bi-x-circle me-1"></i>Box is full'
+        : '<i class="bi bi-plus-lg me-1"></i>Add a sample';
+    add.addEventListener('click', () => options.onEmptyClick?.(null, null));
+    list.appendChild(add);
+
+    container.textContent = '';
+    container.appendChild(shell);
 }
 
 function headerCell(text) {

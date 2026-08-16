@@ -12,6 +12,7 @@ freezer_bp = Blueprint('freezer', __name__)
 # Occupancy per box, counting both sections. Used wherever boxes are listed.
 _BOX_COLUMNS = """
     b.id, b.drawer_id, b.position, b.label, b.grid_rows, b.grid_cols, b.section,
+    b.box_type,
     coalesce(rc.cnt, 0) + coalesce(rp.cnt, 0) as occupied,
     b.grid_rows * b.grid_cols as capacity
 """
@@ -114,6 +115,7 @@ def get_box(box_id):
 
     box = one_or_404(db.execute(
         """select b.id, b.position, b.label, b.grid_rows, b.grid_cols, b.section,
+                  b.box_type, b.grid_rows * b.grid_cols as capacity,
                   d.label as drawer_label, r.label as rack_label,
                   r.designation as rack_designation, sh.name as shelf_name
            from boxes b
@@ -140,12 +142,15 @@ def get_box(box_id):
             (box_id,),
         ).fetchall()
     else:
+        # Positionless samples have no coordinate to sort by, so they fall to
+        # the end in the order they were added — which is the order someone
+        # who is looking through a plain box will encounter them.
         tubes = db.execute(
             """select id, row_pos, col_pos, sample_id, description,
-                      date_stored, freeze_thaw_cycles
+                      date_stored, freeze_thaw_cycles, created_at
                from research_tubes
                where box_id = %s
-               order by row_pos, col_pos""",
+               order by row_pos nulls last, col_pos nulls last, id""",
             (box_id,),
         ).fetchall()
 
@@ -234,6 +239,57 @@ def update_box(box_id):
             (text(data, 'label'), rows, cols, box_id),
         )
     return jsonify({'success': True})
+
+
+@freezer_bp.route('/api/boxes/<int:box_id>/type', methods=['PUT'])
+def set_box_type(box_id):
+    """Switch a research box between an addressed grid and a plain list.
+
+    Grid to plain is always safe: the coordinates stay on the rows, so the
+    change is reversible and nothing is lost. The other direction is not, and
+    is refused rather than guessed at — inventing positions for samples that
+    never had them would put a confident wrong answer in a specimen record.
+    """
+    db = get_db()
+    data = json_body()
+    require(data, 'box_type')
+
+    box_type = text(data, 'box_type')
+    if box_type not in ('grid', 'plain'):
+        raise ApiError("Box type must be either 'grid' or 'plain'.")
+
+    box = one_or_404(
+        db.execute(
+            'select id, section, grid_rows, grid_cols, box_type from boxes where id = %s',
+            (box_id,),
+        ).fetchone(),
+        'Box',
+    )
+
+    # Raptor samples are found by position; a biobank box without one is not a
+    # thing the rest of the app — or the freezer layout — knows how to handle.
+    if box['section'] != 'research':
+        raise ApiError('Only CLIPR research boxes can be changed to a plain box.')
+
+    if box_type == 'grid' and box['box_type'] != 'grid':
+        unplaced = db.execute(
+            """select count(*) as n from research_tubes
+               where box_id = %(box)s
+                 and (row_pos is null or col_pos is null
+                      or row_pos > %(rows)s or col_pos > %(cols)s)""",
+            {'box': box_id, 'rows': box['grid_rows'], 'cols': box['grid_cols']},
+        ).fetchone()['n']
+
+        if unplaced:
+            raise ApiError(
+                f'{unplaced} sample(s) in this box have no position. Give them one, '
+                'or remove them, before switching back to a grid.'
+            )
+
+    with write(db):
+        db.execute('update boxes set box_type = %s where id = %s', (box_type, box_id))
+
+    return jsonify({'id': box_id, 'box_type': box_type})
 
 
 @freezer_bp.route('/api/boxes/<int:box_id>', methods=['DELETE'])

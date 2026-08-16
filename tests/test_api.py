@@ -943,3 +943,126 @@ def test_packed_rbcs_round_trips(client, boxes, species_id):
 
     csv_bytes = client.get('/api/export/raptor/csv').data
     assert b'Packed RBCs' in csv_bytes
+
+
+# ------------------------------------------------------------
+# Plain boxes — samples without a position
+# ------------------------------------------------------------
+
+def _set_type(client, box_id, box_type):
+    return client.put(f'/api/boxes/{box_id}/type', json={'box_type': box_type})
+
+
+def test_boxes_start_as_grids(client, boxes):
+    box = client.get(f'/api/boxes/{boxes["research"]["id"]}').get_json()
+    assert box['box_type'] == 'grid'
+
+
+def test_a_grid_box_still_demands_a_position(client, boxes):
+    response = client.post('/api/research/tubes', json={
+        'box_id': boxes['research']['id'], 'sample_id': 'NO-POSITION',
+    })
+    assert response.status_code == 400
+    assert 'row_pos' in response.get_json()['error']
+
+
+def test_a_plain_box_takes_samples_with_no_position(client, boxes):
+    box_id = boxes['research']['id']
+    assert _set_type(client, box_id, 'plain').get_json()['box_type'] == 'plain'
+
+    for name in ('WP-01', 'WP-02', 'WP-03'):
+        created = client.post('/api/research/tubes', json={
+            'box_id': box_id, 'sample_id': name, 'description': 'Liver, whirl-pak',
+        })
+        assert created.status_code == 201, created.get_json()
+        assert created.get_json()['row_pos'] is None
+        assert created.get_json()['col_pos'] is None
+
+    box = client.get(f'/api/boxes/{box_id}').get_json()
+    assert [t['sample_id'] for t in box['tubes']] == ['WP-01', 'WP-02', 'WP-03']
+    # They still count as stored, so the freezer's occupancy stays honest.
+    assert box['tubes'] and all(t['row_pos'] is None for t in box['tubes'])
+
+
+def test_a_position_sent_to_a_plain_box_is_ignored(client, boxes):
+    """Storing a coordinate nobody can act on is worse than storing none."""
+    box_id = boxes['research']['id']
+    _set_type(client, box_id, 'plain')
+
+    tube = client.post('/api/research/tubes', json={
+        'box_id': box_id, 'row_pos': 4, 'col_pos': 7, 'sample_id': 'STRAY',
+    }).get_json()
+    assert tube['row_pos'] is None and tube['col_pos'] is None
+
+
+def test_switching_to_plain_keeps_positions_so_it_can_be_undone(client, boxes):
+    box_id = boxes['research']['id']
+    client.post('/api/research/tubes', json={
+        'box_id': box_id, 'row_pos': 2, 'col_pos': 5, 'sample_id': 'PLACED',
+    })
+
+    _set_type(client, box_id, 'plain')
+    assert _set_type(client, box_id, 'grid').status_code == 200
+
+    box = client.get(f'/api/boxes/{box_id}').get_json()
+    assert (box['tubes'][0]['row_pos'], box['tubes'][0]['col_pos']) == (2, 5)
+
+
+def test_going_back_to_a_grid_is_refused_while_samples_have_no_position(client, boxes):
+    """Inventing coordinates would put a confident wrong answer in the record."""
+    box_id = boxes['research']['id']
+    _set_type(client, box_id, 'plain')
+    client.post('/api/research/tubes', json={'box_id': box_id, 'sample_id': 'LOOSE'})
+
+    response = _set_type(client, box_id, 'grid')
+    assert response.status_code == 400
+    assert '1 sample(s) in this box have no position' in response.get_json()['error']
+
+    # And the box is unchanged, rather than half-converted.
+    assert client.get(f'/api/boxes/{box_id}').get_json()['box_type'] == 'plain'
+
+
+def test_a_plain_box_respects_its_capacity(client, boxes, flask_app):
+    from db import get_db
+
+    box_id = boxes['research']['id']
+    _set_type(client, box_id, 'plain')
+
+    # Fill it to the 10x10 capacity without 100 round trips.
+    with flask_app.app_context():
+        db = get_db()
+        db.execute(
+            'insert into research_tubes (box_id, sample_id) '
+            "select %s, 'BULK-' || g from generate_series(1, 100) g", (box_id,)
+        )
+        db.commit()
+
+    response = client.post('/api/research/tubes', json={'box_id': box_id, 'sample_id': 'ONE-MORE'})
+    assert response.status_code == 400
+    assert 'capacity' in response.get_json()['error']
+
+
+def test_raptor_boxes_cannot_be_made_plain(client, boxes):
+    """Finding one bird's plasma is the point of the biobank layout."""
+    response = _set_type(client, boxes['raptor']['id'], 'plain')
+    assert response.status_code == 400
+    assert 'research' in response.get_json()['error']
+
+
+def test_unknown_box_types_are_rejected(client, boxes):
+    response = _set_type(client, boxes['research']['id'], 'freeform')
+    assert response.status_code == 400
+    assert "'grid' or 'plain'" in response.get_json()['error']
+
+
+def test_positionless_samples_export_without_a_fake_position(client, boxes):
+    box_id = boxes['research']['id']
+    _set_type(client, box_id, 'plain')
+    client.post('/api/research/tubes', json={
+        'box_id': box_id, 'sample_id': 'WP-42', 'description': 'Spleen',
+    })
+
+    csv_text = client.get('/api/export/research/csv').get_data(as_text=True)
+    assert 'WP-42' in csv_text
+    # Not "A0", not "@null" — nothing at all.
+    assert 'A0' not in csv_text
