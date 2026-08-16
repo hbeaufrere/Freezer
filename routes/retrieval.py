@@ -1,8 +1,13 @@
 """Retrieval log — who took which tube out, when, and what for.
 
-Recording a retrieval also bumps that tube's freeze-thaw count, because taking
-a tube out of a -80 freezer is a thaw whether or not anyone remembers to tick
-the box separately.
+A retrieval ends one of two ways. If the sample goes back, its freeze-thaw
+count goes up, because taking a tube out of a -80 freezer is a thaw whether or
+not anyone remembers to tick the box separately. If it does not go back, the
+tube is deleted: a freezer record that still lists a sample somebody used up
+is worse than no record, because it sends the next person hunting for it.
+
+Either way the log entry survives, holding its own snapshot of the label, box
+and position, so the chain of custody outlives the specimen.
 """
 
 from flask import Blueprint, jsonify, request
@@ -130,14 +135,28 @@ def create_retrieval():
             },
         ).fetchone()
 
-        # Out of the freezer and back again is a freeze-thaw cycle.
         table = 'raptor_tubes' if section == 'raptor' else 'research_tubes'
-        db.execute(
-            f'update {table} set freeze_thaw_cycles = freeze_thaw_cycles + 1 where id = %s',
-            (tube_id,),
-        )
+        cycles = None
 
-    return jsonify(dict(entry)), 201
+        if consumed:
+            # The sample is not going back, so the freezer record should stop
+            # claiming it is there. The log entry carries its own copy of the
+            # label, box and position, and the foreign key is ON DELETE SET
+            # NULL, so deleting the tube costs the history nothing.
+            db.execute(f'delete from {table} where id = %s', (tube_id,))
+        else:
+            # Out of the freezer and back again is a freeze-thaw cycle.
+            cycles = db.execute(
+                f"""update {table} set freeze_thaw_cycles = freeze_thaw_cycles + 1
+                    where id = %s returning freeze_thaw_cycles""",
+                (tube_id,),
+            ).fetchone()['freeze_thaw_cycles']
+
+    return jsonify({
+        **dict(entry),
+        'tube_removed': consumed,
+        'freeze_thaw_cycles': cycles,
+    }), 201
 
 
 @retrieval_bp.route('/api/retrievals/<int:entry_id>', methods=['DELETE'])

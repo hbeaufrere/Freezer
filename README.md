@@ -8,6 +8,10 @@ The upper shelf holds the **raptor plasma biobank**, where each bird gets an
 auto-generated tube ID (`RTHA26001` — species, year, sequence). The middle and
 lower shelves hold **CLIPR research** samples with free-text sample IDs.
 
+A research box can also be switched to a **plain box**, which holds a list of
+samples with no fixed positions — for whirl-paks of tissue and anything else
+that has no well to sit in.
+
 Flask + PostgreSQL, running as a Vercel Function against a Neon database.
 
 Nothing here is tied to a particular Postgres host — the app speaks plain SQL
@@ -235,8 +239,20 @@ rotate the tokens, so printed QR codes keep working.
 tube ID, box and position alongside a nullable foreign key, so consuming a
 tube and deleting its row does not erase the record of who took it out. For a
 specimen repository, losing the specimen must never mean losing the history.
-Logging a retrieval also counts one freeze-thaw cycle, because taking a tube
-out of a -80 freezer is a thaw whether or not anyone ticks the box.
+
+A retrieval ends one of two ways, and the app now acts on both. Put the sample
+back and its freeze-thaw count goes up, because taking a tube out of a -80
+freezer is a thaw whether or not anyone ticks the box. Tick **not going back**
+and the tube is deleted: a freezer record that still lists a sample somebody
+used up is worse than no record, because it sends the next person hunting for
+it. The log entry survives either way.
+
+**Deleting a record is not retrieving a sample.** They look alike and are
+opposites: retrieval writes history, deletion erases it. So the delete control
+is a quiet grey button rather than a peer of *Log retrieval*, and its
+confirmation says what it is for — reconciling the biobank when the database
+and the freezer disagree — and points at *Log retrieval* for anything that
+actually left the freezer.
 
 **Labels go out by barcode, not by print driver.** There is no workable web
 print path to a Brady M211, and the Bluetooth attempt never printed anything.

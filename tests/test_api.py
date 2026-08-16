@@ -551,6 +551,25 @@ def test_retrieval_logs_and_counts_a_thaw(client, boxes, species_id):
     assert box['tubes'][0]['freeze_thaw_cycles'] == 1
 
 
+def test_a_consumed_sample_leaves_the_freezer(client, boxes, species_id):
+    """A record that still lists a sample somebody used up is worse than none:
+    it sends the next person hunting for a tube that is not there."""
+    tube = client.post('/api/raptor/tubes', json={
+        'box_id': boxes['raptor']['id'], 'row_pos': 2, 'col_pos': 2,
+        'species_id': species_id, 'collection_date': '2026-04-01',
+    }).get_json()
+
+    logged = client.post('/api/retrievals', json={
+        'section': 'raptor', 'tube_id': tube['id'],
+        'retrieved_by': 'H. Beaufrere', 'consumed': True,
+    }).get_json()
+    assert logged['tube_removed'] is True
+
+    box = client.get(f'/api/boxes/{boxes["raptor"]["id"]}').get_json()
+    assert box['tubes'] == [], 'the box should no longer show a consumed sample'
+    assert client.get('/api/stats/freezer').get_json()['raptor_count'] == 0
+
+
 def test_retrieval_survives_the_tube_being_deleted(client, boxes, species_id):
     """Chain of custody has to outlive the specimen."""
     tube = client.post('/api/raptor/tubes', json={
@@ -561,13 +580,54 @@ def test_retrieval_survives_the_tube_being_deleted(client, boxes, species_id):
         'section': 'raptor', 'tube_id': tube['id'],
         'retrieved_by': 'H. Beaufrere', 'consumed': True,
     })
-    client.delete(f'/api/raptor/tubes/{tube["id"]}')
 
     entries = client.get('/api/retrievals').get_json()['entries']
     assert len(entries) == 1
+    # The tube row is gone, but every column the log needs was snapshotted.
     assert entries[0]['tube_label'] == 'RTHA26001'
+    assert entries[0]['box_label'] and entries[0]['position_label'] == 'B2'
+    assert entries[0]['species_name'] == 'Red-tailed Hawk'
     assert entries[0]['raptor_tube_id'] is None
     assert entries[0]['consumed'] is True
+
+
+def test_a_returned_sample_stays_and_counts_the_thaw(client, boxes):
+    """The other half: put it back and only the freeze-thaw count moves."""
+    tube = client.post('/api/research/tubes', json={
+        'box_id': boxes['research']['id'], 'row_pos': 1, 'col_pos': 1,
+        'sample_id': 'CLIPR-2026-001',
+    }).get_json()
+
+    first = client.post('/api/retrievals', json={
+        'section': 'research', 'tube_id': tube['id'], 'retrieved_by': 'Alice',
+    }).get_json()
+    assert first['tube_removed'] is False
+    assert first['freeze_thaw_cycles'] == 1
+
+    second = client.post('/api/retrievals', json={
+        'section': 'research', 'tube_id': tube['id'], 'retrieved_by': 'Alice',
+    }).get_json()
+    assert second['freeze_thaw_cycles'] == 2
+
+    box = client.get(f'/api/boxes/{boxes["research"]["id"]}').get_json()
+    assert len(box['tubes']) == 1
+    assert box['tubes'][0]['freeze_thaw_cycles'] == 2
+
+
+def test_a_consumed_research_sample_also_leaves(client, boxes):
+    tube = client.post('/api/research/tubes', json={
+        'box_id': boxes['research']['id'], 'row_pos': 5, 'col_pos': 5,
+        'sample_id': 'CLIPR-2026-009',
+    }).get_json()
+    client.post('/api/retrievals', json={
+        'section': 'research', 'tube_id': tube['id'],
+        'retrieved_by': 'Alice', 'consumed': True,
+    })
+
+    assert client.get(f'/api/boxes/{boxes["research"]["id"]}').get_json()['tubes'] == []
+    entry = client.get('/api/retrievals').get_json()['entries'][0]
+    assert entry['tube_label'] == 'CLIPR-2026-009'
+    assert entry['research_tube_id'] is None
 
 
 def test_retrieval_log_filters_and_paginates(client, boxes, species_id):

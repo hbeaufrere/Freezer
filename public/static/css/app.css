@@ -1041,6 +1041,23 @@ body {
     .plain-item-side { justify-content: flex-start; }
 }
 
+/* Reconciling a discrepancy is a rare, destructive housekeeping action, not a
+   peer of "Log retrieval". It gets a quiet button that only turns red once you
+   are actually pointing at it. */
+.reconcile-btn {
+    font-size: 0.8rem;
+    color: var(--f-muted);
+    border: 1px solid transparent;
+    padding: 0.25rem 0.5rem;
+}
+
+.reconcile-btn:hover,
+.reconcile-btn:focus-visible {
+    color: var(--bs-danger);
+    border-color: currentColor;
+    background: transparent;
+}
+
 /* A plain box in the freezer overview: dashed, because it has no wells. */
 .box-slot.is-plain {
     border-style: dashed;

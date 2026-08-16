@@ -24,6 +24,25 @@ async function initResearchPage() {
     document.getElementById('btn-research-thaw').addEventListener('click', recordResearchThaw);
     document.getElementById('btn-research-barcode').addEventListener('click', showResearchBarcode);
     document.getElementById('btn-research-retrieve').addEventListener('click', logResearchRetrieval);
+
+    document.addEventListener('retrievallogged', onResearchRetrievalLogged);
+}
+
+/* A retrieval changes the tube under the open modal, so the modal has to
+   follow: either the sample has left the freezer and the sheet should go with
+   it, or it went back and its freeze-thaw count has just gone up. */
+function onResearchRetrievalLogged(event) {
+    const detail = event.detail || {};
+    if (detail.section !== 'research') return;
+
+    if (detail.tubeRemoved) {
+        bootstrap.Modal.getInstance(document.getElementById('researchTubeModal'))?.hide();
+    } else if (detail.freezeThawCycles !== null && detail.freezeThawCycles !== undefined) {
+        document.getElementById('research-freeze-thaw').value = detail.freezeThawCycles;
+    }
+
+    if (currentResearchBoxId) openResearchBox(currentResearchBoxId);
+    loadResearchQuickStats();
 }
 
 async function loadResearchQuickStats() {
@@ -222,8 +241,8 @@ async function deleteResearchTube() {
     const tubeId = document.getElementById('research-tube-id').value;
     if (!tubeId) return;
 
-    const label = document.getElementById('research-sample-id').value.trim() || 'this tube';
-    if (!confirm(`Remove ${label} from the freezer record? This cannot be undone.`)) return;
+    const label = document.getElementById('research-sample-id').value.trim() || 'this sample';
+    if (!confirm(reconcileWarning(label))) return;
 
     try {
         await API.del(`/api/research/tubes/${tubeId}`);
