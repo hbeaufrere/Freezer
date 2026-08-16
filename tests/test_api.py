@@ -1169,6 +1169,9 @@ def test_the_schema_records_which_end_is_the_front(client, flask_app):
                 (table, table),
             ).fetchone()['note']
 
-    assert 'front' in (comments['drawers'] or '')
-    assert 'pulls out first' in comments['drawers']
+    # The two levels count along different axes, which is the whole reason
+    # this is worth recording: drawers stack, boxes sit one behind another.
+    assert 'top drawer' in (comments['drawers'] or '')
+    assert 'downwards' in comments['drawers']
     assert 'front' in (comments['boxes'] or '')
+    assert 'back of the drawer' in comments['boxes']

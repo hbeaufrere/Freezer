@@ -45,8 +45,9 @@ function renderFreezer(container, shelves, options = {}) {
     plate.innerHTML = `
         <span class="cabinet-model">Eppendorf CryoCube F740hi</span>
         <span class="cabinet-temp">&minus;80 &deg;C</span>
-        <span class="cabinet-orient" title="Drawer 1 pulls out first; box 1 sits at the front of every drawer">
-            <i class="bi bi-box-arrow-in-down-left"></i>D1 and B1 are at the front
+        <span class="cabinet-orient"
+              title="Drawers stack downwards, so D1 is the top drawer. Boxes sit one behind another inside a drawer, so B1 is the one at the front.">
+            <i class="bi bi-box-arrow-in-down-left"></i>D1 is the top drawer &middot; B1 is the front box
         </span>
         <span class="cabinet-fill">${options.percentFull ?? 0}% full</span>`;
     container.appendChild(plate);
@@ -135,8 +136,11 @@ function createRackElement(rack, options = {}) {
         const label = document.createElement('span');
         label.className = 'drawer-label';
         label.textContent = `D${drawer.position}`;
+        // Drawers stack, so the screen already puts D1 where it belongs. The
+        // tooltip only has to name the ends.
         label.title = `${drawer.label || `Drawer ${drawer.position}`}`
-            + (drawer.position === 1 ? ' — front drawer, pulls out first' : '');
+            + (drawer.position === 1 ? ' — top drawer' : '')
+            + (drawer.position === rack.drawers.length ? ' — bottom drawer' : '');
         drawerEl.appendChild(label);
 
         const boxWrap = document.createElement('span');

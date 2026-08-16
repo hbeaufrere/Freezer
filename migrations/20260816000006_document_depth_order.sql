@@ -1,18 +1,18 @@
 -- ============================================================
--- Write down which way the freezer faces.
+-- Write down how the freezer is laid out.
 --
--- Position 1 has always meant "nearest the front" for both drawers and boxes,
--- but that only existed as one comment on boxes.position and as an ordering in
--- the queries. Someone reading the schema had no way to tell whether B4 was at
--- the back of the drawer or the front of it, and neither did anyone reading
--- the screen.
+-- The two levels count along different axes, which is exactly why it needed
+-- writing down: drawers stack vertically (D1 at the top) while the boxes
+-- inside a drawer sit one behind another (B1 at the front). Position 1 means
+-- "first", and "first" is downwards in one case and towards you in the other.
 --
--- Nothing changes structurally. This records the convention where the next
--- person will look for it, alongside the interface that now states it.
+-- Only boxes.position carried a comment before, and neither fact reached the
+-- screen. Nothing changes structurally here; this records the convention where
+-- the next person will look for it, alongside the interface that now states it.
 -- ============================================================
 
 comment on column drawers.position is
-    '1 = front drawer, the one that pulls out first; ascending towards the back.';
+    '1 = top drawer; ascending downwards through the rack.';
 
 comment on column boxes.position is
     '1 = front box, nearest you when the drawer is open; ascending towards the '
