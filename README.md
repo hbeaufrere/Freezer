@@ -64,6 +64,12 @@ and `schema_migrations` records what has been applied.
 | `FREEZER_PASSWORD` | yes | The shared lab password |
 | `SESSION_HOURS` | no | Hours before a session expires (default 12) |
 | `DB_POOL_MAX` | no | Pooled connections per instance (default 4) |
+| `SMTP_USER` | no | Mail account for drop-off alerts — see below |
+| `SMTP_PASSWORD` | no | Gmail **App Password**, not the account password |
+| `NOTIFY_EMAIL` | no | Where alerts go (default: `SMTP_USER`) |
+| `SMTP_HOST` | no | Default `smtp.gmail.com` |
+| `SMTP_PORT` | no | Default 587 (STARTTLS); 465 uses implicit TLS |
+| `SMTP_FROM` | no | Envelope sender (default: `SMTP_USER`) |
 
 There are no fallback defaults for the three required variables — the app
 refuses to start without them, so a placeholder secret can never end up
@@ -169,6 +175,7 @@ routes/
   support.py             Shared request parsing and the write() transaction wrapper
 services/
   migrator.py            Applies pending migrations under an advisory lock
+  notify.py              Drop-off alert emails over SMTP
   id_generator.py        RTHA26001-style tube IDs
   stats_service.py       Statistics queries
   export_service.py      Workbook and CSV generation
@@ -255,6 +262,30 @@ what escalates the colour, not count — plasma sitting in an ordinary freezer
 degrades. Each site is collected separately, since CRC and VMTH are separate
 trips, and collecting marks the drops rather than deleting them so the history
 survives.
+
+### Getting an email when someone drops samples off
+
+Set `SMTP_USER`, `SMTP_PASSWORD` and `NOTIFY_EMAIL` and every drop-off sends a
+message: how many were just added, how many are now waiting at that site, how
+many at the other one, and the age of the oldest at each. Leave them unset and
+nothing changes — the feature is entirely optional.
+
+For Gmail the password must be a **16-character App Password**, created at
+[myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords)
+with 2-Step Verification switched on. Google refuses ordinary account
+passwords over SMTP, so the account password will only ever produce a 535.
+
+Once it is set, a small bell appears on the **Samples to collect** panel.
+Clicking it sends a test message, so the settings can be checked from a desk
+rather than by walking to a freezer with a tube.
+
+The send is best-effort and deliberately so. A drop-off that has been recorded
+must never fail because a mail server was slow or an app password expired, so
+errors are logged and swallowed — the counter in the database is the record and
+the email is a courtesy. It is also sent synchronously rather than from a
+background thread: a serverless instance is frozen the moment the response goes
+out, which would kill a worker mid-handshake often enough to lose messages
+without anyone noticing.
 
 To put a QR code on a freezer door: open the overview and click the QR icon on
 that site's card. The panel prints a ready-made sign, copies the code to the

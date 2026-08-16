@@ -185,6 +185,35 @@ def create_app():
 
         return jsonify({'status': 'ok', 'database': 'connected', 'schema': 'current'})
 
+    @app.route('/api/notifications', methods=['GET'])
+    def notification_status():
+        """Whether drop-off emails are switched on, and where they go."""
+        from services.notify import settings
+
+        config = settings()
+        if config is None:
+            return jsonify({'configured': False})
+        return jsonify({'configured': True, 'recipient': config['recipient']})
+
+    @app.route('/api/notifications/test', methods=['POST'])
+    def notification_test():
+        """Send a test email, so the settings can be checked from a desk."""
+        from services.notify import configured, send_test_email
+
+        if not configured():
+            return jsonify({
+                'error': 'Email is not set up. Add SMTP_USER, SMTP_PASSWORD and '
+                         'NOTIFY_EMAIL to the environment variables.',
+            }), 400
+
+        if not send_test_email(request.url_root.rstrip('/') + '/'):
+            return jsonify({
+                'error': 'The mail server refused the message. Check the app '
+                         'password and try again.',
+            }), 502
+
+        return jsonify({'sent': True})
+
     @app.route('/api/admin/migrate', methods=['POST'])
     def run_migrations():
         """Bring the database schema up to date. Requires a signed-in session."""

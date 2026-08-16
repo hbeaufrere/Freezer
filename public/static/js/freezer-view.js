@@ -3,10 +3,11 @@
 async function loadFreezerOverview() {
     const container = document.getElementById('freezer-visual');
     try {
-        const [shelves, stats, sites] = await Promise.all([
+        const [shelves, stats, sites, mail] = await Promise.all([
             API.get('/api/freezer'),
             API.get('/api/stats/freezer'),
             API.get('/api/collection-sites').catch(() => []),
+            API.get('/api/notifications').catch(() => ({ configured: false })),
         ]);
 
         setText('stat-total-stored', stats.tubes_stored.toLocaleString());
@@ -19,6 +20,7 @@ async function loadFreezerOverview() {
         renderFreezer(container, shelves, {
             percentFull: stats.percent_full,
             collectionSites: sites,
+            mail,
         });
     } catch (err) {
         container.innerHTML = `
@@ -72,7 +74,7 @@ function renderFreezer(container, shelves, options = {}) {
         // Samples waiting in the satellite freezers belong with the raptor
         // shelf: that is where they are headed.
         if (isRaptor && options.collectionSites) {
-            shelfEl.appendChild(renderCollectionPanel(options.collectionSites));
+            shelfEl.appendChild(renderCollectionPanel(options.collectionSites, options.mail));
         }
 
         container.appendChild(shelfEl);
@@ -209,7 +211,7 @@ function backlogClass(days) {
     return '';
 }
 
-function renderCollectionPanel(sites) {
+function renderCollectionPanel(sites, mail) {
     const panel = document.createElement('div');
     panel.className = 'collect-panel';
 
@@ -220,9 +222,21 @@ function renderCollectionPanel(sites) {
             <span class="collect-title">
                 <i class="bi bi-inboxes me-1"></i>Samples to collect
             </span>
-            <span class="shelf-meta">${total} waiting</span>
+            <span class="d-flex align-items-center gap-2">
+                <span class="shelf-meta">${total} waiting</span>
+                ${mail && mail.configured
+                    ? `<button type="button" class="copy-btn collect-bell"
+                               title="Email alerts go to ${escapeHtml(mail.recipient)} — click to send a test"
+                               aria-label="Send a test notification email">
+                           <i class="bi bi-bell"></i>
+                       </button>`
+                    : ''}
+            </span>
         </div>
         <div class="collect-sites"></div>`;
+
+    const bell = panel.querySelector('.collect-bell');
+    if (bell) bell.addEventListener('click', () => sendTestEmail(bell));
 
     const list = panel.querySelector('.collect-sites');
 
@@ -262,6 +276,24 @@ function renderCollectionPanel(sites) {
     });
 
     return panel;
+}
+
+/* Checking the mail settings should not require standing at a freezer. */
+async function sendTestEmail(button) {
+    const icon = button.querySelector('i');
+    button.disabled = true;
+    icon.className = 'bi bi-hourglass-split';
+    try {
+        await API.post('/api/notifications/test', {});
+        icon.className = 'bi bi-check-lg';
+        showToast('Test email sent — check your inbox.');
+    } catch (err) {
+        icon.className = 'bi bi-bell';
+        showToast(err.message, 'error');
+    } finally {
+        button.disabled = false;
+        setTimeout(() => { icon.className = 'bi bi-bell'; }, 2000);
+    }
 }
 
 async function markCollected(site) {

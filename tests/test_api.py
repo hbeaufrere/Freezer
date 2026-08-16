@@ -792,3 +792,124 @@ def test_concurrent_first_requests_share_one_pool(flask_app):
         if created is not None and created is not original:
             created.close()
         db_module._pool = original
+
+
+# ------------------------------------------------------------
+# Drop-off notifications
+# ------------------------------------------------------------
+
+@pytest.fixture
+def mailbox(monkeypatch):
+    """Capture what would have been sent, with the SMTP layer stubbed out."""
+    from services import notify
+
+    monkeypatch.setenv('SMTP_USER', 'lab@example.org')
+    monkeypatch.setenv('SMTP_PASSWORD', 'app-password')
+    monkeypatch.setenv('NOTIFY_EMAIL', 'h.beaufrere@example.org')
+
+    sent = []
+    monkeypatch.setattr(notify, 'deliver', lambda msg: (sent.append(msg), True)[1])
+    return sent
+
+
+def _body(msg):
+    return msg.get_body(preferencelist=('plain',)).get_content()
+
+
+def test_no_email_settings_means_no_notification(anon, flask_app, monkeypatch):
+    """The feature is optional: without SMTP settings nothing changes."""
+    from services import notify
+
+    for name in ('SMTP_USER', 'SMTP_PASSWORD', 'NOTIFY_EMAIL'):
+        monkeypatch.delenv(name, raising=False)
+    assert notify.configured() is False
+
+    sent = []
+    monkeypatch.setattr(notify, 'deliver', lambda msg: sent.append(msg))
+    response = anon.post(f'/api/drop/{_token(flask_app, "CRC")}', json={'sample_count': 3})
+    assert response.status_code == 201
+    assert sent == []
+
+
+def test_a_dropoff_emails_the_lab(anon, flask_app, mailbox):
+    anon.post(f'/api/drop/{_token(flask_app, "CRC")}',
+              json={'sample_count': 2, 'dropped_by': 'Jane', 'note': 'two red-tails'})
+
+    assert len(mailbox) == 1
+    message = mailbox[0]
+    assert message['Subject'] == '2 samples dropped at CRC — 2 now waiting'
+
+    body = _body(message)
+    assert 'Jane' in body and 'two red-tails' in body
+    assert 'Total waiting across all sites: 2' in body
+
+
+def test_the_email_counts_everything_waiting_not_just_this_drop(anon, flask_app, mailbox):
+    crc, vmth = _token(flask_app, 'CRC'), _token(flask_app, 'VMTH')
+    anon.post(f'/api/drop/{crc}', json={'sample_count': 4})
+    anon.post(f'/api/drop/{vmth}', json={'sample_count': 7})
+    anon.post(f'/api/drop/{crc}', json={'sample_count': 1})
+
+    latest = mailbox[-1]
+    # One sample added, but five are now waiting at CRC and twelve in total.
+    assert latest['Subject'] == '1 sample dropped at CRC — 5 now waiting'
+    body = _body(latest)
+    assert 'Total waiting across all sites: 12' in body
+    assert 'VMTH' in body, 'the other site belongs in the message too'
+
+
+def test_a_broken_mail_server_still_records_the_dropoff(anon, flask_app, monkeypatch):
+    """The counter is the record; email is a courtesy. Losing one must not
+    lose the other, or samples go into a freezer with nothing tracking them."""
+    import smtplib
+
+    from services import notify
+
+    monkeypatch.setenv('SMTP_USER', 'lab@example.org')
+    monkeypatch.setenv('SMTP_PASSWORD', 'app-password')
+    monkeypatch.setenv('NOTIFY_EMAIL', 'h.beaufrere@example.org')
+
+    def explode(*args, **kwargs):
+        raise smtplib.SMTPAuthenticationError(535, b'nope')
+
+    monkeypatch.setattr(smtplib, 'SMTP', explode)
+
+    response = anon.post(f'/api/drop/{_token(flask_app, "CRC")}', json={'sample_count': 6})
+    assert response.status_code == 201
+    assert response.get_json()['total_waiting'] == 6
+    assert _site_anon_count(flask_app) == 6
+
+
+def _site_anon_count(flask_app):
+    from db import get_db
+
+    with flask_app.app_context():
+        return get_db().execute(
+            'select coalesce(sum(sample_count), 0) as n from pending_dropoffs'
+        ).fetchone()['n']
+
+
+def test_notification_status_and_test_send_need_a_session(anon):
+    assert anon.get('/api/notifications').status_code == 401
+    assert anon.post('/api/notifications/test').status_code == 401
+
+
+def test_test_email_reports_a_refusal(client, monkeypatch):
+    from services import notify
+
+    monkeypatch.setenv('SMTP_USER', 'lab@example.org')
+    monkeypatch.setenv('SMTP_PASSWORD', 'app-password')
+    monkeypatch.setenv('NOTIFY_EMAIL', 'h.beaufrere@example.org')
+    monkeypatch.setattr(notify, 'deliver', lambda msg: False)
+
+    response = client.post('/api/notifications/test')
+    assert response.status_code == 502
+    assert 'app password' in response.get_json()['error']
+
+
+def test_test_email_says_when_nothing_is_configured(client, monkeypatch):
+    for name in ('SMTP_USER', 'SMTP_PASSWORD', 'NOTIFY_EMAIL'):
+        monkeypatch.delenv(name, raising=False)
+    response = client.post('/api/notifications/test')
+    assert response.status_code == 400
+    assert 'SMTP_USER' in response.get_json()['error']
