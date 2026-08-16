@@ -116,6 +116,11 @@ def get_box(box_id):
     box = one_or_404(db.execute(
         """select b.id, b.position, b.label, b.grid_rows, b.grid_cols, b.section,
                   b.box_type, b.grid_rows * b.grid_cols as capacity,
+                  -- How deep this box sits, and how deep the drawer goes: the
+                  -- page says "front of the drawer" rather than just "B1".
+                  (select count(*) from boxes b2 where b2.drawer_id = b.drawer_id)
+                      as drawer_box_count,
+                  d.position as drawer_position,
                   d.label as drawer_label, r.label as rack_label,
                   r.designation as rack_designation, sh.name as shelf_name
            from boxes b

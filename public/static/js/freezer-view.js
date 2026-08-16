@@ -45,6 +45,9 @@ function renderFreezer(container, shelves, options = {}) {
     plate.innerHTML = `
         <span class="cabinet-model">Eppendorf CryoCube F740hi</span>
         <span class="cabinet-temp">&minus;80 &deg;C</span>
+        <span class="cabinet-orient" title="Drawer 1 pulls out first; box 1 sits at the front of every drawer">
+            <i class="bi bi-box-arrow-in-down-left"></i>D1 and B1 are at the front
+        </span>
         <span class="cabinet-fill">${options.percentFull ?? 0}% full</span>`;
     container.appendChild(plate);
 
@@ -107,6 +110,24 @@ function createRackElement(rack, options = {}) {
 
     const drawers = rackEl.querySelector('.rack-drawers');
 
+    // Column numbers over the box strip. Without them the four rectangles are
+    // anonymous, and B3 is only discoverable by hovering.
+    const widest = Math.max(0, ...rack.drawers.map((d) => d.boxes.length));
+    if (widest) {
+        const axis = document.createElement('div');
+        axis.className = 'drawer-axis';
+        axis.setAttribute('aria-hidden', 'true');
+        // A spacer of its own rather than an empty .drawer-label: that class
+        // means "this drawer's name", and anything selecting it should not
+        // have to skip a decoration first.
+        axis.innerHTML =
+            '<span class="axis-spacer"></span><span class="drawer-boxes">'
+            + Array.from({ length: widest }, (_, i) =>
+                `<span class="axis-cell${i === 0 ? ' is-front' : ''}">${i + 1}</span>`).join('')
+            + '</span>';
+        drawers.appendChild(axis);
+    }
+
     rack.drawers.forEach((drawer) => {
         const drawerEl = document.createElement('div');
         drawerEl.className = 'drawer-slot';
@@ -114,7 +135,8 @@ function createRackElement(rack, options = {}) {
         const label = document.createElement('span');
         label.className = 'drawer-label';
         label.textContent = `D${drawer.position}`;
-        label.title = drawer.label || `Drawer ${drawer.position}`;
+        label.title = `${drawer.label || `Drawer ${drawer.position}`}`
+            + (drawer.position === 1 ? ' — front drawer, pulls out first' : '');
         drawerEl.appendChild(label);
 
         const boxWrap = document.createElement('span');
@@ -130,15 +152,19 @@ function createRackElement(rack, options = {}) {
             const isPlain = box.box_type === 'plain';
             const unit = isPlain ? 'samples' : 'positions';
 
+            const depth = depthLabel(box.position, drawer.boxes.length);
+
             const boxEl = document.createElement('button');
             boxEl.type = 'button';
             boxEl.className = `box-slot ${occupancyClass(box.occupied, box.capacity)}`
-                + (isPlain ? ' is-plain' : '');
+                + (isPlain ? ' is-plain' : '')
+                + (box.position === 1 ? ' is-front' : '');
             boxEl.dataset.boxId = box.id;
             boxEl.title = `${box.label}${isPlain ? ' (plain box)' : ''}`
+                + `\n${depth}`
                 + `\n${box.occupied} of ${box.capacity} ${unit} (${pct}%)`;
             boxEl.setAttribute('aria-label',
-                `Box ${box.label}, ${box.occupied} of ${box.capacity} ${unit} filled`);
+                `Box ${box.label}, ${depth}, ${box.occupied} of ${box.capacity} ${unit} filled`);
 
             boxEl.addEventListener('click', (event) => {
                 event.stopPropagation();

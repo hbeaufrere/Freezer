@@ -191,6 +191,16 @@ migrations/              Schema and reference data
 
 ### Notes on a few decisions
 
+**Depth is stated, not implied.** Drawer 1 pulls out first and box 1 sits at
+the front of every drawer, but a screen is flat and `B4` is a name rather than
+a direction — so nothing about the layout told you which end of the drawer you
+were looking at. The convention is now said four times over: on the cabinet
+plate, as numbered columns above each rack with the front one picked out, as a
+heavier front edge on every box in that column, and as a badge on the open box
+reading "front of the drawer" or "3 of 4 from the front". The column comments
+in `migrations/` say the same thing, so the rule survives someone reading only
+the schema.
+
 **One query per level, not per node.** `/api/freezer` builds the whole tree from
 four flat queries assembled in Python. The obvious nested-loop version issues
 about 148 queries, which is invisible against a local file and adds seconds of
