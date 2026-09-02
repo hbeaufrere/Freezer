@@ -283,3 +283,98 @@ def create_species():
         ).fetchone()['id']
 
     return jsonify({'id': species_id}), 201
+
+
+# ------------------------------------------------------------
+# Biobank filter — how many samples match, and where they are
+# ------------------------------------------------------------
+
+# Enough to answer "have we got this, and where is it" on screen. The full
+# record, notes included, is what the CSV is for.
+FILTER_PAGE_SIZE = 250
+
+
+@raptor_bp.route('/api/raptor/filter-options')
+def filter_options():
+    """The criteria worth offering, taken from what the biobank actually holds.
+
+    Derived rather than hard-coded: a dropdown that lists a sample type nobody
+    has ever collected wastes a click on an empty result, and one built from
+    today's form would silently hide anything recorded before an option was
+    added or after it was renamed.
+    """
+    db = get_db()
+
+    def distinct(column):
+        rows = db.execute(
+            f"""select {column} as value, count(*) as count
+                from raptor_tubes
+                where {column} is not null and {column} <> ''
+                group by {column}
+                order by count desc, {column}"""
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    species = db.execute(
+        """select s.id, s.common_name, s.banding_code, count(rt.id) as count
+           from species s
+           join raptor_tubes rt on rt.species_id = s.id
+           group by s.id, s.common_name, s.banding_code
+           order by s.common_name"""
+    ).fetchall()
+
+    return jsonify({
+        'species': [dict(r) for r in species],
+        'sample_types': distinct('sample_type'),
+        'sexes': distinct('sex'),
+        'ages': distinct('age'),
+        'total': db.execute('select count(*) as n from raptor_tubes').fetchone()['n'],
+    })
+
+
+@raptor_bp.route('/api/raptor/filter')
+def filter_samples():
+    """Samples matching the chosen criteria, with where each one is.
+
+    ``matched`` is the whole result, not the page: the number on screen has to
+    be the number the CSV will contain, or the count is worse than useless.
+    """
+    from services.export_service import format_position, raptor_query
+
+    db = get_db()
+    filters = {
+        'species_id': request.args.get('species_id', type=int),
+        'sample_type': (request.args.get('sample_type') or '').strip(),
+        'sex': (request.args.get('sex') or '').strip(),
+        'age': (request.args.get('age') or '').strip(),
+        'date_from': as_date(request.args, 'date_from'),
+        'date_to': as_date(request.args, 'date_to'),
+    }
+
+    query, params = raptor_query(filters)
+    rows = db.execute(query, params).fetchall()
+
+    samples = [{
+        'tube_id': row['tube_id'],
+        'banding_code': row['banding_code'],
+        'common_name': row['common_name'],
+        'sample_type': row['sample_type'],
+        'collection_date': row['collection_date'],
+        'age': row['age'],
+        'sex': row['sex'],
+        'freeze_thaw_cycles': row['freeze_thaw_cycles'],
+        'wrmd_number': row['wrmd_number'],
+        'vmth_number': row['vmth_number'],
+        'shelf': row['shelf'],
+        'rack': row['rack'],
+        'drawer': row['drawer'],
+        'box': row['box'],
+        'position': format_position(row['row_pos'], row['col_pos']),
+    } for row in rows[:FILTER_PAGE_SIZE]]
+
+    return jsonify({
+        'matched': len(rows),
+        'birds': len({(r['tube_id'] or '').split('-')[0] for r in rows}),
+        'showing': len(samples),
+        'samples': samples,
+    })

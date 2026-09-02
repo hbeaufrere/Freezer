@@ -29,7 +29,7 @@ _RAPTOR_FILL = PatternFill(start_color='022851', end_color='022851', fill_type='
 _RESEARCH_FILL = PatternFill(start_color='0A3D75', end_color='0A3D75', fill_type='solid')
 
 
-def _format_position(row_pos, col_pos):
+def format_position(row_pos, col_pos):
     """Turn 1-based row/column into a grid label such as A1 or J10."""
     if row_pos is None or col_pos is None:
         return ''
@@ -44,7 +44,20 @@ def _excel_safe(value):
     return value
 
 
-def _raptor_query(filters=None):
+# Every criterion the biobank can be sliced by, and the SQL each one adds.
+# Kept in one table so the on-screen list, the CSV and the workbook cannot
+# drift apart — a count you can see but not download is worse than no count.
+_RAPTOR_CRITERIA = {
+    'species_id': 'rt.species_id = %(species_id)s',
+    'sample_type': 'rt.sample_type = %(sample_type)s',
+    'sex': 'rt.sex = %(sex)s',
+    'age': 'rt.age = %(age)s',
+    'date_from': 'rt.collection_date >= %(date_from)s',
+    'date_to': 'rt.collection_date <= %(date_to)s',
+}
+
+
+def raptor_query(filters=None):
     query = """
         select rt.tube_id, s.banding_code, s.common_name, s.scientific_name,
                rt.sample_type, rt.collection_date, rt.age, rt.sex,
@@ -59,16 +72,13 @@ def _raptor_query(filters=None):
         join shelves sh on r.shelf_id = sh.id
     """
     conditions, params = [], {}
-    if filters:
-        if filters.get('species_id'):
-            conditions.append('rt.species_id = %(species_id)s')
-            params['species_id'] = filters['species_id']
-        if filters.get('date_from'):
-            conditions.append('rt.collection_date >= %(date_from)s')
-            params['date_from'] = filters['date_from']
-        if filters.get('date_to'):
-            conditions.append('rt.collection_date <= %(date_to)s')
-            params['date_to'] = filters['date_to']
+    for field, clause in _RAPTOR_CRITERIA.items():
+        value = (filters or {}).get(field)
+        # A blank select means "any", not "match the empty string".
+        if value is None or value == '':
+            continue
+        conditions.append(clause)
+        params[field] = value
     if conditions:
         query += ' where ' + ' and '.join(conditions)
     query += ' order by rt.tube_id'
@@ -96,7 +106,7 @@ def _raptor_row(row):
         row['freeze_thaw_cycles'],
         row['wrmd_number'], row['vmth_number'],
         row['shelf'], row['rack'], row['drawer'], row['box'],
-        _format_position(row['row_pos'], row['col_pos']),
+        format_position(row['row_pos'], row['col_pos']),
         row['notes'], row['created_at'],
     ]
 
@@ -105,7 +115,7 @@ def _research_row(row):
     return [
         row['sample_id'], row['description'], row['date_stored'], row['freeze_thaw_cycles'],
         row['shelf'], row['rack'], row['drawer'], row['box'],
-        _format_position(row['row_pos'], row['col_pos']),
+        format_position(row['row_pos'], row['col_pos']),
         row['created_at'],
     ]
 
@@ -149,7 +159,7 @@ def _build_csv(headers, rows, to_values):
 
 
 def export_raptor_xlsx(db, filters=None):
-    query, params = _raptor_query(filters)
+    query, params = raptor_query(filters)
     rows = db.execute(query, params).fetchall()
     return _build_workbook(
         'Raptor Biobank', RAPTOR_HEADERS, _RAPTOR_FILL, rows, _raptor_row
@@ -157,7 +167,7 @@ def export_raptor_xlsx(db, filters=None):
 
 
 def export_raptor_csv(db, filters=None):
-    query, params = _raptor_query(filters)
+    query, params = raptor_query(filters)
     rows = db.execute(query, params).fetchall()
     return _build_csv(RAPTOR_HEADERS, rows, _raptor_row)
 

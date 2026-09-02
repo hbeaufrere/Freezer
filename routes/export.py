@@ -20,9 +20,15 @@ XLSX_MIMETYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.she
 
 
 def _raptor_filters():
+    """The criteria the biobank filter offers, read straight off the query
+    string — the same set the on-screen list uses, so Download gives you
+    exactly the rows you were just looking at."""
     args = request.args
     return {
         'species_id': args.get('species_id', type=int),
+        'sample_type': (args.get('sample_type') or '').strip(),
+        'sex': (args.get('sex') or '').strip(),
+        'age': (args.get('age') or '').strip(),
         'date_from': as_date(args, 'date_from'),
         'date_to': as_date(args, 'date_to'),
     }

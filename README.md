@@ -220,6 +220,21 @@ commits, so a failed insert releases the number rather than burning it.
 not; `ILIKE` keeps `rtha` finding `RTHA26001`. User wildcards are escaped, so
 searching `%` matches a literal percent sign.
 
+**The filter is the query, and the download is the same query.** "Find samples
+in the biobank" on the statistics page narrows by species, sample type, sex and
+age, shows how many match and where each one is, and hands the same rows to
+Excel or CSV — WRMD and VMTH numbers included. The criteria build one SQL
+predicate used by all three, so the number on screen is always the number of
+rows in the file. A count you can see but not download, or a download that
+quietly differs from the count, is worse than no count at all.
+
+The dropdowns are built from what the biobank actually holds, with a tally
+beside each option, rather than from the values today's form happens to offer.
+That way nothing is listed that would return nothing, and a sample type
+recorded before an option existed — or after one was renamed — is still
+reachable. The on-screen list stops at 250 rows and says so; the download
+never does.
+
 **Statistics count birds, not tubes.** Several tubes from one bird share a base
 ID with a `-N` suffix, and the sample counts use `split_part` to collapse them.
 `tubes_stored` on the freezer stats is the physical count, used for occupancy.
@@ -342,6 +357,6 @@ made both harder to read.
   would make "who removed RTHA26014, and when" an answerable question.
 - **Retrieval log export.** The log is searchable and paginated in the browser
   but has no Excel/CSV route yet, unlike the two sample tables.
-- **Sample-type reporting.** `sample_type` is recorded and exported but not yet
-  charted. A breakdown on the statistics page would answer "how much liver do
-  we hold" without an export.
+- **Sample-type reporting.** `sample_type` is recorded, filterable and
+  exported, but not charted. A breakdown alongside the age and sex charts
+  would show the shape of the collection at a glance.

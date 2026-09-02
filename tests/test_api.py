@@ -1175,3 +1175,141 @@ def test_the_schema_records_which_end_is_the_front(client, flask_app):
     assert 'downwards' in comments['drawers']
     assert 'front' in (comments['boxes'] or '')
     assert 'back of the drawer' in comments['boxes']
+
+
+# ------------------------------------------------------------
+# Biobank filter
+# ------------------------------------------------------------
+
+@pytest.fixture
+def biobank(client, boxes, flask_app):
+    """A handful of samples that differ along every filterable axis."""
+    from db import get_db
+
+    with flask_app.app_context():
+        db = get_db()
+        second = db.execute(
+            "select id from species where banding_code = 'GHOW'"
+        ).fetchone()['id']
+        first = db.execute(
+            "select id from species where banding_code = 'RTHA'"
+        ).fetchone()['id']
+
+    spec = [
+        (first, 'Plasma', 'Female', 'Adult'),
+        (first, 'Plasma', 'Male', 'Juvenile'),
+        (first, 'Packed RBCs', 'Female', 'Adult'),
+        (second, 'Liver', 'Unknown', 'Adult'),
+    ]
+    made = []
+    for index, (species, sample_type, sex, age) in enumerate(spec, start=1):
+        made.append(client.post('/api/raptor/tubes', json={
+            'box_id': boxes['raptor']['id'], 'row_pos': 1, 'col_pos': index,
+            'species_id': species, 'collection_date': '2026-04-01',
+            'sample_type': sample_type, 'sex': sex, 'age': age,
+            'wrmd_number': f'W-{index}', 'vmth_number': f'V-{index}',
+        }).get_json())
+    return {'species': {'rtha': first, 'ghow': second}, 'tubes': made}
+
+
+def _matched(client, **criteria):
+    query = '&'.join(f'{k}={v}' for k, v in criteria.items())
+    return client.get(f'/api/raptor/filter?{query}').get_json()
+
+
+def test_filter_with_no_criteria_returns_everything(client, biobank):
+    result = _matched(client)
+    assert result['matched'] == 4
+    assert result['showing'] == 4
+
+
+@pytest.mark.parametrize('criteria,expected', [
+    ({'sample_type': 'Plasma'}, 2),
+    ({'sample_type': 'Packed RBCs'}, 1),
+    ({'sex': 'Female'}, 2),
+    ({'age': 'Adult'}, 3),
+    ({'sex': 'Female', 'age': 'Adult'}, 2),
+    ({'sample_type': 'Plasma', 'sex': 'Male'}, 1),
+    ({'sample_type': 'Liver', 'sex': 'Female'}, 0),
+])
+def test_criteria_combine(client, biobank, criteria, expected):
+    """Criteria narrow together; each one is an AND, not an OR."""
+    assert _matched(client, **criteria)['matched'] == expected
+
+
+def test_filtering_by_species(client, biobank):
+    assert _matched(client, species_id=biobank['species']['ghow'])['matched'] == 1
+    assert _matched(client, species_id=biobank['species']['rtha'])['matched'] == 3
+
+
+def test_a_blank_criterion_means_any_not_empty_string(client, biobank):
+    """An untouched dropdown sends an empty value; it must not be read as a
+    search for samples whose sex is literally ''."""
+    assert _matched(client, sample_type='', sex='', age='')['matched'] == 4
+
+
+def test_the_list_says_where_each_sample_is(client, biobank):
+    sample = _matched(client, sample_type='Liver')['samples'][0]
+    assert sample['shelf'] == 'Upper Shelf'
+    assert sample['rack'].startswith('Rack U')
+    assert sample['box'] and sample['position'] == 'A4'
+    assert sample['wrmd_number'] == 'W-4' and sample['vmth_number'] == 'V-4'
+
+
+def test_the_download_matches_what_is_on_screen(client, biobank):
+    """The count is only worth showing if it is the count you get."""
+    for criteria in ({'sample_type': 'Plasma'}, {'sex': 'Female'}, {'age': 'Adult'}):
+        query = '&'.join(f'{k}={v}' for k, v in criteria.items())
+        shown = _matched(client, **criteria)
+        csv_text = client.get(f'/api/export/raptor/csv?{query}').get_data(as_text=True)
+        rows = [line for line in csv_text.splitlines() if line.strip()][1:]
+        assert len(rows) == shown['matched'], criteria
+
+
+def test_the_csv_carries_the_wrmd_and_vmth_numbers(client, biobank):
+    csv_text = client.get('/api/export/raptor/csv?sample_type=Liver').get_data(as_text=True)
+    header, row = [line for line in csv_text.splitlines() if line.strip()][:2]
+    assert 'WRMD Number' in header and 'VMTH Number' in header
+    assert 'W-4' in row and 'V-4' in row
+    # And where it is, since that is the point of looking it up.
+    assert 'Upper Shelf' in row and 'A4' in row
+
+
+def test_filter_options_come_from_what_is_actually_stored(client, biobank):
+    options = client.get('/api/raptor/filter-options').get_json()
+
+    assert options['total'] == 4
+    assert {t['value'] for t in options['sample_types']} == {'Plasma', 'Packed RBCs', 'Liver'}
+    assert {s['value'] for s in options['sexes']} == {'Female', 'Male', 'Unknown'}
+    assert {a['value'] for a in options['ages']} == {'Adult', 'Juvenile'}
+
+    plasma = next(t for t in options['sample_types'] if t['value'] == 'Plasma')
+    assert plasma['count'] == 2
+
+    # Only species that hold something — offering all 46 would be a list of
+    # mostly empty results.
+    assert {s['banding_code'] for s in options['species']} == {'RTHA', 'GHOW'}
+
+
+def test_filter_counts_birds_as_well_as_tubes(client, boxes, flask_app):
+    """Several tubes from one bird share a base ID; "how many birds" is the
+    question a study asks, and it is not the tube count."""
+    from db import get_db
+
+    with flask_app.app_context():
+        species = get_db().execute(
+            "select id from species where banding_code = 'RTHA'"
+        ).fetchone()['id']
+
+    client.post('/api/raptor/tubes', json={
+        'box_id': boxes['raptor']['id'], 'row_pos': 2, 'col_pos': 1,
+        'species_id': species, 'collection_date': '2026-04-01', 'num_tubes': 3,
+    })
+    result = _matched(client)
+    assert result['matched'] == 3
+    assert result['birds'] == 1
+
+
+def test_filter_needs_a_session(anon):
+    assert anon.get('/api/raptor/filter').status_code == 401
+    assert anon.get('/api/raptor/filter-options').status_code == 401
