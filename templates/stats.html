@@ -59,6 +59,61 @@
             </div>
         </div>
 
+        <div class="card mb-4" id="biobank-filter">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <span>Find samples in the biobank</span>
+                <button class="btn btn-sm btn-link p-0 text-body-secondary" id="btn-filter-clear">
+                    Clear
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-sm-6 col-lg-3">
+                        <label for="filter-species" class="form-label">Species</label>
+                        <select class="form-select" id="filter-species">
+                            <option value="">Any species</option>
+                        </select>
+                    </div>
+                    <div class="col-sm-6 col-lg-3">
+                        <label for="filter-sample-type" class="form-label">Sample type</label>
+                        <select class="form-select" id="filter-sample-type">
+                            <option value="">Any type</option>
+                        </select>
+                    </div>
+                    <div class="col-sm-6 col-lg-3">
+                        <label for="filter-sex" class="form-label">Sex</label>
+                        <select class="form-select" id="filter-sex">
+                            <option value="">Any sex</option>
+                        </select>
+                    </div>
+                    <div class="col-sm-6 col-lg-3">
+                        <label for="filter-age" class="form-label">Age</label>
+                        <select class="form-select" id="filter-age">
+                            <option value="">Any age</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="filter-summary" id="filter-summary">
+                    <div class="filter-count">
+                        <span class="filter-count-value" id="filter-count">&ndash;&ndash;</span>
+                        <span class="filter-count-label" id="filter-count-label">samples</span>
+                    </div>
+                    <div class="filter-actions">
+                        <button class="btn btn-primary btn-sm" id="btn-filter-csv">
+                            <i class="bi bi-filetype-csv me-1"></i>Download CSV
+                        </button>
+                        <button class="btn btn-outline-secondary btn-sm" id="btn-filter-xlsx">
+                            <i class="bi bi-file-earmark-spreadsheet me-1"></i>Excel
+                        </button>
+                    </div>
+                </div>
+
+                <div class="table-responsive filter-results" id="filter-results"></div>
+                <div class="filter-note" id="filter-note" hidden></div>
+            </div>
+        </div>
+
         <div class="row g-3 mb-3">
             <div class="col-lg-6">
                 <div class="card h-100">
@@ -173,10 +228,12 @@
 {% block scripts %}
 <script src="/static/js/stats-charts.js"></script>
 <script src="/static/js/export.js"></script>
+<script src="/static/js/biobank-filter.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', () => {
         initStatsPage();
         initExportButtons();
+        initBiobankFilter();
     });
 </script>
 {% endblock %}
