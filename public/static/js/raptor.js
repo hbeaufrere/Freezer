@@ -47,6 +47,16 @@ async function initRaptorPage() {
 
     document.addEventListener('retrievallogged', onRaptorRetrievalLogged);
 
+    // Renaming a rack changes what "Other Species" excludes elsewhere, so
+    // the cached list of designations follows the edit.
+    document.addEventListener('rackrenamed', async () => {
+        const fresh = await API.get('/api/freezer').catch(() => null);
+        if (!fresh) return;
+        rackDesignations = fresh
+            .filter((s) => s.section === 'raptor')
+            .flatMap((s) => s.racks.map((r) => r.designation).filter(Boolean));
+    });
+
     const sampleType = document.getElementById('raptor-sample-type');
     sampleType.addEventListener('change', syncSampleTypeHint);
     document.getElementById('btn-add-species').addEventListener('click', addNewSpecies);
@@ -57,8 +67,13 @@ async function initRaptorPage() {
 
 /* ---- Species filtering by rack designation ---------------- */
 
+/* Species codes anywhere in a rack's name. Now that the line is free text,
+   "RTHA / RSHA — plasma only" has to yield both hawks, so tokens are matched
+   wherever they sit — and checked against the real species list, so a
+   capitalised WITH or FROM cannot pass as a bird. */
 function parseDesignationCodes(designation) {
-    return designation.split(' / ').map((s) => s.trim()).filter((s) => /^[A-Z]{4}$/.test(s));
+    const known = new Set(speciesList.map((s) => s.banding_code));
+    return (designation.match(/\b[A-Z]{4}\b/g) || []).filter((code) => known.has(code));
 }
 
 function isOwl(species) {
@@ -67,9 +82,16 @@ function isOwl(species) {
 
 /* Racks carry a designation like "RTHA / RSHA / SWHA". The form offers only
    those species, so a hawk cannot be filed in the owl rack by accident.
-   Returns null when the rack has no designation and anything may go in it. */
+   Returns null — anything may go in — when the rack has no designation, or
+   when its name carries no species codes at all: a rack renamed "Kestrel PK
+   study" has opted out of the narrowing, not into an empty list. */
 function getAllowedSpecies(designation) {
     if (!designation) return null;
+    if (designation !== 'Other Species'
+        && !designation.includes('Other Owls')
+        && parseDesignationCodes(designation).length === 0) {
+        return null;
+    }
 
     if (designation === 'Other Species') {
         const claimed = new Set();

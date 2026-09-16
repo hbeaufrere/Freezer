@@ -740,49 +740,43 @@ body {
     padding-left: 2px;
 }
 
-/* The rack's own line, above its drawers. Same look as the drawer note,
-   sized for a title rather than a margin scribble. */
-.rack-note {
+/* The rack's name, editable in place. Reads exactly like the static
+   designation until you point at it, so the overview and the section pages
+   look the same. */
+.rack-designation-input {
     display: block;
     width: 100%;
-    margin: 0 0 0.4rem;
-    font-size: 0.68rem;
+    margin: 0.1rem 0 0.35rem;
+    font-size: 0.6rem;
     line-height: 1.25;
     text-align: center;
     padding: 2px 5px;
     border: 1px solid transparent;
     border-radius: 3px;
     background: transparent;
-    color: var(--f-ink);
-    transition: background-color 0.12s, border-color 0.12s;
+    color: var(--f-muted);
+    text-overflow: ellipsis;
+    transition: background-color 0.12s, border-color 0.12s, color 0.12s;
 }
 
-.rack-note::placeholder { color: var(--f-muted); opacity: 0.6; }
+.rack-designation-input::placeholder { color: var(--f-muted); opacity: 0.6; }
 
-.rack-note:hover {
+.rack-designation-input:hover {
+    color: var(--f-ink);
     background: var(--f-surface-2);
     border-color: var(--f-hairline);
 }
 
-.rack-note:focus {
+.rack-designation-input:focus {
     outline: none;
+    color: var(--f-ink);
     background: var(--f-surface-2);
     border-color: var(--f-accent);
 }
 
-.rack-note.is-saved {
+.rack-designation-input.is-saved {
     border-color: var(--f-ok);
     background: color-mix(in srgb, var(--f-ok) 12%, transparent);
-}
-
-.rack-note-static {
-    margin: -0.15rem 0 0.4rem;
-    font-size: 0.62rem;
-    text-align: center;
-    color: var(--f-ink-soft);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
 }
 
 /* ---- Box slots -------------------------------------------- */

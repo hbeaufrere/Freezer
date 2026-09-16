@@ -1519,7 +1519,7 @@ def test_freezer_stats_sample_types_is_empty_not_missing_when_nothing_is_stored(
 
 
 # ------------------------------------------------------------
-# Rack notes
+# Rack names
 # ------------------------------------------------------------
 
 def _first_research_rack(client):
@@ -1527,33 +1527,64 @@ def _first_research_rack(client):
     return next(s for s in shelves if s['section'] == 'research')['racks'][0]
 
 
-def test_rack_note_round_trips(client):
+def _first_raptor_rack(client):
+    shelves = client.get('/api/freezer').get_json()
+    return next(s for s in shelves if s['section'] == 'raptor')['racks'][0]
+
+
+def test_a_research_rack_can_be_named(client):
     rack = _first_research_rack(client)
-    assert rack['note'] is None
+    assert rack['designation'] is None
 
-    saved = client.put(f'/api/racks/{rack["id"]}', json={'note': 'Kestrel PK study'}).get_json()
-    assert saved['note'] == 'Kestrel PK study'
-    # The label and designation are untouched: only the note is editable.
-    assert saved['label'] == rack['label']
-    assert saved['designation'] == rack['designation']
+    saved = client.put(f'/api/racks/{rack["id"]}', json={'designation': 'Kestrel PK study'}).get_json()
+    assert saved['designation'] == 'Kestrel PK study'
+    assert saved['label'] == rack['label'], 'the positional label is not what changed'
+    assert _first_research_rack(client)['designation'] == 'Kestrel PK study'
 
-    # It rides along in the freezer tree, which is what the pages draw from.
-    assert _first_research_rack(client)['note'] == 'Kestrel PK study'
-
-    cleared = client.put(f'/api/racks/{rack["id"]}', json={'note': '   '}).get_json()
-    assert cleared['note'] is None
+    cleared = client.put(f'/api/racks/{rack["id"]}', json={'designation': '  '}).get_json()
+    assert cleared['designation'] is None
 
 
-def test_rack_note_length_is_capped(client):
+def test_a_raptor_rack_species_line_is_editable(client):
+    """The line that was asked for — not a subtitle under it."""
+    rack = _first_raptor_rack(client)
+    original = rack['designation']
+    assert original, 'raptor racks are seeded with a species line'
+
+    try:
+        saved = client.put(f'/api/racks/{rack["id"]}',
+                           json={'designation': 'RTHA / RSHA / SWHA — plasma only'}).get_json()
+        assert saved['designation'] == 'RTHA / RSHA / SWHA — plasma only'
+        # The species filter reads codes out of the line, so the codes surviving
+        # a rename is what keeps the form narrowing correctly.
+        box = client.get('/api/boxes/1').get_json()
+        assert box['rack_designation'] == 'RTHA / RSHA / SWHA — plasma only'
+    finally:
+        client.put(f'/api/racks/{rack["id"]}', json={'designation': original})
+
+
+def test_rack_name_length_is_capped(client):
     rack = _first_research_rack(client)
-    response = client.put(f'/api/racks/{rack["id"]}', json={'note': 'x' * 201})
+    response = client.put(f'/api/racks/{rack["id"]}', json={'designation': 'x' * 101})
     assert response.status_code == 400
-    assert '200' in response.get_json()['error']
+    assert '100' in response.get_json()['error']
 
 
-def test_rack_note_on_a_missing_rack_is_404(client):
-    assert client.put('/api/racks/999999', json={'note': 'nobody'}).status_code == 404
+def test_renaming_a_missing_rack_is_404(client):
+    assert client.put('/api/racks/999999', json={'designation': 'nobody'}).status_code == 404
 
 
-def test_rack_note_needs_a_session(anon):
-    assert anon.put('/api/racks/1', json={'note': 'x'}).status_code == 401
+def test_renaming_a_rack_needs_a_session(anon):
+    assert anon.put('/api/racks/1', json={'designation': 'x'}).status_code == 401
+
+
+def test_the_rack_note_column_is_gone(client, flask_app):
+    """0007 added it, 0008 removes it: a column nothing reads is dead weight."""
+    from db import get_db
+
+    with flask_app.app_context():
+        cols = {r['column_name'] for r in get_db().execute(
+            "select column_name from information_schema.columns where table_name = 'racks'"
+        ).fetchall()}
+    assert 'note' not in cols
+    assert 'designation' in cols
