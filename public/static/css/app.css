@@ -740,6 +740,51 @@ body {
     padding-left: 2px;
 }
 
+/* The rack's own line, above its drawers. Same look as the drawer note,
+   sized for a title rather than a margin scribble. */
+.rack-note {
+    display: block;
+    width: 100%;
+    margin: 0 0 0.4rem;
+    font-size: 0.68rem;
+    line-height: 1.25;
+    text-align: center;
+    padding: 2px 5px;
+    border: 1px solid transparent;
+    border-radius: 3px;
+    background: transparent;
+    color: var(--f-ink);
+    transition: background-color 0.12s, border-color 0.12s;
+}
+
+.rack-note::placeholder { color: var(--f-muted); opacity: 0.6; }
+
+.rack-note:hover {
+    background: var(--f-surface-2);
+    border-color: var(--f-hairline);
+}
+
+.rack-note:focus {
+    outline: none;
+    background: var(--f-surface-2);
+    border-color: var(--f-accent);
+}
+
+.rack-note.is-saved {
+    border-color: var(--f-ok);
+    background: color-mix(in srgb, var(--f-ok) 12%, transparent);
+}
+
+.rack-note-static {
+    margin: -0.15rem 0 0.4rem;
+    font-size: 0.62rem;
+    text-align: center;
+    color: var(--f-ink-soft);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 /* ---- Box slots -------------------------------------------- */
 
 .box-slot {

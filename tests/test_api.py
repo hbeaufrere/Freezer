@@ -1516,3 +1516,44 @@ def test_freezer_stats_break_raptor_tubes_down_by_sample_type(client, boxes, spe
 def test_freezer_stats_sample_types_is_empty_not_missing_when_nothing_is_stored(client):
     stats = client.get('/api/stats/freezer').get_json()
     assert stats['raptor_sample_types'] == []
+
+
+# ------------------------------------------------------------
+# Rack notes
+# ------------------------------------------------------------
+
+def _first_research_rack(client):
+    shelves = client.get('/api/freezer').get_json()
+    return next(s for s in shelves if s['section'] == 'research')['racks'][0]
+
+
+def test_rack_note_round_trips(client):
+    rack = _first_research_rack(client)
+    assert rack['note'] is None
+
+    saved = client.put(f'/api/racks/{rack["id"]}', json={'note': 'Kestrel PK study'}).get_json()
+    assert saved['note'] == 'Kestrel PK study'
+    # The label and designation are untouched: only the note is editable.
+    assert saved['label'] == rack['label']
+    assert saved['designation'] == rack['designation']
+
+    # It rides along in the freezer tree, which is what the pages draw from.
+    assert _first_research_rack(client)['note'] == 'Kestrel PK study'
+
+    cleared = client.put(f'/api/racks/{rack["id"]}', json={'note': '   '}).get_json()
+    assert cleared['note'] is None
+
+
+def test_rack_note_length_is_capped(client):
+    rack = _first_research_rack(client)
+    response = client.put(f'/api/racks/{rack["id"]}', json={'note': 'x' * 201})
+    assert response.status_code == 400
+    assert '200' in response.get_json()['error']
+
+
+def test_rack_note_on_a_missing_rack_is_404(client):
+    assert client.put('/api/racks/999999', json={'note': 'nobody'}).status_code == 404
+
+
+def test_rack_note_needs_a_session(anon):
+    assert anon.put('/api/racks/1', json={'note': 'x'}).status_code == 401
