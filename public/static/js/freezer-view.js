@@ -144,6 +144,19 @@ function createRackElement(rack, options = {}) {
 
     const drawers = rackEl.querySelector('.rack-drawers');
 
+    // The line the lab writes on the rack — a study, a project, a person.
+    // Same rules as the drawer note: editable on the section pages, read-only
+    // on the overview.
+    if (options.editableNotes) {
+        drawers.before(rackNoteInput(rack));
+    } else if (rack.note) {
+        const note = document.createElement('div');
+        note.className = 'rack-note-static';
+        note.textContent = rack.note;
+        note.title = rack.note;
+        drawers.before(note);
+    }
+
     // Column numbers over the box strip. Without them the four rectangles are
     // anonymous, and B3 is only discoverable by hovering.
     const widest = Math.max(0, ...rack.drawers.map((d) => d.boxes.length));
@@ -231,6 +244,42 @@ function createRackElement(rack, options = {}) {
     });
 
     return rackEl;
+}
+
+function rackNoteInput(rack) {
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'rack-note';
+    input.value = rack.note || '';
+    input.placeholder = 'Name this rack…';
+    input.maxLength = 200;
+    input.setAttribute('aria-label', `Note for ${rack.label || 'rack ' + rack.position}`);
+
+    let saved = rack.note || '';
+
+    async function commit() {
+        const value = input.value.trim();
+        if (value === saved) return;
+        try {
+            await API.put(`/api/racks/${rack.id}`, { note: value });
+            saved = value;
+            rack.note = value;
+            input.classList.add('is-saved');
+            setTimeout(() => input.classList.remove('is-saved'), 900);
+        } catch (err) {
+            input.value = saved;
+            showToast(err.message, 'error');
+        }
+    }
+
+    input.addEventListener('blur', commit);
+    input.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') { event.preventDefault(); input.blur(); }
+        if (event.key === 'Escape') { input.value = saved; input.blur(); }
+    });
+    input.addEventListener('click', (event) => event.stopPropagation());
+
+    return input;
 }
 
 function drawerNoteInput(drawer) {

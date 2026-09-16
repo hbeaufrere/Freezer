@@ -55,6 +55,7 @@ def clean_database(flask_app):
         db.execute('truncate retrievals, raptor_tubes, research_tubes, raptor_id_sequence restart identity')
         db.execute('truncate pending_dropoffs restart identity')
         db.execute('update drawers set note = null')
+        db.execute('update racks set note = null')
         # Box type is structure, not sample data, so it survives a truncate —
         # which meant a box left plain by one test silently changed how the
         # next test's writes behaved.
