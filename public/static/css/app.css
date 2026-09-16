@@ -1860,3 +1860,85 @@ body {
     font-size: 0.78rem;
     color: var(--f-muted);
 }
+
+
+/* ============================================================
+   ONE BIRD, SEVERAL TUBES
+   ============================================================ */
+
+.bird-mode {
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--f-hairline);
+}
+
+.bird-mode .btn-check:checked + .btn {
+    background: var(--f-accent);
+    border-color: var(--f-accent);
+    color: var(--f-accent-ink);
+}
+
+.bird-lookup { margin-top: 0.85rem; }
+
+.bird-card {
+    margin-top: 0.6rem;
+    padding: 0.6rem 0.8rem;
+    border: 1px solid var(--f-hairline);
+    border-left: 3px solid var(--f-accent);
+    border-radius: var(--f-radius-sm);
+    background: var(--f-surface-2);
+    font-size: 0.85rem;
+}
+
+.bird-card.is-missing {
+    border-left-color: var(--f-danger);
+    color: var(--f-danger);
+}
+
+.bird-card-head {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 0.6rem;
+    align-items: baseline;
+}
+
+.bird-card-tubes {
+    margin-top: 0.35rem;
+    color: var(--f-muted);
+}
+
+.bird-tube {
+    display: inline-block;
+    margin: 0.2rem 0.4rem 0 0;
+    padding: 0.1rem 0.5rem;
+    border-radius: 999px;
+    background: var(--f-surface);
+    border: 1px solid var(--f-hairline);
+    color: var(--f-ink);
+}
+
+.bird-tube small {
+    font-family: var(--f-mono);
+    color: var(--f-muted);
+    margin-left: 0.3rem;
+}
+
+.bird-card-next {
+    margin-top: 0.45rem;
+    color: var(--f-ink-soft);
+}
+
+/* A secondary action in the footer that is neither a peer of Save nor a
+   destructive one: quiet until pointed at. */
+.quiet-btn {
+    font-size: 0.85rem;
+    color: var(--f-muted);
+    border: 1px solid transparent;
+}
+
+.quiet-btn:hover,
+.quiet-btn:focus-visible {
+    color: var(--f-accent);
+    border-color: currentColor;
+    background: transparent;
+}

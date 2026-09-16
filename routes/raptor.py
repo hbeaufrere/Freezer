@@ -52,6 +52,104 @@ def _free_positions(db, box_id, grid_rows, grid_cols, start_row, start_col, coun
     return [pos for pos in from_click if pos not in occupied][:count]
 
 
+# ------------------------------------------------------------
+# One bird, several tubes
+#
+# A bird's samples share a base ID and differ by suffix: RTHA26001 is a bird
+# with one tube; RTHA26001-1 / -2 / -3 are three tubes from it. The base is
+# the bird, the suffix is the tube. Everything below works in those terms so a
+# bird sampled three ways ends up as one bird with three tubes, not three
+# birds — which is what happened when each sample type was filed separately
+# and each filing drew a fresh sequence number.
+# ------------------------------------------------------------
+
+def bird_base(tube_id):
+    """RTHA26001-2 -> RTHA26001. Tolerates whatever a person types."""
+    return (tube_id or '').strip().upper().split('-')[0]
+
+
+def _bird_tubes(db, base):
+    """Every tube of one bird, whichever box each sits in."""
+    return db.execute(
+        f"""{_TUBE_SELECT}
+            where rt.tube_id = %(base)s or rt.tube_id like %(pattern)s
+            order by rt.tube_id""",
+        {'base': base, 'pattern': base + '-%'},
+    ).fetchall()
+
+
+def _suffix_of(tube_id, base):
+    """The tube number within its bird. A plain ID counts as tube 1."""
+    rest = tube_id[len(base):]
+    if not rest:
+        return 1
+    try:
+        return int(rest.lstrip('-'))
+    except ValueError:
+        return 1
+
+
+def _next_tube_ids(base, existing, count):
+    """IDs for ``count`` more tubes of a bird that already has ``existing``.
+
+    Never renumbers what is already there — those IDs are printed on frozen
+    tubes — so the new ones simply continue from the highest in use.
+    """
+    highest = max((_suffix_of(t['tube_id'], base) for t in existing), default=0)
+    return [f'{base}-{highest + i + 1}' for i in range(count)]
+
+
+def _bird_from(tubes):
+    """Bird-level facts, read off the tubes it already has. First tube wins;
+    they are meant to agree, and where they do not, the earliest filed is the
+    one somebody checked against the bird."""
+    first = tubes[0]
+    return {
+        'bird_id': bird_base(first['tube_id']),
+        'species_id': first['species_id'],
+        'banding_code': first['banding_code'],
+        'common_name': first['common_name'],
+        'scientific_name': first['scientific_name'],
+        'collection_date': first['collection_date'],
+        'age': first['age'],
+        'sex': first['sex'],
+        'wrmd_number': first['wrmd_number'],
+        'vmth_number': first['vmth_number'],
+    }
+
+
+@raptor_bp.route('/api/raptor/birds/<bird_id>')
+def get_bird(bird_id):
+    """A bird and every tube it has, wherever each one sits.
+
+    Accepts a tube ID as well as a bird ID, since the one on the label in your
+    hand is usually a tube.
+    """
+    db = get_db()
+    base = bird_base(bird_id)
+    tubes = _bird_tubes(db, base)
+    if not tubes:
+        raise ApiError(f'No bird with ID {base}.', 404)
+
+    located = db.execute(
+        """select rt.tube_id, rt.sample_type, rt.row_pos, rt.col_pos,
+                  b.label as box_label, d.label as drawer_label, r.label as rack_label
+           from raptor_tubes rt
+           join boxes b on rt.box_id = b.id
+           join drawers d on b.drawer_id = d.id
+           join racks r on d.rack_id = r.id
+           where rt.tube_id = %(base)s or rt.tube_id like %(pattern)s
+           order by rt.tube_id""",
+        {'base': base, 'pattern': base + '-%'},
+    ).fetchall()
+
+    return jsonify({
+        **_bird_from(tubes),
+        'tubes': [dict(r) for r in located],
+        'next_tube_id': _next_tube_ids(base, tubes, 1)[0],
+    })
+
+
 @raptor_bp.route('/api/raptor/tubes')
 def list_tubes():
     box_id = request.args.get('box_id', type=int)
@@ -74,14 +172,31 @@ def create_tube():
     """
     db = get_db()
     data = json_body()
-    require(data, 'box_id', 'row_pos', 'col_pos', 'species_id', 'collection_date')
+    require(data, 'box_id', 'row_pos', 'col_pos')
 
     box_id = as_int(data, 'box_id')
     row_pos = as_int(data, 'row_pos', minimum=1)
     col_pos = as_int(data, 'col_pos', minimum=1)
-    species_id = as_int(data, 'species_id')
-    collection_date = as_date(data, 'collection_date', required=True)
     num_tubes = as_int(data, 'num_tubes', minimum=1, maximum=MAX_TUBES_PER_SAMPLE, default=1)
+
+    # Two ways in. A new bird names its species and date and draws a fresh
+    # sequence number. An existing bird is named by ID, and everything that
+    # describes the bird — species, date, age, sex, case numbers — comes from
+    # what is already on file, so one bird cannot drift into two.
+    bird = None
+    existing = []
+    bird_id = bird_base(text(data, 'bird_id'))
+    if bird_id:
+        existing = _bird_tubes(db, bird_id)
+        if not existing:
+            raise ApiError(f'No bird with ID {bird_id}. Check the ID, or add it as a new bird.', 404)
+        bird = _bird_from(existing)
+        species_id = bird['species_id']
+        collection_date = bird['collection_date']
+    else:
+        require(data, 'species_id', 'collection_date')
+        species_id = as_int(data, 'species_id')
+        collection_date = as_date(data, 'collection_date', required=True)
 
     species = one_or_404(
         db.execute('select id, banding_code from species where id = %s', (species_id,)).fetchone(),
@@ -98,21 +213,17 @@ def create_tube():
 
     shared = (
         text(data, 'sample_type', 'Plasma') or 'Plasma',
-        text(data, 'age'),
-        text(data, 'sex'),
+        bird['age'] if bird else text(data, 'age'),
+        bird['sex'] if bird else text(data, 'sex'),
         as_int(data, 'freeze_thaw_cycles', minimum=0, default=0),
-        text(data, 'wrmd_number'),
-        text(data, 'vmth_number'),
+        bird['wrmd_number'] if bird else text(data, 'wrmd_number'),
+        bird['vmth_number'] if bird else text(data, 'vmth_number'),
         text(data, 'notes'),
     )
 
     with write(db):
-        base_id = generate_raptor_tube_id(
-            db, species['banding_code'], species['id'], collection_date
-        )
-
         if num_tubes == 1:
-            placements = [(base_id, row_pos, col_pos)]
+            positions = [(row_pos, col_pos)]
         else:
             positions = _free_positions(
                 db, box_id, box['grid_rows'], box['grid_cols'], row_pos, col_pos, num_tubes
@@ -122,9 +233,19 @@ def create_tube():
                     f'Only {len(positions)} free position(s) left in this box, '
                     f'but {num_tubes} tubes were requested.'
                 )
-            placements = [
-                (f'{base_id}-{i + 1}', r, c) for i, (r, c) in enumerate(positions)
+
+        if bird:
+            # No new sequence number: the bird already has one.
+            ids = _next_tube_ids(bird_id, existing, num_tubes)
+        else:
+            base_id = generate_raptor_tube_id(
+                db, species['banding_code'], species['id'], collection_date
+            )
+            ids = [base_id] if num_tubes == 1 else [
+                f'{base_id}-{i + 1}' for i in range(num_tubes)
             ]
+
+        placements = [(tid, r, c) for tid, (r, c) in zip(ids, positions)]
 
         created = []
         for tube_id, r, c in placements:
@@ -193,6 +314,66 @@ def record_thaw(tube_id):
     return jsonify(dict(tube))
 
 
+@raptor_bp.route('/api/raptor/tubes/<int:tube_id>/bird', methods=['PUT'])
+def reassign_tube(tube_id):
+    """Say that a tube already on file belongs to another bird.
+
+    For the case where the same bird was filed twice — plasma under one ID,
+    RBCs under the next — because the form had no way to say "same bird". The
+    tube keeps its box, position, sample type and freeze-thaw count; it takes
+    the bird's ID with the next free suffix, and the bird's species, date,
+    age, sex and case numbers, since those describe the animal, not the tube.
+
+    The old ID goes into the notes and stays searchable. It is printed on a
+    tube in a freezer, and the person who next reads that label needs to be
+    able to find out what it became.
+    """
+    db = get_db()
+    data = json_body()
+    require(data, 'bird_id')
+
+    tube = one_or_404(_fetch_tube(db, tube_id), 'Tube')
+    target = bird_base(text(data, 'bird_id'))
+
+    if bird_base(tube['tube_id']) == target:
+        raise ApiError(f'{tube["tube_id"]} already belongs to {target}.')
+
+    existing = _bird_tubes(db, target)
+    if not existing:
+        raise ApiError(f'No bird with ID {target}.', 404)
+    bird = _bird_from(existing)
+
+    if bird['species_id'] != tube['species_id']:
+        raise ApiError(
+            f'{tube["tube_id"]} is a {tube["common_name"]} and {target} is a '
+            f'{bird["common_name"]}. A tube cannot move to a bird of another species.'
+        )
+
+    old_id = tube['tube_id']
+    new_id = _next_tube_ids(target, existing, 1)[0]
+    note = f'Relabelled from {old_id}'
+    notes = f'{tube["notes"]}\n{note}' if tube['notes'] else note
+
+    with write(db):
+        db.execute(
+            """update raptor_tubes
+               set tube_id = %s, collection_date = %s, age = %s, sex = %s,
+                   wrmd_number = %s, vmth_number = %s, notes = %s
+               where id = %s""",
+            (new_id, bird['collection_date'], bird['age'], bird['sex'],
+             bird['wrmd_number'], bird['vmth_number'], notes, tube_id),
+        )
+        # Log entries still tied to this tube follow the rename; the ones
+        # whose tube is gone keep their snapshot, as they should.
+        db.execute(
+            'update retrievals set tube_label = %s where raptor_tube_id = %s',
+            (new_id, tube_id),
+        )
+        updated = dict(_fetch_tube(db, tube_id))
+
+    return jsonify({**updated, 'previous_tube_id': old_id})
+
+
 @raptor_bp.route('/api/raptor/tubes/<int:tube_id>', methods=['DELETE'])
 def delete_tube(tube_id):
     db = get_db()
@@ -228,6 +409,7 @@ def search_tubes():
               or s.banding_code ilike %(q)s
               or rt.wrmd_number ilike %(q)s
               or rt.vmth_number ilike %(q)s
+              or rt.notes ilike %(q)s
            order by rt.tube_id
            limit 50""",
         {'q': like_pattern(q)},

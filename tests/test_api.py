@@ -1313,3 +1313,184 @@ def test_filter_counts_birds_as_well_as_tubes(client, boxes, flask_app):
 def test_filter_needs_a_session(anon):
     assert anon.get('/api/raptor/filter').status_code == 401
     assert anon.get('/api/raptor/filter-options').status_code == 401
+
+
+# ------------------------------------------------------------
+# One bird, several sample types
+# ------------------------------------------------------------
+
+def _second_raptor_box(client):
+    """A raptor box other than the fixture's, so the tubes really are apart."""
+    shelves = client.get('/api/freezer').get_json()
+    raptor = next(s for s in shelves if s['section'] == 'raptor')
+    return raptor['racks'][1]['drawers'][0]['boxes'][0]['id']
+
+
+def _new_bird(client, box_id, species_id, **extra):
+    return client.post('/api/raptor/tubes', json={
+        'box_id': box_id, 'row_pos': 1, 'col_pos': 1,
+        'species_id': species_id, 'collection_date': '2026-04-01',
+        'age': 'Adult', 'sex': 'Female', 'wrmd_number': 'W-100', 'vmth_number': 'V-100',
+        **extra,
+    }).get_json()
+
+
+def test_a_second_sample_type_joins_the_same_bird(client, boxes, species_id):
+    """Plasma in one box, RBCs in another — one bird, not two."""
+    plasma = _new_bird(client, boxes['raptor']['id'], species_id, sample_type='Plasma')
+    assert plasma['tube_id'] == 'RTHA26001'
+
+    rbc = client.post('/api/raptor/tubes', json={
+        'box_id': _second_raptor_box(client), 'row_pos': 3, 'col_pos': 3,
+        'bird_id': 'RTHA26001', 'sample_type': 'Packed RBCs',
+    })
+    assert rbc.status_code == 201, rbc.get_json()
+    rbc = rbc.get_json()
+    assert rbc['tube_id'] == 'RTHA26001-2'
+    assert rbc['sample_type'] == 'Packed RBCs'
+
+    # The bird's facts came from the bird, not from a form left blank.
+    for field in ('species_id', 'collection_date', 'age', 'sex', 'wrmd_number', 'vmth_number'):
+        assert rbc[field] == plasma[field], field
+
+    # And the sequence did not move: the next new bird is 002, not 003.
+    another = _new_bird(client, boxes['raptor']['id'], species_id, row_pos=2, col_pos=1)
+    assert another['tube_id'] == 'RTHA26002'
+
+
+def test_adding_to_a_bird_continues_its_numbering(client, boxes, species_id):
+    """A bird filed as three tubes at once is -1, -2, -3; the liver is -4."""
+    client.post('/api/raptor/tubes', json={
+        'box_id': boxes['raptor']['id'], 'row_pos': 1, 'col_pos': 1,
+        'species_id': species_id, 'collection_date': '2026-04-01', 'num_tubes': 3,
+    })
+    liver = client.post('/api/raptor/tubes', json={
+        'box_id': boxes['raptor']['id'], 'row_pos': 5, 'col_pos': 5,
+        'bird_id': 'RTHA26001-1', 'sample_type': 'Liver',   # a tube ID works too
+    }).get_json()
+    assert liver['tube_id'] == 'RTHA26001-4'
+
+
+def test_several_tubes_can_join_a_bird_at_once(client, boxes, species_id):
+    _new_bird(client, boxes['raptor']['id'], species_id)
+    result = client.post('/api/raptor/tubes', json={
+        'box_id': boxes['raptor']['id'], 'row_pos': 2, 'col_pos': 1,
+        'bird_id': 'RTHA26001', 'sample_type': 'Packed RBCs', 'num_tubes': 2,
+    }).get_json()
+    assert [t['tube_id'] for t in result['tubes']] == ['RTHA26001-2', 'RTHA26001-3']
+
+
+def test_an_unknown_bird_is_refused_not_invented(client, boxes):
+    response = client.post('/api/raptor/tubes', json={
+        'box_id': boxes['raptor']['id'], 'row_pos': 1, 'col_pos': 1,
+        'bird_id': 'RTHA26099', 'sample_type': 'Liver',
+    })
+    assert response.status_code == 404
+    assert 'RTHA26099' in response.get_json()['error']
+
+
+def test_bird_lookup_lists_every_tube_wherever_it_is(client, boxes, species_id):
+    _new_bird(client, boxes['raptor']['id'], species_id)
+    client.post('/api/raptor/tubes', json={
+        'box_id': _second_raptor_box(client), 'row_pos': 1, 'col_pos': 1,
+        'bird_id': 'RTHA26001', 'sample_type': 'Liver',
+    })
+
+    bird = client.get('/api/raptor/birds/rtha26001-2').get_json()   # lower case, suffixed
+    assert bird['bird_id'] == 'RTHA26001'
+    assert bird['common_name'] == 'Red-tailed Hawk'
+    assert bird['wrmd_number'] == 'W-100'
+    assert [t['sample_type'] for t in bird['tubes']] == ['Plasma', 'Liver']
+    assert len({t['box_label'] for t in bird['tubes']}) == 2, 'two boxes'
+    assert bird['next_tube_id'] == 'RTHA26001-3'
+
+    assert client.get('/api/raptor/birds/RTHA26050').status_code == 404
+
+
+def test_the_barn_owl_case_two_filings_become_one_bird(client, boxes, flask_app):
+    """Plasma filed as ABOW26001, RBCs as ABOW26002, because there was no way
+    to say "same bird". Reassigning the second makes it ABOW26001-2."""
+    from db import get_db
+
+    with flask_app.app_context():
+        bano = get_db().execute(
+            "select id from species where banding_code = 'ABOW'"
+        ).fetchone()['id']
+
+    plasma = _new_bird(client, boxes['raptor']['id'], bano, sample_type='Plasma')
+    rbc = _new_bird(client, boxes['raptor']['id'], bano, row_pos=1, col_pos=2,
+                    sample_type='Packed RBCs', age='Juvenile', sex='Unknown',
+                    wrmd_number='', vmth_number='')
+    assert (plasma['tube_id'], rbc['tube_id']) == ('ABOW26001', 'ABOW26002')
+
+    # Somebody logged a retrieval against the RBC tube under its old name.
+    client.post('/api/retrievals', json={
+        'section': 'raptor', 'tube_id': rbc['id'], 'retrieved_by': 'Alice',
+    })
+
+    moved = client.put(f'/api/raptor/tubes/{rbc["id"]}/bird', json={'bird_id': 'ABOW26001'})
+    assert moved.status_code == 200, moved.get_json()
+    moved = moved.get_json()
+
+    assert moved['tube_id'] == 'ABOW26001-2'
+    assert moved['previous_tube_id'] == 'ABOW26002'
+    # Tube-level facts stay with the tube; bird-level facts come from the bird.
+    assert moved['sample_type'] == 'Packed RBCs'
+    assert moved['row_pos'] == 1 and moved['col_pos'] == 2
+    assert moved['age'] == 'Adult' and moved['sex'] == 'Female'
+    assert moved['wrmd_number'] == 'W-100' and moved['vmth_number'] == 'V-100'
+    assert 'Relabelled from ABOW26002' in moved['notes']
+
+    # The bird is now one bird with two tubes, and ABOW26002 is nobody.
+    bird = client.get('/api/raptor/birds/ABOW26001').get_json()
+    assert [t['tube_id'] for t in bird['tubes']] == ['ABOW26001', 'ABOW26001-2']
+    assert client.get('/api/raptor/birds/ABOW26002').status_code == 404
+
+    # The label in the freezer still says ABOW26002; typing that must find it.
+    found = client.get('/api/raptor/search?q=ABOW26002').get_json()
+    assert [t['tube_id'] for t in found] == ['ABOW26001-2']
+
+    # The retrieval log follows the rename rather than pointing at a ghost.
+    entry = client.get('/api/retrievals').get_json()['entries'][0]
+    assert entry['tube_label'] == 'ABOW26001-2'
+
+    # And the statistics agree it was one bird all along.
+    assert client.get('/api/raptor/filter').get_json()['birds'] == 1
+
+
+def test_a_tube_cannot_move_to_a_bird_of_another_species(client, boxes, species_id, flask_app):
+    from db import get_db
+
+    with flask_app.app_context():
+        ghow = get_db().execute(
+            "select id from species where banding_code = 'GHOW'"
+        ).fetchone()['id']
+
+    _new_bird(client, boxes['raptor']['id'], species_id)               # RTHA26001
+    owl = _new_bird(client, boxes['raptor']['id'], ghow, row_pos=2, col_pos=2)  # GHOW26001
+
+    response = client.put(f'/api/raptor/tubes/{owl["id"]}/bird', json={'bird_id': 'RTHA26001'})
+    assert response.status_code == 400
+    assert 'another species' in response.get_json()['error']
+    # Untouched.
+    assert client.get('/api/raptor/birds/GHOW26001').status_code == 200
+
+
+def test_moving_a_tube_to_its_own_bird_is_a_no_op_refusal(client, boxes, species_id):
+    tube = _new_bird(client, boxes['raptor']['id'], species_id)
+    response = client.put(f'/api/raptor/tubes/{tube["id"]}/bird', json={'bird_id': 'RTHA26001'})
+    assert response.status_code == 400
+    assert 'already belongs' in response.get_json()['error']
+
+
+def test_reassigning_never_renumbers_tubes_already_labelled(client, boxes, species_id):
+    """IDs already printed on frozen tubes must not change under anyone."""
+    client.post('/api/raptor/tubes', json={
+        'box_id': boxes['raptor']['id'], 'row_pos': 1, 'col_pos': 1,
+        'species_id': species_id, 'collection_date': '2026-04-01', 'num_tubes': 2,
+    })                                                                   # -1, -2
+    stray = _new_bird(client, boxes['raptor']['id'], species_id, row_pos=4, col_pos=4)  # RTHA26002
+
+    client.put(f'/api/raptor/tubes/{stray["id"]}/bird', json={'bird_id': 'RTHA26001'})
+    bird = client.get('/api/raptor/birds/RTHA26001').get_json()
+    assert [t['tube_id'] for t in bird['tubes']] == ['RTHA26001-1', 'RTHA26001-2', 'RTHA26001-3']

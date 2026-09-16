@@ -68,6 +68,38 @@
                     </button>
                 </div>
 
+                <!-- One bird yields several sample types, and they go in
+                     different boxes. This is how the second and third tubes
+                     say which bird they came from instead of becoming birds
+                     of their own. -->
+                <div class="bird-mode" id="raptor-bird-mode">
+                    <div class="btn-group w-100" role="group" aria-label="Which bird is this from">
+                        <input type="radio" class="btn-check" name="raptor-bird-mode"
+                               id="raptor-bird-new" value="new" checked>
+                        <label class="btn btn-outline-secondary" for="raptor-bird-new">
+                            <i class="bi bi-plus-lg me-1"></i>New bird
+                        </label>
+                        <input type="radio" class="btn-check" name="raptor-bird-mode"
+                               id="raptor-bird-existing" value="existing">
+                        <label class="btn btn-outline-secondary" for="raptor-bird-existing">
+                            <i class="bi bi-link-45deg me-1"></i>Same bird as an existing sample
+                        </label>
+                    </div>
+
+                    <div class="bird-lookup" id="raptor-bird-lookup" hidden>
+                        <label for="raptor-bird-id" class="form-label">Bird or tube ID</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control font-monospace text-uppercase"
+                                   id="raptor-bird-id" placeholder="e.g. RTHA26001"
+                                   autocomplete="off" spellcheck="false">
+                            <button class="btn btn-outline-secondary" type="button" id="btn-raptor-bird-find">
+                                <i class="bi bi-search me-1"></i>Find
+                            </button>
+                        </div>
+                        <div class="bird-card" id="raptor-bird-card" hidden></div>
+                    </div>
+                </div>
+
                 <div class="row g-3">
                     <div class="col-sm-4">
                         <div class="form-label">Position</div>
@@ -167,6 +199,11 @@
                         title="Reconciling only — deletes the record with no entry in the retrieval log"
                         hidden>
                     <i class="bi bi-eraser me-1"></i>Delete record
+                </button>
+                <button type="button" class="btn quiet-btn" id="btn-raptor-rebird"
+                        title="This tube was filed as its own bird but belongs to another one"
+                        hidden>
+                    <i class="bi bi-link-45deg me-1"></i>Same bird as&hellip;
                 </button>
                 <button type="button" class="btn btn-outline-secondary" id="btn-raptor-retrieve" hidden>
                     <i class="bi bi-box-arrow-up me-1"></i>Log retrieval
