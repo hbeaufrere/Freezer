@@ -35,6 +35,15 @@ async function initRaptorPage() {
     document.getElementById('btn-raptor-thaw').addEventListener('click', recordRaptorThaw);
     document.getElementById('btn-raptor-barcode').addEventListener('click', showRaptorBarcode);
     document.getElementById('btn-raptor-retrieve').addEventListener('click', logRaptorRetrieval);
+    document.getElementById('btn-raptor-rebird').addEventListener('click', reassignRaptorTube);
+
+    document.querySelectorAll('input[name="raptor-bird-mode"]').forEach((radio) => {
+        radio.addEventListener('change', () => setBirdMode(radio.value));
+    });
+    document.getElementById('btn-raptor-bird-find').addEventListener('click', findBird);
+    document.getElementById('raptor-bird-id').addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') { event.preventDefault(); findBird(); }
+    });
 
     document.addEventListener('retrievallogged', onRaptorRetrievalLogged);
 
@@ -248,6 +257,11 @@ function openRaptorAddModal(row, col) {
     setRaptorHidden('btn-raptor-thaw', true);
     setRaptorHidden('btn-raptor-barcode', true);
     setRaptorHidden('btn-raptor-retrieve', true);
+    setRaptorHidden('btn-raptor-rebird', true);
+
+    setRaptorHidden('raptor-bird-mode', false);
+    document.getElementById('raptor-bird-new').checked = true;
+    setBirdMode('new');
 
     bootstrap.Modal.getOrCreateInstance(document.getElementById('raptorTubeModal')).show();
 }
@@ -288,6 +302,12 @@ function openRaptorEditModal(tube, row, col) {
     setRaptorHidden('btn-raptor-thaw', false);
     setRaptorHidden('btn-raptor-barcode', false);
     setRaptorHidden('btn-raptor-retrieve', false);
+    setRaptorHidden('btn-raptor-rebird', false);
+
+    setRaptorHidden('raptor-bird-mode', true);
+    linkedBird = null;
+    setBirdFieldsLocked(false);
+    document.getElementById('raptor-species').disabled = true;
 
     document.getElementById('raptorTubeModal').dataset.tubeData = JSON.stringify(tube);
     bootstrap.Modal.getOrCreateInstance(document.getElementById('raptorTubeModal')).show();
@@ -295,26 +315,44 @@ function openRaptorEditModal(tube, row, col) {
 
 async function saveRaptorTube() {
     const dbId = document.getElementById('raptor-tube-db-id').value;
+    const joiningBird = !dbId && birdMode() === 'existing';
+
+    if (joiningBird && !linkedBird) {
+        document.getElementById('raptor-bird-id').focus();
+        return showToast('Find the bird first, so the new tube takes its ID.', 'error');
+    }
+
     const speciesId = parseInt(document.getElementById('raptor-species').value, 10);
     const collectionDate = document.getElementById('raptor-collection-date').value;
 
-    if (!speciesId) return showToast('Choose a species first.', 'error');
-    if (!collectionDate) return showToast('Enter the collection date.', 'error');
+    if (!joiningBird) {
+        if (!speciesId) return showToast('Choose a species first.', 'error');
+        if (!collectionDate) return showToast('Enter the collection date.', 'error');
+    }
 
     const payload = {
         box_id: parseInt(document.getElementById('raptor-tube-box-id').value, 10),
         row_pos: parseInt(document.getElementById('raptor-tube-row').value, 10),
         col_pos: parseInt(document.getElementById('raptor-tube-col').value, 10),
-        species_id: speciesId,
-        collection_date: collectionDate,
         sample_type: document.getElementById('raptor-sample-type').value,
-        age: document.getElementById('raptor-age').value,
-        sex: document.querySelector('input[name="raptor-sex"]:checked')?.value || 'Unknown',
         freeze_thaw_cycles: parseInt(document.getElementById('raptor-freeze-thaw').value, 10) || 0,
-        wrmd_number: document.getElementById('raptor-wrmd').value.trim(),
-        vmth_number: document.getElementById('raptor-vmth').value.trim(),
         notes: document.getElementById('raptor-notes').value.trim(),
     };
+
+    if (joiningBird) {
+        // The bird's own facts are not sent: the server takes them from the
+        // bird, so one bird cannot drift into two descriptions.
+        payload.bird_id = linkedBird.bird_id;
+    } else {
+        Object.assign(payload, {
+            species_id: speciesId,
+            collection_date: collectionDate,
+            age: document.getElementById('raptor-age').value,
+            sex: document.querySelector('input[name="raptor-sex"]:checked')?.value || 'Unknown',
+            wrmd_number: document.getElementById('raptor-wrmd').value.trim(),
+            vmth_number: document.getElementById('raptor-vmth').value.trim(),
+        });
+    }
 
     if (!dbId) {
         payload.num_tubes = parseInt(document.getElementById('raptor-num-tubes').value, 10) || 1;
@@ -328,12 +366,17 @@ async function saveRaptorTube() {
             showToast('Sample updated');
         } else {
             const result = await API.post('/api/raptor/tubes', payload);
-            if (result.tubes) {
-                const first = result.tubes[0].tube_id;
-                const last = result.tubes[result.tubes.length - 1].tube_id;
-                showToast(`${result.tubes.length} tubes created: ${first} to ${last}`);
+            const made = result.tubes || [result];
+            const first = made[0].tube_id;
+            const last = made[made.length - 1].tube_id;
+            if (joiningBird) {
+                showToast(made.length === 1
+                    ? `${first} added to ${linkedBird.bird_id} (${linkedBird.common_name})`
+                    : `${first} to ${last} added to ${linkedBird.bird_id}`);
+            } else if (made.length > 1) {
+                showToast(`${made.length} tubes created: ${first} to ${last}`);
             } else {
-                showToast(`Sample ${result.tube_id} created`);
+                showToast(`Sample ${first} created`);
             }
         }
         bootstrap.Modal.getInstance(document.getElementById('raptorTubeModal')).hide();
@@ -377,6 +420,136 @@ async function deleteRaptorTube() {
 }
 
 /* "Other" only means anything if the tissue is written down, so say so. */
+/* ---- One bird, several sample types ------------------------ */
+
+/* The bird the tube being added belongs to, once found. Null in "new bird"
+   mode or before a lookup has succeeded. */
+let linkedBird = null;
+
+function birdMode() {
+    return document.querySelector('input[name="raptor-bird-mode"]:checked')?.value || 'new';
+}
+
+/* Species, date, age, sex and case numbers describe the animal, not the
+   tube. When the tube joins a bird already on file they come from that bird
+   and are shown locked, so what you see is what will be stored. */
+function setBirdFieldsLocked(locked) {
+    ['raptor-collection-date', 'raptor-age', 'raptor-wrmd', 'raptor-vmth']
+        .forEach((id) => { document.getElementById(id).disabled = locked; });
+    document.querySelectorAll('input[name="raptor-sex"]')
+        .forEach((radio) => { radio.disabled = locked; });
+    document.getElementById('raptor-species').disabled = locked;
+}
+
+function setBirdMode(mode) {
+    const existing = mode === 'existing';
+    setRaptorHidden('raptor-bird-lookup', !existing);
+    linkedBird = null;
+    document.getElementById('raptor-bird-card').hidden = true;
+
+    if (existing) {
+        setBirdFieldsLocked(true);
+        const input = document.getElementById('raptor-bird-id');
+        input.value = '';
+        setTimeout(() => input.focus(), 50);
+    } else {
+        setBirdFieldsLocked(false);
+    }
+}
+
+async function findBird() {
+    const input = document.getElementById('raptor-bird-id');
+    const card = document.getElementById('raptor-bird-card');
+    const wanted = input.value.trim().toUpperCase();
+    if (!wanted) return;
+
+    let bird;
+    try {
+        bird = await API.get(`/api/raptor/birds/${encodeURIComponent(wanted)}`);
+    } catch (err) {
+        linkedBird = null;
+        card.hidden = false;
+        card.className = 'bird-card is-missing';
+        card.innerHTML = `<i class="bi bi-question-circle me-1"></i>${escapeHtml(err.message)}`;
+        return;
+    }
+
+    linkedBird = bird;
+    input.value = bird.bird_id;
+
+    // Fill the locked fields from the bird so the form shows the truth.
+    populateSpeciesDropdown(null);
+    document.getElementById('raptor-species').value = bird.species_id;
+    document.getElementById('raptor-collection-date').value = bird.collection_date || '';
+    document.getElementById('raptor-age').value = bird.age || '';
+    const sexRadio = document.querySelector(
+        `input[name="raptor-sex"][value="${bird.sex || 'Unknown'}"]`);
+    if (sexRadio) sexRadio.checked = true;
+    document.getElementById('raptor-wrmd').value = bird.wrmd_number || '';
+    document.getElementById('raptor-vmth').value = bird.vmth_number || '';
+
+    const has = bird.tubes.map((t) =>
+        `<span class="bird-tube">${escapeHtml(t.sample_type || 'Plasma')}
+            <small>${escapeHtml(t.box_label)} · ${positionLabel(t.row_pos, t.col_pos)}</small></span>`
+    ).join('');
+
+    card.hidden = false;
+    card.className = 'bird-card';
+    card.innerHTML = `
+        <div class="bird-card-head">
+            <strong>${escapeHtml(bird.common_name)}</strong>
+            <span class="text-body-secondary">
+                collected ${escapeHtml(bird.collection_date || '—')}
+                ${bird.age ? ' · ' + escapeHtml(bird.age) : ''}
+                ${bird.sex && bird.sex !== 'Unknown' ? ' · ' + escapeHtml(bird.sex) : ''}
+            </span>
+        </div>
+        <div class="bird-card-tubes">Already has: ${has}</div>
+        <div class="bird-card-next">
+            This tube will be <span class="font-monospace fw-semibold">${escapeHtml(bird.next_tube_id)}</span>
+        </div>`;
+}
+
+/* A tube filed as a bird of its own that should have joined another one.
+   Renames it to the next suffix under that bird and takes the bird's facts;
+   the old ID is kept in the notes because it is printed on the tube. */
+async function reassignRaptorTube() {
+    const dbId = document.getElementById('raptor-tube-db-id').value;
+    const current = document.getElementById('raptor-tube-id-badge').textContent;
+    if (!dbId) return;
+
+    const typed = prompt(
+        `${current} belongs to which bird?\n\nEnter the ID of any sample from that bird `
+        + '(e.g. RTHA26001 or RTHA26001-2).');
+    if (!typed) return;
+
+    let bird;
+    try {
+        bird = await API.get(`/api/raptor/birds/${encodeURIComponent(typed.trim())}`);
+    } catch (err) {
+        return showToast(err.message, 'error');
+    }
+
+    const ok = confirm(
+        `${current} → ${bird.next_tube_id}\n\n`
+        + `It becomes a tube of ${bird.bird_id} (${bird.common_name}, collected `
+        + `${bird.collection_date || '—'}) and takes that bird's age, sex, WRMD and VMTH `
+        + 'numbers. Its box, position, sample type and freeze-thaw count stay as they are.\n\n'
+        + `The tube in the freezer is still labelled ${current}. Reprint the label; `
+        + 'until then, searching the old ID will still find it.');
+    if (!ok) return;
+
+    try {
+        const moved = await API.put(`/api/raptor/tubes/${dbId}/bird`, { bird_id: bird.bird_id });
+        showToast(`${moved.previous_tube_id} is now ${moved.tube_id} — reprint its label`);
+        bootstrap.Modal.getInstance(document.getElementById('raptorTubeModal')).hide();
+        await openRaptorBox(currentRaptorBoxId);
+        loadRaptorQuickStats();
+    } catch (err) {
+        showToast(err.message, 'error');
+    }
+}
+
 function syncSampleTypeHint() {
     const value = document.getElementById('raptor-sample-type').value;
     document.getElementById('raptor-sample-type-hint').hidden = value !== 'Other';

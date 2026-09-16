@@ -211,6 +211,24 @@ four flat queries assembled in Python. The obvious nested-loop version issues
 about 148 queries, which is invisible against a local file and adds seconds of
 latency against a hosted database.
 
+**A bird is the base ID; a tube is the suffix.** `RTHA26001` is a bird with
+one tube; `RTHA26001-1`, `-2`, `-3` are three tubes from it. Plasma, packed
+RBCs and liver from one animal go in different boxes, and filing each one
+separately used to draw a fresh sequence number every time — so one bird
+became three. The form now asks which it is: **New bird** issues a number;
+**Same bird as an existing sample** takes any of that bird's IDs, shows what it
+already has and where, and gives the new tube the next suffix. Species, date,
+age, sex and case numbers are taken from the bird rather than typed again, so
+one bird cannot drift into two descriptions. Nothing already issued is ever
+renumbered: those IDs are printed on frozen tubes.
+
+For birds already filed twice, an open tube offers **Same bird as…**, which
+renames it to the next suffix under the other bird and adopts that bird's
+facts. The old ID goes into the notes and stays searchable, because it is
+still the one on the label in the freezer until somebody reprints it. A tube
+cannot move to a bird of another species — the base ID encodes the species,
+and moving it would make the ID lie.
+
 **Tube IDs are claimed atomically.** `raptor_id_sequence` is incremented with a
 single upsert that returns the new value, so simultaneous submissions get
 consecutive IDs instead of colliding. The row stays locked until the transaction
