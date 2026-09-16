@@ -1494,3 +1494,25 @@ def test_reassigning_never_renumbers_tubes_already_labelled(client, boxes, speci
     client.put(f'/api/raptor/tubes/{stray["id"]}/bird', json={'bird_id': 'RTHA26001'})
     bird = client.get('/api/raptor/birds/RTHA26001').get_json()
     assert [t['tube_id'] for t in bird['tubes']] == ['RTHA26001-1', 'RTHA26001-2', 'RTHA26001-3']
+
+
+def test_freezer_stats_break_raptor_tubes_down_by_sample_type(client, boxes, species_id):
+    """Birds are the headline; this is what they yielded. Counts are tubes."""
+    for col, sample_type in enumerate(('Plasma', 'Plasma', 'Packed RBCs', 'Liver'), start=1):
+        client.post('/api/raptor/tubes', json={
+            'box_id': boxes['raptor']['id'], 'row_pos': 1, 'col_pos': col,
+            'species_id': species_id, 'collection_date': '2026-04-01',
+            'sample_type': sample_type,
+        })
+
+    stats = client.get('/api/stats/freezer').get_json()
+    assert stats['raptor_count'] == 4
+    by_type = {t['sample_type']: t['count'] for t in stats['raptor_sample_types']}
+    assert by_type == {'Plasma': 2, 'Packed RBCs': 1, 'Liver': 1}
+    # Busiest first, so the card reads in the order that matters.
+    assert stats['raptor_sample_types'][0]['sample_type'] == 'Plasma'
+
+
+def test_freezer_stats_sample_types_is_empty_not_missing_when_nothing_is_stored(client):
+    stats = client.get('/api/stats/freezer').get_json()
+    assert stats['raptor_sample_types'] == []

@@ -106,6 +106,19 @@ def get_freezer_stats(db):
     stats['raptor_count'] = db.execute(
         f'select count(distinct {_BASE_ID}) as n from raptor_tubes rt'
     ).fetchone()['n']
+
+    # Tubes per sample type. Birds are the headline; this is what the birds
+    # yielded, and "do we have any liver" is a question asked of the card
+    # itself rather than of the statistics page.
+    stats['raptor_sample_types'] = [
+        dict(r) for r in db.execute(
+            """select coalesce(nullif(sample_type, ''), 'Plasma') as sample_type,
+                      count(*) as count
+               from raptor_tubes
+               group by 1
+               order by count desc, sample_type"""
+        ).fetchall()
+    ]
     stats['research_count'] = db.execute(
         'select count(*) as n from research_tubes'
     ).fetchone()['n']

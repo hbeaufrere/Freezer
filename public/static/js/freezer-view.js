@@ -13,6 +13,7 @@ async function loadFreezerOverview() {
         setText('stat-total-stored', stats.tubes_stored.toLocaleString());
         setText('stat-capacity', stats.total_capacity.toLocaleString());
         setText('stat-raptor', stats.raptor_count.toLocaleString());
+        renderSampleTypeBreakdown(stats.raptor_sample_types || []);
         setText('stat-research', stats.research_count.toLocaleString());
         setText('stat-percent', `${stats.percent_full}% of capacity`);
         setText('stat-boxes', `${stats.total_boxes} boxes`);
@@ -30,6 +31,38 @@ async function loadFreezerOverview() {
                 <div class="empty-hint">${escapeHtml(err.message)}</div>
             </div>`;
     }
+}
+
+/* Tubes by sample type, above the bird count on the raptor card.
+
+   The three the lab collects are always shown, even at zero — "0 liver" is an
+   answer, a missing chip is a question. Anything else recorded appears after
+   them. Counts are tubes, not birds: a bird with two plasma tubes is two here
+   and one in the big number, which is the point of showing both. */
+const CANONICAL_SAMPLE_TYPES = [
+    ['Plasma', 'plasma'],
+    ['Packed RBCs', 'RBCs'],
+    ['Liver', 'liver'],
+];
+
+function renderSampleTypeBreakdown(types) {
+    const host = document.getElementById('stat-raptor-types');
+    if (!host) return;
+
+    const counts = new Map(types.map((t) => [t.sample_type, t.count]));
+    const chips = CANONICAL_SAMPLE_TYPES.map(([key, short]) => ({
+        label: short, full: key, count: counts.get(key) || 0,
+    }));
+    types.forEach((t) => {
+        if (!CANONICAL_SAMPLE_TYPES.some(([key]) => key === t.sample_type)) {
+            chips.push({ label: t.sample_type, full: t.sample_type, count: t.count });
+        }
+    });
+
+    host.innerHTML = chips.map((c) => `
+        <span class="stat-chip${c.count ? '' : ' is-zero'}" title="${escapeHtml(c.full)} tubes">
+            <b>${c.count.toLocaleString()}</b> ${escapeHtml(c.label)}
+        </span>`).join('');
 }
 
 function setText(id, value) {

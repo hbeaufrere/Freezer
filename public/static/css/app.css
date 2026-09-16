@@ -429,6 +429,27 @@ body {
     margin-top: 0.3rem;
 }
 
+/* Small counts above a headline number: what the birds yielded, by type. */
+.stat-card .stat-breakdown {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 0.55rem;
+    margin-bottom: 0.4rem;
+    min-height: 1.1rem;
+    font-size: 0.72rem;
+    color: var(--f-ink-soft);
+    letter-spacing: 0.01em;
+}
+
+.stat-chip b {
+    font-variant-numeric: tabular-nums;
+    font-weight: 680;
+    color: var(--f-ink);
+}
+
+.stat-chip.is-zero,
+.stat-chip.is-zero b { color: var(--f-muted); }
+
 /* ============================================================
    FREEZER CABINET
    ============================================================ */
