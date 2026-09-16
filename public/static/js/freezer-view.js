@@ -135,27 +135,18 @@ function createRackElement(rack, options = {}) {
     rackEl.className = 'rack';
     rackEl.dataset.rackId = rack.id;
 
+    // The rack's name is its designation line. Editable in place on the
+    // section pages — species codes on the raptor shelf, a study or a person
+    // anywhere — and read-only on the overview.
     rackEl.innerHTML = `
         <div class="rack-label">${escapeHtml(rack.label || 'Rack ' + rack.position)}</div>
-        ${rack.designation
+        ${!options.editableNotes && rack.designation
             ? `<div class="rack-designation" title="${escapeHtml(rack.designation)}">${escapeHtml(rack.designation)}</div>`
             : ''}
         <div class="rack-drawers"></div>`;
 
     const drawers = rackEl.querySelector('.rack-drawers');
-
-    // The line the lab writes on the rack — a study, a project, a person.
-    // Same rules as the drawer note: editable on the section pages, read-only
-    // on the overview.
-    if (options.editableNotes) {
-        drawers.before(rackNoteInput(rack));
-    } else if (rack.note) {
-        const note = document.createElement('div');
-        note.className = 'rack-note-static';
-        note.textContent = rack.note;
-        note.title = rack.note;
-        drawers.before(note);
-    }
+    if (options.editableNotes) drawers.before(rackDesignationInput(rack));
 
     // Column numbers over the box strip. Without them the four rectangles are
     // anonymous, and B3 is only discoverable by hovering.
@@ -246,26 +237,32 @@ function createRackElement(rack, options = {}) {
     return rackEl;
 }
 
-function rackNoteInput(rack) {
+function rackDesignationInput(rack) {
     const input = document.createElement('input');
     input.type = 'text';
-    input.className = 'rack-note';
-    input.value = rack.note || '';
+    input.className = 'rack-designation-input';
+    input.value = rack.designation || '';
     input.placeholder = 'Name this rack…';
-    input.maxLength = 200;
-    input.setAttribute('aria-label', `Note for ${rack.label || 'rack ' + rack.position}`);
+    input.maxLength = 100;
+    input.title = 'Click to rename';
+    input.setAttribute('aria-label', `Name of ${rack.label || 'rack ' + rack.position}`);
 
-    let saved = rack.note || '';
+    let saved = rack.designation || '';
 
     async function commit() {
         const value = input.value.trim();
         if (value === saved) return;
         try {
-            await API.put(`/api/racks/${rack.id}`, { note: value });
+            await API.put(`/api/racks/${rack.id}`, { designation: value });
             saved = value;
-            rack.note = value;
+            rack.designation = value;
             input.classList.add('is-saved');
             setTimeout(() => input.classList.remove('is-saved'), 900);
+            // The raptor page narrows the species list by these lines, so it
+            // has to hear about a change without a reload.
+            document.dispatchEvent(new CustomEvent('rackrenamed', {
+                detail: { rackId: rack.id, designation: value },
+            }));
         } catch (err) {
             input.value = saved;
             showToast(err.message, 'error');

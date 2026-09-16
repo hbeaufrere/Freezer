@@ -40,7 +40,7 @@ def get_freezer():
         'select id, name, position, section from shelves order by position'
     ).fetchall()
     racks = db.execute(
-        'select id, shelf_id, position, label, designation, note from racks order by position'
+        'select id, shelf_id, position, label, designation from racks order by position'
     ).fetchall()
     drawers = db.execute(
         'select id, rack_id, position, label, note from drawers order by position'
@@ -83,7 +83,7 @@ def list_shelves():
 @freezer_bp.route('/api/shelves/<int:shelf_id>/racks')
 def list_racks(shelf_id):
     rows = get_db().execute(
-        """select id, shelf_id, position, label, designation, note
+        """select id, shelf_id, position, label, designation
            from racks where shelf_id = %s order by position""",
         (shelf_id,),
     ).fetchall()
@@ -184,23 +184,24 @@ def update_drawer(drawer_id):
 
 @freezer_bp.route('/api/racks/<int:rack_id>', methods=['PUT'])
 def update_rack(rack_id):
-    """Set the free-text note the lab writes on a rack.
+    """Rename a rack: set its designation line.
 
-    Only the note. The label is positional and the designation is structural
-    — it drives which species the raptor form offers — so neither is editable
-    from here.
+    The positional label (Rack U1) stays fixed. The designation is the name
+    the lab reads — on the raptor shelf usually species codes, which the form
+    uses to narrow the species list, but any text is allowed and simply means
+    "any species" there.
     """
     db = get_db()
     data = json_body()
 
-    note = text(data, 'note')
-    if len(note) > 200:
-        raise ApiError('Rack notes are limited to 200 characters.')
+    designation = text(data, 'designation')
+    if len(designation) > 100:
+        raise ApiError('Rack names are limited to 100 characters.')
 
     with write(db):
         row = db.execute(
-            'update racks set note = %s where id = %s returning id, label, designation, note',
-            (note or None, rack_id),
+            'update racks set designation = %s where id = %s returning id, label, designation',
+            (designation or None, rack_id),
         ).fetchone()
 
     return jsonify(dict(one_or_404(row, 'Rack')))
