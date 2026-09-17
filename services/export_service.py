@@ -12,8 +12,9 @@ _ROW_LABELS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'J', 'K']
 
 RAPTOR_HEADERS = [
     'Tube ID', 'Species Code', 'Common Name', 'Scientific Name',
-    'Sample Type', 'Collection Date', 'Age', 'Sex', 'Freeze-Thaw Cycles',
-    'WRMD Number', 'VMTH Number',
+    'Sample Type', 'Blood Timing', 'Anticoagulant',
+    'Collection Date', 'Age', 'Sex', 'Freeze-Thaw Cycles',
+    'WRMD Number', 'VMACS Number',
     'Shelf', 'Rack', 'Drawer', 'Box', 'Position',
     'Notes', 'Date Added',
 ]
@@ -50,6 +51,8 @@ def _excel_safe(value):
 _RAPTOR_CRITERIA = {
     'species_id': 'rt.species_id = %(species_id)s',
     'sample_type': 'rt.sample_type = %(sample_type)s',
+    'blood_timing': 'rt.blood_timing = %(blood_timing)s',
+    'anticoagulant': 'rt.anticoagulant = %(anticoagulant)s',
     'sex': 'rt.sex = %(sex)s',
     'age': 'rt.age = %(age)s',
     'date_from': 'rt.collection_date >= %(date_from)s',
@@ -60,7 +63,8 @@ _RAPTOR_CRITERIA = {
 def raptor_query(filters=None):
     query = """
         select rt.tube_id, s.banding_code, s.common_name, s.scientific_name,
-               rt.sample_type, rt.collection_date, rt.age, rt.sex,
+               rt.sample_type, rt.blood_timing, rt.anticoagulant,
+               rt.collection_date, rt.age, rt.sex,
                rt.freeze_thaw_cycles, rt.wrmd_number, rt.vmth_number,
                sh.name as shelf, r.label as rack, d.label as drawer, b.label as box,
                rt.row_pos, rt.col_pos, rt.notes, rt.created_at
@@ -102,7 +106,8 @@ def _research_query():
 def _raptor_row(row):
     return [
         row['tube_id'], row['banding_code'], row['common_name'], row['scientific_name'],
-        row['sample_type'], row['collection_date'], row['age'], row['sex'],
+        row['sample_type'], row['blood_timing'], row['anticoagulant'],
+        row['collection_date'], row['age'], row['sex'],
         row['freeze_thaw_cycles'],
         row['wrmd_number'], row['vmth_number'],
         row['shelf'], row['rack'], row['drawer'], row['box'],

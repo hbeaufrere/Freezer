@@ -27,6 +27,8 @@ def _raptor_filters():
     return {
         'species_id': args.get('species_id', type=int),
         'sample_type': (args.get('sample_type') or '').strip(),
+        'blood_timing': (args.get('blood_timing') or '').strip(),
+        'anticoagulant': (args.get('anticoagulant') or '').strip(),
         'sex': (args.get('sex') or '').strip(),
         'age': (args.get('age') or '').strip(),
         'date_from': as_date(args, 'date_from'),

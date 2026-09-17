@@ -265,6 +265,8 @@ function openRaptorAddModal(row, col) {
 
     document.getElementById('raptor-collection-date').value = today();
     document.getElementById('raptor-sample-type').value = 'Plasma';
+    document.getElementById('raptor-blood-timing').value = '';
+    document.getElementById('raptor-anticoagulant').value = '';
     syncSampleTypeHint();
     document.getElementById('raptor-age').value = '';
     document.getElementById('raptor-sex-u').checked = true;
@@ -308,6 +310,8 @@ function openRaptorEditModal(tube, row, col) {
 
     document.getElementById('raptor-collection-date').value = tube.collection_date || '';
     document.getElementById('raptor-sample-type').value = tube.sample_type || 'Plasma';
+    document.getElementById('raptor-blood-timing').value = tube.blood_timing || '';
+    document.getElementById('raptor-anticoagulant').value = tube.anticoagulant || '';
     syncSampleTypeHint();
     document.getElementById('raptor-age').value = tube.age || '';
     const sexRadio = document.querySelector(
@@ -346,17 +350,32 @@ async function saveRaptorTube() {
 
     const speciesId = parseInt(document.getElementById('raptor-species').value, 10);
     const collectionDate = document.getElementById('raptor-collection-date').value;
+    const sampleType = document.getElementById('raptor-sample-type').value;
+    const bloodTiming = document.getElementById('raptor-blood-timing').value;
+    const wrmd = document.getElementById('raptor-wrmd').value.trim();
+    const vmth = document.getElementById('raptor-vmth').value.trim();
 
-    if (!joiningBird) {
-        if (!speciesId) return showToast('Choose a species first.', 'error');
-        if (!collectionDate) return showToast('Enter the collection date.', 'error');
+    if (!joiningBird && !speciesId) return showToast('Choose a species first.', 'error');
+    if (!collectionDate) return showToast('Enter the collection date.', 'error');
+    if (isBloodType(sampleType) && !bloodTiming) {
+        document.getElementById('raptor-blood-timing').focus();
+        return showToast('Say when the blood was drawn: intake, under care or pre-release.', 'error');
+    }
+    // In "same bird" mode the case numbers come from the bird and are locked.
+    if (!joiningBird && !wrmd && !vmth) {
+        document.getElementById('raptor-wrmd').focus();
+        return showToast('Enter a WRMD or VMACS number — one of the two is required.', 'error');
     }
 
     const payload = {
         box_id: parseInt(document.getElementById('raptor-tube-box-id').value, 10),
         row_pos: parseInt(document.getElementById('raptor-tube-row').value, 10),
         col_pos: parseInt(document.getElementById('raptor-tube-col').value, 10),
-        sample_type: document.getElementById('raptor-sample-type').value,
+        sample_type: sampleType,
+        blood_timing: isBloodType(sampleType) ? bloodTiming : '',
+        anticoagulant: isBloodType(sampleType)
+            ? document.getElementById('raptor-anticoagulant').value : '',
+        collection_date: collectionDate,
         freeze_thaw_cycles: parseInt(document.getElementById('raptor-freeze-thaw').value, 10) || 0,
         notes: document.getElementById('raptor-notes').value.trim(),
     };
@@ -368,11 +387,10 @@ async function saveRaptorTube() {
     } else {
         Object.assign(payload, {
             species_id: speciesId,
-            collection_date: collectionDate,
             age: document.getElementById('raptor-age').value,
             sex: document.querySelector('input[name="raptor-sex"]:checked')?.value || 'Unknown',
-            wrmd_number: document.getElementById('raptor-wrmd').value.trim(),
-            vmth_number: document.getElementById('raptor-vmth').value.trim(),
+            wrmd_number: wrmd,
+            vmth_number: vmth,
         });
     }
 
@@ -452,11 +470,13 @@ function birdMode() {
     return document.querySelector('input[name="raptor-bird-mode"]:checked')?.value || 'new';
 }
 
-/* Species, date, age, sex and case numbers describe the animal, not the
-   tube. When the tube joins a bird already on file they come from that bird
-   and are shown locked, so what you see is what will be stored. */
+/* Species, age, sex and case numbers describe the animal, not the tube.
+   When the tube joins a bird already on file they come from that bird and
+   are shown locked, so what you see is what will be stored. */
 function setBirdFieldsLocked(locked) {
-    ['raptor-collection-date', 'raptor-age', 'raptor-wrmd', 'raptor-vmth']
+    // Not the collection date: a pre-release sample is drawn weeks after the
+    // intake one, so that field belongs to the tube and stays open.
+    ['raptor-age', 'raptor-wrmd', 'raptor-vmth']
         .forEach((id) => { document.getElementById(id).disabled = locked; });
     document.querySelectorAll('input[name="raptor-sex"]')
         .forEach((radio) => { radio.disabled = locked; });
@@ -572,8 +592,19 @@ async function reassignRaptorTube() {
     }
 }
 
+const BLOOD_TYPES = ['Plasma', 'Packed RBCs'];
+
+function isBloodType(value) {
+    return BLOOD_TYPES.includes(value);
+}
+
+/* The sample type decides which of the row's other fields apply: blood gets
+   timing and anticoagulant, "Other" gets the reminder to describe it. */
 function syncSampleTypeHint() {
     const value = document.getElementById('raptor-sample-type').value;
+    const blood = isBloodType(value);
+    document.querySelectorAll('.raptor-blood-only').forEach((el) => { el.hidden = !blood; });
+    document.getElementById('raptor-sample-type-hint-wrap').hidden = value !== 'Other';
     document.getElementById('raptor-sample-type-hint').hidden = value !== 'Other';
 }
 

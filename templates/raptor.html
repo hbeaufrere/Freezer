@@ -126,7 +126,29 @@
                             <option value="Other">Other &mdash; specify in notes</option>
                         </select>
                     </div>
-                    <div class="col-md-8" id="raptor-sample-type-hint-wrap">
+                    <!-- Blood only. When in the bird's stay it was drawn, and
+                         what it was drawn into; hidden for tissues. -->
+                    <div class="col-md-4 raptor-blood-only" id="raptor-blood-timing-wrap">
+                        <label for="raptor-blood-timing" class="form-label">
+                            Blood timing <span class="text-danger" aria-hidden="true">*</span>
+                        </label>
+                        <select class="form-select" id="raptor-blood-timing" required>
+                            <option value="">Choose&hellip;</option>
+                            <option>Intake</option>
+                            <option>Under care</option>
+                            <option>Pre-release</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4 raptor-blood-only" id="raptor-anticoagulant-wrap">
+                        <label for="raptor-anticoagulant" class="form-label">Anticoagulant</label>
+                        <select class="form-select" id="raptor-anticoagulant">
+                            <option value="">Not recorded</option>
+                            <option>Heparin</option>
+                            <option>EDTA</option>
+                            <option value="Other">Other &mdash; specify in notes</option>
+                        </select>
+                    </div>
+                    <div class="col-md-8" id="raptor-sample-type-hint-wrap" hidden>
                         <div class="form-label">&nbsp;</div>
                         <div class="form-text pt-1" id="raptor-sample-type-hint" hidden>
                             <i class="bi bi-info-circle me-1"></i>Describe the tissue in the notes below.
@@ -168,11 +190,15 @@
                         </div>
                     </div>
                     <div class="col-md-4">
-                        <label for="raptor-wrmd" class="form-label">WRMD number</label>
+                        <label for="raptor-wrmd" class="form-label">
+                            WRMD number <span class="text-body-secondary fw-normal">(or VMACS)</span>
+                        </label>
                         <input type="text" class="form-control" id="raptor-wrmd" placeholder="e.g. 12345">
                     </div>
                     <div class="col-md-4">
-                        <label for="raptor-vmth" class="form-label">VMTH number</label>
+                        <label for="raptor-vmth" class="form-label">
+                            VMACS number <span class="text-body-secondary fw-normal">(or WRMD)</span>
+                        </label>
                         <input type="text" class="form-control" id="raptor-vmth" placeholder="e.g. V-67890">
                     </div>
                 </div>

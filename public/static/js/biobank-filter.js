@@ -4,11 +4,15 @@
    The count, the list and the download all come from one query on the server,
    so the number on screen is always the number of rows you get. */
 
-const filterState = { species_id: '', sample_type: '', sex: '', age: '' };
+const filterState = {
+    species_id: '', sample_type: '', blood_timing: '', anticoagulant: '', sex: '', age: '',
+};
 
 const FILTER_FIELDS = {
     species_id: 'filter-species',
     sample_type: 'filter-sample-type',
+    blood_timing: 'filter-blood-timing',
+    anticoagulant: 'filter-anticoagulant',
     sex: 'filter-sex',
     age: 'filter-age',
 };
@@ -52,6 +56,8 @@ async function loadFilterOptions() {
     })));
 
     [['filter-sample-type', options.sample_types],
+     ['filter-blood-timing', options.blood_timings],
+     ['filter-anticoagulant', options.anticoagulants],
      ['filter-sex', options.sexes],
      ['filter-age', options.ages]].forEach(([id, values]) => {
         fillOptions(id, values.map((v) => ({
@@ -119,9 +125,9 @@ async function runBiobankFilter() {
         <table class="table table-sm align-middle filter-table">
             <thead>
                 <tr>
-                    <th>Tube ID</th><th>Species</th><th>Type</th>
+                    <th>Tube ID</th><th>Species</th><th>Type</th><th>Timing</th>
                     <th>Sex</th><th>Age</th><th>Collected</th>
-                    <th>Where it is</th><th>WRMD</th><th>VMTH</th>
+                    <th>Where it is</th><th>WRMD</th><th>VMACS</th>
                 </tr>
             </thead>
             <tbody>${data.samples.map(filterRow).join('')}</tbody>
@@ -143,6 +149,7 @@ function filterRow(sample) {
             <td class="filter-tube">${escapeHtml(sample.tube_id)}</td>
             <td>${escapeHtml(sample.common_name || sample.banding_code || '')}</td>
             <td>${escapeHtml(sample.sample_type || '')}</td>
+            <td>${escapeHtml(sample.blood_timing || '')}</td>
             <td>${escapeHtml(sample.sex || '')}</td>
             <td>${escapeHtml(sample.age || '')}</td>
             <td>${escapeHtml(sample.collection_date || '')}</td>

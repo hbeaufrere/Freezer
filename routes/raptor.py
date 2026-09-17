@@ -19,10 +19,39 @@ raptor_bp = Blueprint('raptor', __name__)
 
 MAX_TUBES_PER_SAMPLE = 20
 
+# Blood is the sample type the biobank is built around, and it carries two
+# facts the tissues do not: when in the bird's stay it was drawn, and what it
+# was drawn into. Both live on the tube, not the bird.
+BLOOD_TYPES = ('Plasma', 'Packed RBCs')
+BLOOD_TIMINGS = ('Intake', 'Under care', 'Pre-release')
+ANTICOAGULANTS = ('Heparin', 'EDTA', 'Other')
+
+
+def _blood_fields(data, sample_type):
+    """Timing and anticoagulant for a blood sample; (None, None) for anything
+    else, whatever the form sent — a tissue with a timing is a contradiction
+    the record should not carry."""
+    if sample_type not in BLOOD_TYPES:
+        return None, None
+    timing = text(data, 'blood_timing')
+    if timing not in BLOOD_TIMINGS:
+        raise ApiError('Blood samples need a timing: Intake, Under care or Pre-release.')
+    anticoagulant = text(data, 'anticoagulant')
+    if anticoagulant and anticoagulant not in ANTICOAGULANTS:
+        raise ApiError('Anticoagulant must be Heparin, EDTA or Other.')
+    return timing, anticoagulant or None
+
+
+def _require_case_number(wrmd, vmth):
+    """A sample nobody can trace to a case is a sample nobody can use."""
+    if not (wrmd or vmth):
+        raise ApiError('Enter a WRMD or VMACS number — one of the two is required.')
+
 _TUBE_SELECT = """
     select rt.id, rt.tube_id, rt.box_id, rt.row_pos, rt.col_pos, rt.species_id,
            s.banding_code, s.common_name, s.scientific_name,
-           rt.sample_type, rt.collection_date, rt.age, rt.sex, rt.freeze_thaw_cycles,
+           rt.sample_type, rt.blood_timing, rt.anticoagulant,
+           rt.collection_date, rt.age, rt.sex, rt.freeze_thaw_cycles,
            rt.wrmd_number, rt.vmth_number, rt.notes, rt.created_at, rt.updated_at
     from raptor_tubes rt
     join species s on rt.species_id = s.id
@@ -192,7 +221,9 @@ def create_tube():
             raise ApiError(f'No bird with ID {bird_id}. Check the ID, or add it as a new bird.', 404)
         bird = _bird_from(existing)
         species_id = bird['species_id']
-        collection_date = bird['collection_date']
+        # The date is per tube: a pre-release sample is drawn weeks after the
+        # intake one. The bird's date is only the default.
+        collection_date = as_date(data, 'collection_date') or bird['collection_date']
     else:
         require(data, 'species_id', 'collection_date')
         species_id = as_int(data, 'species_id')
@@ -211,13 +242,22 @@ def create_tube():
     if box['section'] != 'raptor':
         raise ApiError('That box belongs to the research section.')
 
+    sample_type = text(data, 'sample_type', 'Plasma') or 'Plasma'
+    blood_timing, anticoagulant = _blood_fields(data, sample_type)
+    wrmd = bird['wrmd_number'] if bird else text(data, 'wrmd_number')
+    vmth = bird['vmth_number'] if bird else text(data, 'vmth_number')
+    if not bird:
+        _require_case_number(wrmd, vmth)
+
     shared = (
-        text(data, 'sample_type', 'Plasma') or 'Plasma',
+        sample_type,
+        blood_timing,
+        anticoagulant,
         bird['age'] if bird else text(data, 'age'),
         bird['sex'] if bird else text(data, 'sex'),
         as_int(data, 'freeze_thaw_cycles', minimum=0, default=0),
-        bird['wrmd_number'] if bird else text(data, 'wrmd_number'),
-        bird['vmth_number'] if bird else text(data, 'vmth_number'),
+        wrmd,
+        vmth,
         text(data, 'notes'),
     )
 
@@ -252,9 +292,9 @@ def create_tube():
             new_id = db.execute(
                 """insert into raptor_tubes
                        (tube_id, box_id, row_pos, col_pos, species_id, collection_date,
-                        sample_type, age, sex, freeze_thaw_cycles,
-                        wrmd_number, vmth_number, notes)
-                   values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        sample_type, blood_timing, anticoagulant, age, sex,
+                        freeze_thaw_cycles, wrmd_number, vmth_number, notes)
+                   values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                    returning id""",
                 (tube_id, box_id, r, c, species_id, collection_date, *shared),
             ).fetchone()['id']
@@ -272,21 +312,29 @@ def update_tube(tube_id):
     db = get_db()
     data = json_body()
 
+    sample_type = text(data, 'sample_type', 'Plasma') or 'Plasma'
+    blood_timing, anticoagulant = _blood_fields(data, sample_type)
+    wrmd, vmth = text(data, 'wrmd_number'), text(data, 'vmth_number')
+    _require_case_number(wrmd, vmth)
+
     with write(db):
         updated = db.execute(
             """update raptor_tubes
-               set collection_date = %s, sample_type = %s, age = %s, sex = %s,
+               set collection_date = %s, sample_type = %s,
+                   blood_timing = %s, anticoagulant = %s, age = %s, sex = %s,
                    freeze_thaw_cycles = %s, wrmd_number = %s, vmth_number = %s, notes = %s
                where id = %s
                returning id""",
             (
                 as_date(data, 'collection_date', required=True),
-                text(data, 'sample_type', 'Plasma') or 'Plasma',
+                sample_type,
+                blood_timing,
+                anticoagulant,
                 text(data, 'age'),
                 text(data, 'sex'),
                 as_int(data, 'freeze_thaw_cycles', minimum=0, default=0),
-                text(data, 'wrmd_number'),
-                text(data, 'vmth_number'),
+                wrmd,
+                vmth,
                 text(data, 'notes'),
                 tube_id,
             ),
@@ -320,8 +368,8 @@ def reassign_tube(tube_id):
 
     For the case where the same bird was filed twice — plasma under one ID,
     RBCs under the next — because the form had no way to say "same bird". The
-    tube keeps its box, position, sample type and freeze-thaw count; it takes
-    the bird's ID with the next free suffix, and the bird's species, date,
+    tube keeps its box, position, sample type, collection date and freeze-thaw
+    count; it takes the bird's ID with the next free suffix, and the bird's
     age, sex and case numbers, since those describe the animal, not the tube.
 
     The old ID goes into the notes and stays searchable. It is printed on a
@@ -357,10 +405,10 @@ def reassign_tube(tube_id):
     with write(db):
         db.execute(
             """update raptor_tubes
-               set tube_id = %s, collection_date = %s, age = %s, sex = %s,
+               set tube_id = %s, age = %s, sex = %s,
                    wrmd_number = %s, vmth_number = %s, notes = %s
                where id = %s""",
-            (new_id, bird['collection_date'], bird['age'], bird['sex'],
+            (new_id, bird['age'], bird['sex'],
              bird['wrmd_number'], bird['vmth_number'], notes, tube_id),
         )
         # Log entries still tied to this tube follow the rename; the ones
@@ -508,6 +556,8 @@ def filter_options():
     return jsonify({
         'species': [dict(r) for r in species],
         'sample_types': distinct('sample_type'),
+        'blood_timings': distinct('blood_timing'),
+        'anticoagulants': distinct('anticoagulant'),
         'sexes': distinct('sex'),
         'ages': distinct('age'),
         'total': db.execute('select count(*) as n from raptor_tubes').fetchone()['n'],
@@ -527,6 +577,8 @@ def filter_samples():
     filters = {
         'species_id': request.args.get('species_id', type=int),
         'sample_type': (request.args.get('sample_type') or '').strip(),
+        'blood_timing': (request.args.get('blood_timing') or '').strip(),
+        'anticoagulant': (request.args.get('anticoagulant') or '').strip(),
         'sex': (request.args.get('sex') or '').strip(),
         'age': (request.args.get('age') or '').strip(),
         'date_from': as_date(request.args, 'date_from'),
@@ -541,6 +593,8 @@ def filter_samples():
         'banding_code': row['banding_code'],
         'common_name': row['common_name'],
         'sample_type': row['sample_type'],
+        'blood_timing': row['blood_timing'],
+        'anticoagulant': row['anticoagulant'],
         'collection_date': row['collection_date'],
         'age': row['age'],
         'sex': row['sex'],
