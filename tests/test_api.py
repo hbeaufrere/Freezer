@@ -1266,10 +1266,11 @@ def test_the_download_matches_what_is_on_screen(client, biobank):
         assert len(rows) == shown['matched'], criteria
 
 
-def test_the_csv_carries_the_wrmd_and_vmth_numbers(client, biobank):
+def test_the_csv_carries_the_wrmd_and_vmacs_numbers(client, biobank):
     csv_text = client.get('/api/export/raptor/csv?sample_type=Liver').get_data(as_text=True)
     header, row = [line for line in csv_text.splitlines() if line.strip()][:2]
-    assert 'WRMD Number' in header and 'VMTH Number' in header
+    # The column is vmth_number in the database; the lab calls it VMACS.
+    assert 'WRMD Number' in header and 'VMACS Number' in header
     assert 'W-4' in row and 'V-4' in row
     # And where it is, since that is the point of looking it up.
     assert 'Upper Shelf' in row and 'A4' in row
@@ -1420,7 +1421,7 @@ def test_the_barn_owl_case_two_filings_become_one_bird(client, boxes, flask_app)
     plasma = _new_bird(client, boxes['raptor']['id'], bano, sample_type='Plasma')
     rbc = _new_bird(client, boxes['raptor']['id'], bano, row_pos=1, col_pos=2,
                     sample_type='Packed RBCs', age='Juvenile', sex='Unknown',
-                    wrmd_number='', vmth_number='')
+                    wrmd_number='', vmth_number='V-second-filing')
     assert (plasma['tube_id'], rbc['tube_id']) == ('ABOW26001', 'ABOW26002')
 
     # Somebody logged a retrieval against the RBC tube under its old name.
@@ -1588,3 +1589,146 @@ def test_the_rack_note_column_is_gone(client, flask_app):
         ).fetchall()}
     assert 'note' not in cols
     assert 'designation' in cols
+
+
+# ------------------------------------------------------------
+# Blood timing, anticoagulant, and a case number that must exist
+# ------------------------------------------------------------
+
+def _blood(raw, box_id, species_id, **fields):
+    return raw.post('/api/raptor/tubes', json={
+        'box_id': box_id, 'row_pos': fields.pop('row_pos', 1), 'col_pos': fields.pop('col_pos', 1),
+        'species_id': species_id, 'collection_date': '2026-04-01',
+        'wrmd_number': 'W-1', **fields,
+    })
+
+
+@pytest.mark.parametrize('sample_type', ['Plasma', 'Packed RBCs'])
+def test_blood_needs_a_timing(raw_client, boxes, species_id, sample_type):
+    """The variable a rehab biobank compares across, so it cannot be blank."""
+    response = _blood(raw_client, boxes['raptor']['id'], species_id, sample_type=sample_type)
+    assert response.status_code == 400
+    assert 'Intake, Under care or Pre-release' in response.get_json()['error']
+
+    ok = _blood(raw_client, boxes['raptor']['id'], species_id,
+                sample_type=sample_type, blood_timing='Pre-release')
+    assert ok.status_code == 201, ok.get_json()
+    assert ok.get_json()['blood_timing'] == 'Pre-release'
+
+
+def test_timing_must_be_one_of_the_three(raw_client, boxes, species_id):
+    response = _blood(raw_client, boxes['raptor']['id'], species_id, blood_timing='Whenever')
+    assert response.status_code == 400
+
+
+@pytest.mark.parametrize('sample_type', ['Liver', 'Other'])
+def test_tissues_take_no_timing_even_if_one_is_sent(raw_client, boxes, species_id, sample_type):
+    """A liver with a "pre-release" on it is a contradiction the record must
+    not carry, however the form was left."""
+    made = _blood(raw_client, boxes['raptor']['id'], species_id,
+                  sample_type=sample_type, blood_timing='Intake', anticoagulant='EDTA').get_json()
+    assert made['blood_timing'] is None
+    assert made['anticoagulant'] is None
+
+
+def test_anticoagulant_is_optional_but_constrained(raw_client, boxes, species_id):
+    plain = _blood(raw_client, boxes['raptor']['id'], species_id, blood_timing='Intake').get_json()
+    assert plain['anticoagulant'] is None
+
+    edta = _blood(raw_client, boxes['raptor']['id'], species_id, row_pos=2,
+                  blood_timing='Intake', anticoagulant='EDTA').get_json()
+    assert edta['anticoagulant'] == 'EDTA'
+
+    bad = _blood(raw_client, boxes['raptor']['id'], species_id, row_pos=3,
+                 blood_timing='Intake', anticoagulant='Citrate')
+    assert bad.status_code == 400
+    assert 'Heparin, EDTA or Other' in bad.get_json()['error']
+
+
+def test_a_new_bird_needs_a_wrmd_or_vmacs_number(raw_client, boxes, species_id):
+    """Either will do; neither will not."""
+    neither = raw_client.post('/api/raptor/tubes', json={
+        'box_id': boxes['raptor']['id'], 'row_pos': 1, 'col_pos': 1,
+        'species_id': species_id, 'collection_date': '2026-04-01', 'blood_timing': 'Intake',
+    })
+    assert neither.status_code == 400
+    assert 'WRMD or VMACS' in neither.get_json()['error']
+
+    vmacs_only = raw_client.post('/api/raptor/tubes', json={
+        'box_id': boxes['raptor']['id'], 'row_pos': 1, 'col_pos': 1,
+        'species_id': species_id, 'collection_date': '2026-04-01', 'blood_timing': 'Intake',
+        'vmth_number': 'V-9',
+    })
+    assert vmacs_only.status_code == 201
+
+
+def test_editing_a_tube_also_needs_a_case_number(raw_client, boxes, species_id):
+    """Old records without one get asked for it the next time they are saved."""
+    tube = _blood(raw_client, boxes['raptor']['id'], species_id, blood_timing='Intake').get_json()
+    stripped = raw_client.put(f'/api/raptor/tubes/{tube["id"]}', json={
+        'collection_date': '2026-04-01', 'sample_type': 'Plasma', 'blood_timing': 'Intake',
+        'wrmd_number': '', 'vmth_number': '',
+    })
+    assert stripped.status_code == 400
+    assert 'WRMD or VMACS' in stripped.get_json()['error']
+
+
+def test_a_same_bird_tube_keeps_its_own_date_and_timing(client, boxes, species_id):
+    """Intake plasma in April, pre-release plasma in May: one bird, two dates."""
+    intake = client.post('/api/raptor/tubes', json={
+        'box_id': boxes['raptor']['id'], 'row_pos': 1, 'col_pos': 1,
+        'species_id': species_id, 'collection_date': '2026-04-01',
+        'blood_timing': 'Intake', 'anticoagulant': 'Heparin',
+    }).get_json()
+
+    release = client.post('/api/raptor/tubes', json={
+        'box_id': boxes['raptor']['id'], 'row_pos': 1, 'col_pos': 2,
+        'bird_id': intake['tube_id'], 'sample_type': 'Plasma',
+        'collection_date': '2026-05-20', 'blood_timing': 'Pre-release', 'anticoagulant': 'EDTA',
+    }).get_json()
+
+    assert release['tube_id'] == 'RTHA26001-2'
+    assert release['collection_date'] == '2026-05-20'
+    assert release['blood_timing'] == 'Pre-release'
+    assert release['anticoagulant'] == 'EDTA'
+    # Bird-level facts still came from the bird.
+    assert release['wrmd_number'] == intake['wrmd_number']
+
+
+def test_reassigning_keeps_the_tube_own_collection_date(client, boxes, species_id):
+    first = client.post('/api/raptor/tubes', json={
+        'box_id': boxes['raptor']['id'], 'row_pos': 1, 'col_pos': 1,
+        'species_id': species_id, 'collection_date': '2026-04-01',
+    }).get_json()
+    later = client.post('/api/raptor/tubes', json={
+        'box_id': boxes['raptor']['id'], 'row_pos': 2, 'col_pos': 1,
+        'species_id': species_id, 'collection_date': '2026-06-15',
+    }).get_json()
+
+    moved = client.put(f'/api/raptor/tubes/{later["id"]}/bird',
+                       json={'bird_id': first['tube_id']}).get_json()
+    assert moved['collection_date'] == '2026-06-15', 'the date describes the draw, not the bird'
+
+
+def test_timing_and_anticoagulant_reach_the_export_and_the_filter(client, boxes, species_id):
+    client.post('/api/raptor/tubes', json={
+        'box_id': boxes['raptor']['id'], 'row_pos': 1, 'col_pos': 1,
+        'species_id': species_id, 'collection_date': '2026-04-01',
+        'blood_timing': 'Under care', 'anticoagulant': 'Heparin',
+    })
+    client.post('/api/raptor/tubes', json={
+        'box_id': boxes['raptor']['id'], 'row_pos': 1, 'col_pos': 2,
+        'species_id': species_id, 'collection_date': '2026-04-01',
+        'blood_timing': 'Intake',
+    })
+
+    csv_text = client.get('/api/export/raptor/csv').get_data(as_text=True)
+    header = csv_text.splitlines()[0]
+    assert 'Blood Timing' in header and 'Anticoagulant' in header and 'VMACS Number' in header
+    assert 'Under care' in csv_text and 'Heparin' in csv_text
+
+    assert client.get('/api/raptor/filter?blood_timing=Under%20care').get_json()['matched'] == 1
+    assert client.get('/api/raptor/filter?anticoagulant=Heparin').get_json()['matched'] == 1
+    options = client.get('/api/raptor/filter-options').get_json()
+    assert {t['value'] for t in options['blood_timings']} == {'Under care', 'Intake'}
+    assert {a['value'] for a in options['anticoagulants']} == {'Heparin'}

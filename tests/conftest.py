@@ -74,13 +74,61 @@ def anon(flask_app):
     return flask_app.test_client()
 
 
-@pytest.fixture
-def client(flask_app):
-    """A signed-in client."""
+# Two fields a raptor tube cannot be saved without any more: a timing for
+# blood, and a case number for a new bird. Most tests are about something
+# else — positions, IDs, exports — and should not each restate them, so the
+# signed-in client fills them in when a test leaves them out. A test about
+# the requirement itself uses ``raw_client``, which fills in nothing.
+RAPTOR_TUBE_DEFAULTS = {'blood_timing': 'Intake', 'wrmd_number': 'W-TEST'}
+
+
+class _FillingClient:
+    """Wraps the Flask test client; only raptor tube writes are touched."""
+
+    def __init__(self, inner):
+        self._inner = inner
+
+    def _fill(self, path, kwargs):
+        body = kwargs.get('json')
+        if isinstance(body, dict) and path.startswith('/api/raptor/tubes'):
+            body = dict(body)
+            blood = body.get('sample_type', 'Plasma') in ('Plasma', 'Packed RBCs')
+            if blood and 'blood_timing' not in body:
+                body['blood_timing'] = RAPTOR_TUBE_DEFAULTS['blood_timing']
+            joining = bool(body.get('bird_id'))
+            if not joining and not (body.get('wrmd_number') or body.get('vmth_number')) \
+                    and 'wrmd_number' not in body and 'vmth_number' not in body:
+                body['wrmd_number'] = RAPTOR_TUBE_DEFAULTS['wrmd_number']
+            kwargs['json'] = body
+        return kwargs
+
+    def post(self, path, **kwargs):
+        return self._inner.post(path, **self._fill(path, kwargs))
+
+    def put(self, path, **kwargs):
+        return self._inner.put(path, **self._fill(path, kwargs))
+
+    def __getattr__(self, name):
+        return getattr(self._inner, name)
+
+
+def _signed_in(flask_app):
     test_client = flask_app.test_client()
     response = test_client.post('/login', data={'password': TEST_PASSWORD})
     assert response.status_code == 302, 'login should redirect on success'
     return test_client
+
+
+@pytest.fixture
+def client(flask_app):
+    """A signed-in client that supplies the raptor tube defaults."""
+    return _FillingClient(_signed_in(flask_app))
+
+
+@pytest.fixture
+def raw_client(flask_app):
+    """A signed-in client that sends exactly what the test gives it."""
+    return _signed_in(flask_app)
 
 
 @pytest.fixture

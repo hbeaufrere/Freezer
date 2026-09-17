@@ -229,6 +229,18 @@ still the one on the label in the freezer until somebody reprints it. A tube
 cannot move to a bird of another species — the base ID encodes the species,
 and moving it would make the ID lie.
 
+**Blood carries two facts tissues do not.** Plasma and packed RBCs record a
+**timing** — Intake, Under care or Pre-release, the variable a rehab biobank
+compares across — and an **anticoagulant**, Heparin, EDTA or Other, which is
+the first thing a collaborator asks about a plasma sample. Timing is required
+for blood; both are null for tissues whatever the form sent, because a liver
+marked "pre-release" is a contradiction the record should not carry. Both are
+per tube, not per bird: one bird can yield intake plasma in April and
+pre-release plasma in May, so the collection date stays editable when adding
+to an existing bird. A new bird also needs a **WRMD or VMACS number** — either
+will do, neither will not — and an old record without one is asked for it the
+next time it is saved.
+
 **Tube IDs are claimed atomically.** `raptor_id_sequence` is incremented with a
 single upsert that returns the new value, so simultaneous submissions get
 consecutive IDs instead of colliding. The row stays locked until the transaction
