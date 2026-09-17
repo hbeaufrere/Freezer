@@ -1732,3 +1732,74 @@ def test_timing_and_anticoagulant_reach_the_export_and_the_filter(client, boxes,
     options = client.get('/api/raptor/filter-options').get_json()
     assert {t['value'] for t in options['blood_timings']} == {'Under care', 'Intake'}
     assert {a['value'] for a in options['anticoagulants']} == {'Heparin'}
+
+
+# ------------------------------------------------------------
+# Finding a bird by its case number
+# ------------------------------------------------------------
+
+def test_a_bird_is_found_by_wrmd_or_vmacs_number(client, boxes, species_id):
+    """The label in your hand is a tube; the chart in your hand is a case."""
+    client.post('/api/raptor/tubes', json={
+        'box_id': boxes['raptor']['id'], 'row_pos': 1, 'col_pos': 1,
+        'species_id': species_id, 'collection_date': '2026-04-01',
+        'wrmd_number': '26-1234', 'vmth_number': 'V-67890',
+    })
+
+    for wanted in ('26-1234', 'v-67890', ' V-67890 '):
+        bird = client.get(f'/api/raptor/birds/{wanted.strip()}').get_json()
+        assert bird['bird_id'] == 'RTHA26001', wanted
+
+    # And an ID still works exactly as before.
+    assert client.get('/api/raptor/birds/rtha26001').get_json()['bird_id'] == 'RTHA26001'
+
+
+def test_a_sample_joins_a_bird_named_by_case_number(client, boxes, species_id):
+    client.post('/api/raptor/tubes', json={
+        'box_id': boxes['raptor']['id'], 'row_pos': 1, 'col_pos': 1,
+        'species_id': species_id, 'collection_date': '2026-04-01',
+        'wrmd_number': '26-1234',
+    })
+    joined = client.post('/api/raptor/tubes', json={
+        'box_id': boxes['raptor']['id'], 'row_pos': 1, 'col_pos': 2,
+        'bird_id': '26-1234', 'sample_type': 'Liver',
+    })
+    assert joined.status_code == 201, joined.get_json()
+    assert joined.get_json()['tube_id'] == 'RTHA26001-2'
+
+
+def test_reassigning_accepts_a_case_number_too(client, boxes, species_id):
+    first = client.post('/api/raptor/tubes', json={
+        'box_id': boxes['raptor']['id'], 'row_pos': 1, 'col_pos': 1,
+        'species_id': species_id, 'collection_date': '2026-04-01', 'vmth_number': 'V-1',
+    }).get_json()
+    stray = client.post('/api/raptor/tubes', json={
+        'box_id': boxes['raptor']['id'], 'row_pos': 2, 'col_pos': 1,
+        'species_id': species_id, 'collection_date': '2026-04-01', 'vmth_number': 'V-2',
+    }).get_json()
+
+    moved = client.put(f'/api/raptor/tubes/{stray["id"]}/bird', json={'bird_id': 'v-1'}).get_json()
+    assert moved['tube_id'] == 'RTHA26001-2'
+    assert first['tube_id'] == 'RTHA26001'
+
+
+def test_a_case_number_on_two_birds_is_refused_with_both_named(client, boxes, species_id):
+    """Guessing which bird was meant would file a sample under the wrong
+    animal; naming the candidates lets the person choose."""
+    for col in (1, 2):
+        client.post('/api/raptor/tubes', json={
+            'box_id': boxes['raptor']['id'], 'row_pos': 1, 'col_pos': col,
+            'species_id': species_id, 'collection_date': '2026-04-01',
+            'wrmd_number': 'SHARED-9',
+        })
+
+    response = client.get('/api/raptor/birds/SHARED-9')
+    assert response.status_code == 409
+    error = response.get_json()['error']
+    assert 'RTHA26001' in error and 'RTHA26002' in error and '2 birds' in error
+
+
+def test_an_unknown_case_number_says_so(client):
+    response = client.get('/api/raptor/birds/NOPE-1')
+    assert response.status_code == 404
+    assert 'NOPE-1' in response.get_json()['error']
