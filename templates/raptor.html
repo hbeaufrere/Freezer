@@ -15,7 +15,7 @@
         <span class="count-pill"><strong id="raptor-stat-species">0</strong> species</span>
         <div class="search-shell">
             <input type="search" class="form-control" id="raptor-search"
-                   placeholder="Tube ID, species, WRMD or VMTH number&hellip;"
+                   placeholder="Tube ID, species, WRMD or VMACS number&hellip;"
                    autocomplete="off" role="combobox" aria-expanded="false"
                    aria-controls="raptor-search-results">
             <div class="search-results-dropdown" id="raptor-search-results" role="listbox"></div>
@@ -87,10 +87,12 @@
                     </div>
 
                     <div class="bird-lookup" id="raptor-bird-lookup" hidden>
-                        <label for="raptor-bird-id" class="form-label">Bird or tube ID</label>
+                        <label for="raptor-bird-id" class="form-label">
+                            Bird ID, tube ID, WRMD or VMACS number
+                        </label>
                         <div class="input-group">
-                            <input type="text" class="form-control font-monospace text-uppercase"
-                                   id="raptor-bird-id" placeholder="e.g. RTHA26001"
+                            <input type="text" class="form-control font-monospace"
+                                   id="raptor-bird-id" placeholder="e.g. RTHA26001, 26-1234 or V-67890"
                                    autocomplete="off" spellcheck="false">
                             <button class="btn btn-outline-secondary" type="button" id="btn-raptor-bird-find">
                                 <i class="bi bi-search me-1"></i>Find

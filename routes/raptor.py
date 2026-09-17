@@ -147,18 +147,53 @@ def _bird_from(tubes):
     }
 
 
+def _find_bird(db, wanted):
+    """The bird meant by ``wanted``: a bird ID, a tube ID, or a WRMD / VMACS
+    number. Returns (base_id, tubes); tubes is empty when nothing matches.
+
+    IDs are tried first, on the normalised form. Case numbers are tried on
+    the raw text, because normalising would split "26-1234" at the hyphen
+    and "V-67890" would come out as "V". A case number found on more than
+    one bird is refused with the candidates named rather than guessed at.
+    """
+    base = bird_base(wanted)
+    tubes = _bird_tubes(db, base) if base else []
+    if tubes:
+        return base, tubes
+
+    raw = (wanted or '').strip()
+    if not raw:
+        return base, []
+
+    rows = db.execute(
+        f"""{_TUBE_SELECT}
+            where lower(rt.wrmd_number) = lower(%(n)s)
+               or lower(rt.vmth_number) = lower(%(n)s)
+            order by rt.tube_id""",
+        {'n': raw},
+    ).fetchall()
+    bases = sorted({bird_base(r['tube_id']) for r in rows})
+    if len(bases) > 1:
+        raise ApiError(
+            f'{raw} is on {len(bases)} birds: {", ".join(bases)}. Enter one of those IDs instead.',
+            409,
+        )
+    if bases:
+        return bases[0], _bird_tubes(db, bases[0])
+    return base, []
+
+
 @raptor_bp.route('/api/raptor/birds/<bird_id>')
 def get_bird(bird_id):
     """A bird and every tube it has, wherever each one sits.
 
-    Accepts a tube ID as well as a bird ID, since the one on the label in your
-    hand is usually a tube.
+    Accepts a tube ID, a bird ID, or a WRMD / VMACS number: the one on the
+    label in your hand is usually a tube, and the one on the chart is a case.
     """
     db = get_db()
-    base = bird_base(bird_id)
-    tubes = _bird_tubes(db, base)
+    base, tubes = _find_bird(db, bird_id)
     if not tubes:
-        raise ApiError(f'No bird with ID {base}.', 404)
+        raise ApiError(f'No bird with ID or case number {(bird_id or "").strip()}.', 404)
 
     located = db.execute(
         """select rt.tube_id, rt.sample_type, rt.row_pos, rt.col_pos,
@@ -214,11 +249,13 @@ def create_tube():
     # what is already on file, so one bird cannot drift into two.
     bird = None
     existing = []
-    bird_id = bird_base(text(data, 'bird_id'))
-    if bird_id:
-        existing = _bird_tubes(db, bird_id)
+    wanted = text(data, 'bird_id')
+    bird_id = None
+    if wanted:
+        bird_id, existing = _find_bird(db, wanted)
         if not existing:
-            raise ApiError(f'No bird with ID {bird_id}. Check the ID, or add it as a new bird.', 404)
+            raise ApiError(
+                f'No bird with ID or case number {wanted}. Check it, or add it as a new bird.', 404)
         bird = _bird_from(existing)
         species_id = bird['species_id']
         # The date is per tube: a pre-release sample is drawn weeks after the
@@ -381,14 +418,13 @@ def reassign_tube(tube_id):
     require(data, 'bird_id')
 
     tube = one_or_404(_fetch_tube(db, tube_id), 'Tube')
-    target = bird_base(text(data, 'bird_id'))
+    wanted = text(data, 'bird_id')
+    target, existing = _find_bird(db, wanted)
+    if not existing:
+        raise ApiError(f'No bird with ID or case number {wanted}.', 404)
 
     if bird_base(tube['tube_id']) == target:
         raise ApiError(f'{tube["tube_id"]} already belongs to {target}.')
-
-    existing = _bird_tubes(db, target)
-    if not existing:
-        raise ApiError(f'No bird with ID {target}.', 404)
     bird = _bird_from(existing)
 
     if bird['species_id'] != tube['species_id']:

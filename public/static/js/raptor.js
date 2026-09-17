@@ -502,7 +502,9 @@ function setBirdMode(mode) {
 async function findBird() {
     const input = document.getElementById('raptor-bird-id');
     const card = document.getElementById('raptor-bird-card');
-    const wanted = input.value.trim().toUpperCase();
+    // Sent as typed: the server upper-cases IDs itself, and a case number
+    // is matched case-insensitively, so nothing is gained by shouting.
+    const wanted = input.value.trim();
     if (!wanted) return;
 
     let bird;
@@ -562,7 +564,7 @@ async function reassignRaptorTube() {
 
     const typed = prompt(
         `${current} belongs to which bird?\n\nEnter the ID of any sample from that bird `
-        + '(e.g. RTHA26001 or RTHA26001-2).');
+        + '(e.g. RTHA26001 or RTHA26001-2), or its WRMD or VMACS number.');
     if (!typed) return;
 
     let bird;
