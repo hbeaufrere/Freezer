@@ -173,7 +173,8 @@ def _tube_rows(db, section, tube_ids):
                from raptor_tubes rt
                join species s on rt.species_id = s.id
                join boxes b on rt.box_id = b.id
-               where rt.id = any(%s)""",
+               where rt.id = any(%s)
+               order by rt.id""",
             (tube_ids,),
         ).fetchall()
     else:
@@ -182,7 +183,8 @@ def _tube_rows(db, section, tube_ids):
                       null as common_name, b.label as box_label
                from research_tubes rt
                join boxes b on rt.box_id = b.id
-               where rt.id = any(%s)""",
+               where rt.id = any(%s)
+               order by rt.id""",
             (tube_ids,),
         ).fetchall()
     found = {r['id'] for r in rows}
