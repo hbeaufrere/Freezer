@@ -382,7 +382,18 @@ function boxPeekHtml(box, meta) {
     return head + `<ul class="box-peek-list">${rows}${more}</ul>`;
 }
 
+/* Only where a pointer can hover. On a touch screen, iOS Safari treats a
+   tap whose mouseenter changes the page as hover alone and swallows the
+   click — so with the card attached, a box could be peeked at but never
+   opened. A phone gets no card; a tap opens the box, which is the better
+   answer on a phone anyway. */
+const CAN_HOVER = window.matchMedia('(hover: hover)').matches;
+
 function attachBoxPeek(boxEl, box, meta) {
+    if (!CAN_HOVER) {
+        boxEl.title = `${box.label}${meta.kind}\n${meta.depth}\n${meta.fill}`;
+        return;
+    }
     const show = () => {
         const el = boxPeek();
         el.innerHTML = boxPeekHtml(box, meta);
