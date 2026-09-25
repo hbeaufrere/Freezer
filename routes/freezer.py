@@ -43,7 +43,7 @@ _BOX_JOINS = """
 def get_freezer():
     """The whole freezer as nested shelves -> racks -> drawers -> boxes.
 
-    Four flat queries assembled in Python. Walking the hierarchy level by level
+    Five flat queries assembled in Python. Walking the hierarchy level by level
     instead would cost ~148 round-trips, which is free against a local file and
     very much not free against a hosted database.
     """
@@ -60,9 +60,36 @@ def get_freezer():
     ).fetchall()
     boxes = db.execute(f'select {_BOX_COLUMNS} {_BOX_JOINS} order by b.position').fetchall()
 
+    # A glimpse of what each research box holds, so the overview can say so
+    # on hover without a round trip per box. The first few IDs are enough to
+    # recognise a box; the count says how much more there is.
+    peeks = {
+        r['box_id']: r for r in db.execute(
+            """select box_id, count(*) as n,
+                      (array_agg(coalesce(nullif(sample_id, ''), '(untitled)')
+                                 order by row_pos nulls last, col_pos nulls last, id))[1:8]
+                          as sample_ids,
+                      (array_agg(coalesce(description, '')
+                                 order by row_pos nulls last, col_pos nulls last, id))[1:8]
+                          as descriptions
+               from research_tubes
+               group by box_id"""
+        ).fetchall()
+    }
+
     boxes_by_drawer = defaultdict(list)
     for box in boxes:
-        boxes_by_drawer[box['drawer_id']].append(dict(box))
+        entry = dict(box)
+        if box['section'] == 'research':
+            peek = peeks.get(box['id'])
+            entry['contents'] = {
+                'count': peek['n'] if peek else 0,
+                'samples': [
+                    {'sample_id': sid, 'description': desc}
+                    for sid, desc in zip(peek['sample_ids'], peek['descriptions'])
+                ] if peek else [],
+            }
+        boxes_by_drawer[box['drawer_id']].append(entry)
 
     drawers_by_rack = defaultdict(list)
     for drawer in drawers:

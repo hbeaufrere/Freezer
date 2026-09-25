@@ -1878,12 +1878,134 @@ body {
 
 @media (max-width: 991px) {
     .section-layout { grid-template-columns: minmax(0, 1fr); }
+
+    /* On a phone the racks run in one row you swipe through, one rack per
+       screen, rather than wrapping into a grid inside a short scrolling
+       box. Left and right is how the racks sit on the shelf. */
     .rack-sidebar {
         position: static;
-        max-height: 260px;
+        max-height: none;
+        display: flex;
+        gap: 0.6rem;
+        overflow-x: auto;
+        overflow-y: hidden;
+        scroll-snap-type: x mandatory;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: 0.5rem;
+        scrollbar-width: thin;
     }
-    .rack-sidebar .rack { display: inline-block; width: 148px; margin-right: 0.4rem; }
+    /* The page title already names the shelves; in a swipe strip the
+       heading would only push the first rack off screen. */
+    .rack-sidebar .sidebar-heading { display: none; }
+    .rack-sidebar .rack {
+        display: block;
+        flex: 0 0 min(82vw, 320px);
+        width: auto;
+        margin: 0;
+        scroll-snap-align: start;
+    }
+    .rack-sidebar .box-slot { width: 22px; height: 18px; }
+    .rack-sidebar .axis-cell { width: 22px; }
+    .rack-sidebar .drawer-note { font-size: 0.7rem; }
     .search-shell { min-width: 100%; }
+
+    /* The overview's shelves already scroll sideways; snap them too, and
+       fade the right edge so it is obvious there is more. */
+    .shelf-racks {
+        scroll-snap-type: x proximity;
+        -webkit-overflow-scrolling: touch;
+    }
+    .shelf-racks .rack { scroll-snap-align: start; }
+    .freezer-shelf { position: relative; }
+    .freezer-shelf::after {
+        content: '';
+        position: absolute;
+        top: 0; right: 0; bottom: 0;
+        width: 2rem;
+        pointer-events: none;
+        border-radius: 0 var(--f-radius) var(--f-radius) 0;
+        background: linear-gradient(to right, transparent, var(--f-ground));
+    }
+}
+
+/* ---- Box peek: what is in that box ------------------------- */
+
+.box-peek {
+    position: absolute;
+    z-index: 1080;
+    max-width: 280px;
+    padding: 0.55rem 0.7rem;
+    background: var(--f-surface);
+    color: var(--f-ink);
+    border: 1px solid var(--f-hairline-2);
+    border-radius: var(--f-radius-sm);
+    box-shadow: var(--f-shadow-lg);
+    font-size: 0.78rem;
+    pointer-events: none;
+}
+
+.box-peek-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.6rem;
+}
+
+.box-peek-label {
+    font-family: var(--f-mono);
+    font-weight: 700;
+}
+
+.box-peek-kind {
+    font-size: 0.68rem;
+    color: var(--f-muted);
+}
+
+.box-peek-meta {
+    margin-top: 0.15rem;
+    font-size: 0.7rem;
+    color: var(--f-muted);
+}
+
+.box-peek-body {
+    margin-top: 0.45rem;
+    padding-top: 0.45rem;
+    border-top: 1px solid var(--f-hairline);
+}
+
+.box-peek-empty { color: var(--f-muted); }
+
+.box-peek-list {
+    list-style: none;
+    margin: 0.45rem 0 0;
+    padding: 0.45rem 0 0;
+    border-top: 1px solid var(--f-hairline);
+}
+
+.box-peek-list li {
+    display: flex;
+    gap: 0.5rem;
+    align-items: baseline;
+    line-height: 1.35;
+}
+
+.box-peek-id {
+    font-family: var(--f-mono);
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.box-peek-desc {
+    color: var(--f-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.box-peek-more {
+    margin-top: 0.2rem;
+    color: var(--f-muted);
+    font-style: italic;
 }
 
 @media (max-width: 575px) {

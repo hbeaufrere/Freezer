@@ -81,7 +81,8 @@ def test_freezer_tree_uses_a_fixed_number_of_queries(client, flask_app):
     finally:
         freezer_routes.get_db = real_get_db
 
-    assert counter['n'] == 4, f'expected 4 queries, got {counter["n"]}'
+    # Shelves, racks, drawers, boxes, and a peek at each research box.
+    assert counter['n'] == 5, f'expected 5 queries, got {counter["n"]}'
 
 
 def test_box_detail_includes_location(client, boxes):
@@ -1995,3 +1996,45 @@ def test_more_tubes_than_wells_never_colours_past_full(client, boxes):
     _bulk(client, box_id, tube_count=130, kind='tubes')
     assert _box_in_tree(client, box_id)['occupied'] == 100
     assert client.get('/api/stats/freezer').get_json()['research_count'] == 130
+
+
+# ------------------------------------------------------------
+# What a research box holds, from the overview
+# ------------------------------------------------------------
+
+def test_the_freezer_tree_says_what_each_research_box_holds(client, boxes):
+    box_id = boxes['research']['id']
+    for i, (sid, desc) in enumerate([('CLIPR-01', 'Kestrel plasma'), ('CLIPR-02', ''), ('', 'no id')], start=1):
+        client.post('/api/research/tubes', json={
+            'box_id': box_id, 'row_pos': 1, 'col_pos': i, 'sample_id': sid, 'description': desc,
+        })
+
+    box = _box_in_tree(client, box_id)
+    assert box['contents']['count'] == 3
+    ids = [s['sample_id'] for s in box['contents']['samples']]
+    assert ids == ['CLIPR-01', 'CLIPR-02', '(untitled)']
+    assert box['contents']['samples'][0]['description'] == 'Kestrel plasma'
+
+    empty = _box_in_tree(client, _second_research_box(client))
+    assert empty['contents'] == {'count': 0, 'samples': []}
+
+    # Raptor boxes are not peeked: their tubes are found by species and ID
+    # on their own page, and the overview stays one query lighter for it.
+    assert 'contents' not in _box_in_tree(client, boxes['raptor']['id'])
+
+
+def test_the_peek_is_capped_but_the_count_is_not(client, boxes, flask_app):
+    from db import get_db
+
+    box_id = boxes['research']['id']
+    with flask_app.app_context():
+        db = get_db()
+        db.execute("insert into research_tubes (box_id, row_pos, col_pos, sample_id) "
+                   "select %s, (g - 1) / 10 + 1, (g - 1) %% 10 + 1, 'S-' || g "
+                   "from generate_series(1, 30) g", (box_id,))
+        db.commit()
+
+    box = _box_in_tree(client, box_id)
+    assert box['contents']['count'] == 30
+    assert len(box['contents']['samples']) == 8
+    assert box['contents']['samples'][0]['sample_id'] == 'S-1'
