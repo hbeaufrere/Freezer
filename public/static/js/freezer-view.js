@@ -192,6 +192,7 @@ function createRackElement(rack, options = {}) {
             // is described — and outlined — differently.
             const isPlain = box.box_type === 'plain';
             const isBulk = box.box_type === 'bulk';
+            const bulkOther = isBulk && box.bulk_kind === 'other';
             const unit = isBulk ? 'tubes' : (isPlain ? 'samples' : 'positions');
 
             const depth = depthLabel(box.position, drawer.boxes.length);
@@ -207,9 +208,14 @@ function createRackElement(rack, options = {}) {
             const contents = isBulk
                 ? `\n${[box.bulk_sample_type, box.bulk_study].filter(Boolean).join(' — ') || 'contents not described'}`
                 : '';
+            // A whole box of bags is described by its own numbers — how many
+            // items, how full it was judged — not by well-equivalents.
+            const fill = bulkOther
+                ? `${box.bulk_tube_count || 0} item(s) · about ${box.bulk_fullness ?? 0}% full`
+                : `${box.occupied} of ${box.capacity} ${unit} (${pct}%)`;
             boxEl.title = `${box.label}${kind}${contents}`
                 + `\n${depth}`
-                + `\n${box.occupied} of ${box.capacity} ${unit} (${pct}%)`;
+                + `\n${fill}`;
             boxEl.setAttribute('aria-label',
                 `Box ${box.label}, ${depth}, ${box.occupied} of ${box.capacity} ${unit} filled`);
 

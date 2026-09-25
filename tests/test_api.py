@@ -1931,3 +1931,67 @@ def _second_research_box(client):
     shelves = client.get('/api/freezer').get_json()
     research = next(s for s in shelves if s['section'] == 'research')
     return research['racks'][1]['drawers'][0]['boxes'][0]['id']
+
+
+# ------------------------------------------------------------
+# Whole boxes of things that are not tubes
+# ------------------------------------------------------------
+
+def _box_in_tree(client, box_id):
+    shelves = client.get('/api/freezer').get_json()
+    return next(b for s in shelves for r in s['racks'] for d in r['drawers'] for b in d['boxes']
+                if b['id'] == box_id)
+
+
+def test_a_whole_box_of_tubes_colours_by_count(client, boxes):
+    box_id = boxes['research']['id']
+    _set_type(client, box_id, 'bulk')
+    _bulk(client, box_id, sample_type='Plasma', tube_count=48, study='X', kind='tubes')
+    assert _box_in_tree(client, box_id)['occupied'] == 48
+
+
+def test_a_whole_box_of_other_things_colours_by_stated_fullness(client, boxes):
+    """Twelve whirl-paks might pack a box or rattle around in it; only the
+    person who closed the lid knows which."""
+    box_id = boxes['research']['id']
+    _set_type(client, box_id, 'bulk')
+    saved = _bulk(client, box_id, sample_type='Tissue in whirl-paks', tube_count=12,
+                  study='Lead cohort', kind='other', fullness=75)
+    assert saved.status_code == 200, saved.get_json()
+    assert saved.get_json()['bulk_fullness'] == 75
+
+    box = _box_in_tree(client, box_id)
+    assert box['occupied'] == 75, 'fullness scaled to a 100-well box'
+    assert box['bulk_tube_count'] == 12, 'the count is still the number of samples'
+
+    # Samples count as samples; space counts as space.
+    freezer = client.get('/api/stats/freezer').get_json()
+    assert freezer['research_count'] == 12
+    assert freezer['tubes_stored'] == 75
+
+
+def test_switching_a_whole_box_back_to_tubes_drops_the_stated_fullness(client, boxes):
+    """A stale fullness must not colour a box that now counts its tubes."""
+    box_id = boxes['research']['id']
+    _set_type(client, box_id, 'bulk')
+    _bulk(client, box_id, tube_count=10, kind='other', fullness=90)
+    assert _box_in_tree(client, box_id)['occupied'] == 90
+
+    saved = _bulk(client, box_id, tube_count=10, kind='tubes').get_json()
+    assert saved['bulk_fullness'] is None
+    assert _box_in_tree(client, box_id)['occupied'] == 10
+
+
+def test_fullness_is_bounded_and_kind_is_constrained(client, boxes):
+    box_id = boxes['research']['id']
+    _set_type(client, box_id, 'bulk')
+    assert _bulk(client, box_id, kind='other', fullness=140).status_code == 400
+    assert _bulk(client, box_id, kind='bags').status_code == 400
+
+
+def test_more_tubes_than_wells_never_colours_past_full(client, boxes):
+    box_id = boxes['research']['id']
+    _set_type(client, box_id, 'bulk')
+    _bulk(client, box_id, tube_count=130, kind='tubes')
+    assert _box_in_tree(client, box_id)['occupied'] == 100
+    assert client.get('/api/stats/freezer').get_json()['research_count'] == 130

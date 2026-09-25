@@ -71,7 +71,8 @@ def get_research_stats(db):
     stats['boxes_with_samples'] = db.execute(
         """select count(*) as n from boxes b
            where exists (select 1 from research_tubes rt where rt.box_id = b.id)
-              or (b.box_type = 'bulk' and coalesce(b.bulk_tube_count, 0) > 0)"""
+              or (b.box_type = 'bulk'
+                  and (coalesce(b.bulk_tube_count, 0) > 0 or coalesce(b.bulk_fullness, 0) > 0))"""
     ).fetchone()['n']
 
     stats['total_boxes'] = db.execute(
@@ -135,10 +136,16 @@ def get_freezer_stats(db):
 
     # Physical occupancy is one slot per tube, so multi-tube samples count
     # individually here even though the biobank totals count them as one bird.
+    # Space, not items: a whole box of bags counts by how full it is said to
+    # be, so the percent-of-capacity figure means what it says.
     stats['tubes_stored'] = db.execute(
         """select (select count(*) from raptor_tubes)
                 + (select count(*) from research_tubes)
-                + (select coalesce(sum(bulk_tube_count), 0) from boxes where box_type = 'bulk')
+                + (select coalesce(sum(
+                        case when bulk_kind = 'other'
+                             then round(coalesce(bulk_fullness, 0) * grid_rows * grid_cols / 100.0)::int
+                             else least(coalesce(bulk_tube_count, 0), grid_rows * grid_cols) end), 0)
+                   from boxes where box_type = 'bulk')::bigint
                 as n"""
     ).fetchone()['n']
     stats['total_stored'] = stats['raptor_count'] + stats['research_count']

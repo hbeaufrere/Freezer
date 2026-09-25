@@ -86,11 +86,21 @@ async function openResearchBox(boxId) {
     }
 }
 
+/* The sidebar's box colours are drawn at page load. Anything that changes
+   how full a box is has to redraw them, or the map beside the form keeps
+   showing the box as it was. */
+async function refreshResearchSidebar() {
+    await renderSectionSidebar('research-rack-sidebar', 'research', openResearchBox);
+    document.querySelector(`#research-rack-sidebar .box-slot[data-box-id="${currentResearchBoxId}"]`)
+        ?.classList.add('selected');
+}
+
 async function saveBulkContents(box, contents) {
     try {
         const saved = await API.put(`/api/boxes/${box.id}/bulk`, contents);
-        showToast(`${box.label}: ${saved.bulk_tube_count} tube(s) recorded`);
-        await openResearchBox(box.id);
+        const noun = saved.bulk_kind === 'other' ? 'item(s)' : 'tube(s)';
+        showToast(`${box.label}: ${saved.bulk_tube_count} ${noun} recorded`);
+        await Promise.all([openResearchBox(box.id), refreshResearchSidebar()]);
         loadResearchQuickStats();
     } catch (err) {
         showToast(err.message, 'error');
@@ -150,7 +160,7 @@ async function changeBoxType(box, boxType) {
     try {
         await API.put(`/api/boxes/${box.id}/type`, { box_type: boxType });
         showToast(NAMES[boxType]);
-        await openResearchBox(box.id);
+        await Promise.all([openResearchBox(box.id), refreshResearchSidebar()]);
     } catch (err) {
         showToast(err.message, 'error');
     }
@@ -233,7 +243,7 @@ async function saveResearchTube() {
             showToast('Tube added');
         }
         bootstrap.Modal.getInstance(document.getElementById('researchTubeModal')).hide();
-        await openResearchBox(currentResearchBoxId);
+        await Promise.all([openResearchBox(currentResearchBoxId), refreshResearchSidebar()]);
         loadResearchQuickStats();
     } catch (err) {
         showToast(err.message, 'error');
@@ -265,7 +275,7 @@ async function deleteResearchTube() {
         await API.del(`/api/research/tubes/${tubeId}`);
         showToast('Tube removed');
         bootstrap.Modal.getInstance(document.getElementById('researchTubeModal')).hide();
-        await openResearchBox(currentResearchBoxId);
+        await Promise.all([openResearchBox(currentResearchBoxId), refreshResearchSidebar()]);
         loadResearchQuickStats();
     } catch (err) {
         showToast(err.message, 'error');

@@ -201,13 +201,26 @@ function renderBulkBox(container, boxData, options = {}) {
     const shell = document.createElement('div');
     shell.className = 'box-grid-shell bulk-box';
     const count = boxData.bulk_tube_count || 0;
+    const other = boxData.bulk_kind === 'other';
+    const noun = other ? (count === 1 ? 'item' : 'items') : (count === 1 ? 'tube' : 'tubes');
+    const full = other && boxData.bulk_fullness != null ? ` · ${boxData.bulk_fullness}% full` : '';
     shell.innerHTML = `
         <div class="box-grid-head">
             <span class="box-grid-title">${escapeHtml(boxData.label || 'Box')}</span>
             ${depthBadge(boxData)}
-            <span class="box-grid-count">${count} ${count === 1 ? 'tube' : 'tubes'}, recorded as a whole</span>
+            <span class="box-grid-count">${count} ${noun}, recorded as a whole${full}</span>
         </div>
         <form class="bulk-form" autocomplete="off">
+            <div class="bulk-kind" role="group" aria-label="What the box holds">
+                <span class="box-type-label">Contents</span>
+                <div class="btn-group btn-group-sm">
+                    <input type="radio" class="btn-check" name="bulk-kind" id="bulk-kind-tubes" value="tubes">
+                    <label class="btn btn-outline-secondary" for="bulk-kind-tubes">Tubes in wells</label>
+                    <input type="radio" class="btn-check" name="bulk-kind" id="bulk-kind-other" value="other">
+                    <label class="btn btn-outline-secondary" for="bulk-kind-other">Other (bags, blocks, swabs&hellip;)</label>
+                </div>
+                <span class="box-type-hint" id="bulk-kind-hint"></span>
+            </div>
             <div class="row g-3">
                 <div class="col-sm-5">
                     <label class="form-label" for="bulk-sample-type">Sample type</label>
@@ -220,7 +233,7 @@ function renderBulkBox(container, boxData, options = {}) {
                     </datalist>
                 </div>
                 <div class="col-sm-3">
-                    <label class="form-label" for="bulk-tube-count">Number of tubes</label>
+                    <label class="form-label" for="bulk-tube-count" id="bulk-count-label">Number of tubes</label>
                     <input type="number" class="form-control" id="bulk-tube-count"
                            min="0" max="10000" inputmode="numeric">
                 </div>
@@ -229,10 +242,20 @@ function renderBulkBox(container, boxData, options = {}) {
                     <input type="text" class="form-control" id="bulk-study" maxlength="200"
                            placeholder="e.g. Kestrel PK 2026">
                 </div>
+                <div class="col-12 bulk-other-only" id="bulk-fullness-wrap" hidden>
+                    <label class="form-label" for="bulk-fullness">
+                        How full is the box? <span class="fw-normal text-body-secondary" id="bulk-fullness-readout"></span>
+                    </label>
+                    <div class="bulk-fullness-row">
+                        <input type="range" class="form-range" id="bulk-fullness" min="0" max="100" step="5">
+                        <span class="bulk-fullness-swatch" id="bulk-fullness-swatch" aria-hidden="true"></span>
+                    </div>
+                    <div class="form-text">This is what colours the box on the freezer map.</div>
+                </div>
             </div>
             <div class="bulk-form-foot">
                 <span class="bulk-form-hint">
-                    Tubes in this box are counted in the freezer totals but not listed one by one.
+                    Samples in this box are counted in the freezer totals but not listed one by one.
                 </span>
                 <button type="submit" class="btn btn-primary btn-sm">
                     <i class="bi bi-check-lg me-1"></i>Save
@@ -244,12 +267,40 @@ function renderBulkBox(container, boxData, options = {}) {
     shell.querySelector('#bulk-tube-count').value = boxData.bulk_tube_count ?? '';
     shell.querySelector('#bulk-study').value = boxData.bulk_study || '';
 
+    const kind = boxData.bulk_kind === 'other' ? 'other' : 'tubes';
+    shell.querySelector(`#bulk-kind-${kind}`).checked = true;
+    const fullness = shell.querySelector('#bulk-fullness');
+    fullness.value = boxData.bulk_fullness ?? 50;
+
+    /* Tubes colour themselves — count over the box's wells. Anything else
+       has no such arithmetic, so the person who closed the lid says how full
+       it is, and the count becomes "how many items" rather than "how much
+       space". */
+    function syncKind() {
+        const other = shell.querySelector('#bulk-kind-other').checked;
+        shell.querySelector('#bulk-fullness-wrap').hidden = !other;
+        shell.querySelector('#bulk-count-label').textContent = other ? 'Number of items' : 'Number of tubes';
+        shell.querySelector('#bulk-kind-hint').textContent = other
+            ? 'Counted as samples; fullness is what you say it is.'
+            : `Fullness is the count over the box\u2019s ${boxData.capacity || 100} wells.`;
+        const pct = parseInt(fullness.value, 10) || 0;
+        shell.querySelector('#bulk-fullness-readout').textContent = `${pct}%`;
+        shell.querySelector('#bulk-fullness-swatch').className =
+            `bulk-fullness-swatch box-slot ${occupancyClass(pct, 100)}`;
+    }
+    shell.querySelectorAll('input[name="bulk-kind"]').forEach((r) => r.addEventListener('change', syncKind));
+    fullness.addEventListener('input', syncKind);
+    syncKind();
+
     shell.querySelector('.bulk-form').addEventListener('submit', (event) => {
         event.preventDefault();
+        const other = shell.querySelector('#bulk-kind-other').checked;
         options.onBulkSave?.({
             sample_type: shell.querySelector('#bulk-sample-type').value.trim(),
             tube_count: parseInt(shell.querySelector('#bulk-tube-count').value, 10) || 0,
             study: shell.querySelector('#bulk-study').value.trim(),
+            kind: other ? 'other' : 'tubes',
+            fullness: other ? (parseInt(fullness.value, 10) || 0) : null,
         });
     });
 
