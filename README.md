@@ -10,7 +10,10 @@ lower shelves hold **CLIPR research** samples with free-text sample IDs.
 
 A research box can also be switched to a **plain box**, which holds a list of
 samples with no fixed positions — for whirl-paks of tissue and anything else
-that has no well to sit in.
+that has no well to sit in — or to a **whole box**, one entry for the lot:
+sample type, how many tubes, which study. That is for boxes whose tube labels
+cannot be read without thawing them. The count still feeds occupancy and the
+section totals, so the freezer figures stay true.
 
 Flask + PostgreSQL, running as a Vercel Function against a Neon database.
 

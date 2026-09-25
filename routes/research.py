@@ -51,6 +51,12 @@ def create_tube():
         'Box',
     )
 
+    if box['box_type'] == 'bulk':
+        raise ApiError(
+            'This box is recorded as a whole. Switch it to a grid or plain box '
+            'to add samples one at a time.'
+        )
+
     if box['box_type'] == 'plain':
         # A plain box has no wells, so any position sent with the sample is
         # dropped rather than stored: a coordinate nobody can act on is worse
@@ -150,7 +156,8 @@ def search_tubes():
         return jsonify([])
 
     pattern = like_pattern(q)
-    rows = get_db().execute(
+    db = get_db()
+    rows = db.execute(
         """select rt.id, rt.box_id, rt.row_pos, rt.col_pos, rt.sample_id,
                   rt.description, rt.date_stored, rt.freeze_thaw_cycles,
                   b.label as box_label, d.label as drawer_label,
@@ -165,4 +172,27 @@ def search_tubes():
            limit 50""",
         {'q': pattern},
     ).fetchall()
-    return jsonify([dict(r) for r in rows])
+
+    # Bulk boxes have no tube rows to match, so they are found by what was
+    # written on them — the study or the sample type — and listed first,
+    # since a whole box is a bigger find than one tube.
+    boxes = db.execute(
+        """select b.id as box_id, b.label as box_label, b.bulk_sample_type,
+                  b.bulk_tube_count, b.bulk_study,
+                  d.label as drawer_label, r.label as rack_label, sh.name as shelf_name
+           from boxes b
+           join drawers d on b.drawer_id = d.id
+           join racks r on d.rack_id = r.id
+           join shelves sh on r.shelf_id = sh.id
+           where b.box_type = 'bulk'
+             and (b.bulk_study ilike %(q)s or b.bulk_sample_type ilike %(q)s
+                  or b.label ilike %(q)s)
+           order by b.label
+           limit 20""",
+        {'q': pattern},
+    ).fetchall()
+
+    return jsonify(
+        [{**dict(b), 'kind': 'bulk_box'} for b in boxes]
+        + [{**dict(r), 'kind': 'tube'} for r in rows]
+    )
