@@ -159,6 +159,130 @@ def create_retrieval():
     }), 201
 
 
+MAX_BULK = 500
+
+
+def _tube_rows(db, section, tube_ids):
+    """The tubes named, with what the log needs to snapshot. Missing IDs are
+    reported, not skipped: a group retrieval that quietly dropped three tubes
+    would leave three in the freezer with no record of the trip."""
+    if section == 'raptor':
+        rows = db.execute(
+            """select rt.id, rt.tube_id as label, rt.row_pos, rt.col_pos,
+                      s.common_name, b.label as box_label
+               from raptor_tubes rt
+               join species s on rt.species_id = s.id
+               join boxes b on rt.box_id = b.id
+               where rt.id = any(%s)""",
+            (tube_ids,),
+        ).fetchall()
+    else:
+        rows = db.execute(
+            """select rt.id, rt.sample_id as label, rt.row_pos, rt.col_pos,
+                      null as common_name, b.label as box_label
+               from research_tubes rt
+               join boxes b on rt.box_id = b.id
+               where rt.id = any(%s)""",
+            (tube_ids,),
+        ).fetchall()
+    found = {r['id'] for r in rows}
+    missing = [t for t in tube_ids if t not in found]
+    if missing:
+        raise ApiError(
+            f'{len(missing)} of those tubes no longer exist (ids {", ".join(map(str, missing[:5]))}'
+            f'{"…" if len(missing) > 5 else ""}). Refresh the list and try again.', 404)
+    return rows
+
+
+def _tube_id_list(data):
+    ids = data.get('tube_ids')
+    if not isinstance(ids, list) or not ids:
+        raise ApiError('tube_ids must be a non-empty list.')
+    if len(ids) > MAX_BULK:
+        raise ApiError(f'At most {MAX_BULK} tubes at a time.')
+    try:
+        return sorted({int(t) for t in ids})
+    except (TypeError, ValueError):
+        raise ApiError('tube_ids must be integers.') from None
+
+
+@retrieval_bp.route('/api/retrievals/bulk', methods=['POST'])
+def create_retrievals_bulk():
+    """One retrieval per tube, all with the same who / why / outcome, in one
+    transaction: either every tube is logged or none is.
+
+    Same rules as a single retrieval. Returned tubes gain a freeze-thaw
+    cycle; consumed ones are deleted, their log entries keeping the snapshot.
+    """
+    db = get_db()
+    data = json_body()
+    require(data, 'section', 'retrieved_by')
+
+    section = text(data, 'section')
+    if section not in ('raptor', 'research'):
+        raise ApiError("Section must be either 'raptor' or 'research'.")
+    tube_ids = _tube_id_list(data)
+    consumed = bool(data.get('consumed'))
+    who, purpose, notes = text(data, 'retrieved_by'), text(data, 'purpose'), text(data, 'notes')
+
+    tubes = _tube_rows(db, section, tube_ids)
+    fk = 'raptor_tube_id' if section == 'raptor' else 'research_tube_id'
+    table = 'raptor_tubes' if section == 'raptor' else 'research_tubes'
+
+    with write(db):
+        for tube in tubes:
+            db.execute(
+                f"""insert into retrievals
+                        (section, {fk}, tube_label, box_label, position_label,
+                         species_name, retrieved_by, purpose, notes, consumed)
+                    values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                (section, tube['id'], tube['label'] or 'Untitled sample', tube['box_label'],
+                 _position_label(tube['row_pos'], tube['col_pos']), tube['common_name'],
+                 who, purpose, notes, consumed),
+            )
+        if consumed:
+            db.execute(f'delete from {table} where id = any(%s)', (tube_ids,))
+        else:
+            db.execute(
+                f'update {table} set freeze_thaw_cycles = freeze_thaw_cycles + 1 where id = any(%s)',
+                (tube_ids,),
+            )
+
+    return jsonify({
+        'logged': len(tubes),
+        'removed': len(tubes) if consumed else 0,
+        'thawed': 0 if consumed else len(tubes),
+        'labels': [t['label'] for t in tubes],
+    }), 201
+
+
+@retrieval_bp.route('/api/tubes/thaw', methods=['POST'])
+def thaw_bulk():
+    """Count one freeze-thaw cycle on each of several tubes, with no log
+    entry — for tubes that came out and went back without a retrieval being
+    logged at the time, and are being squared up afterwards."""
+    db = get_db()
+    data = json_body()
+    require(data, 'section')
+
+    section = text(data, 'section')
+    if section not in ('raptor', 'research'):
+        raise ApiError("Section must be either 'raptor' or 'research'.")
+    tube_ids = _tube_id_list(data)
+    _tube_rows(db, section, tube_ids)
+    table = 'raptor_tubes' if section == 'raptor' else 'research_tubes'
+
+    with write(db):
+        rows = db.execute(
+            f"""update {table} set freeze_thaw_cycles = freeze_thaw_cycles + 1
+                where id = any(%s) returning id, freeze_thaw_cycles""",
+            (tube_ids,),
+        ).fetchall()
+
+    return jsonify({'thawed': len(rows),
+                    'cycles': {r['id']: r['freeze_thaw_cycles'] for r in rows}})
+
+
 @retrieval_bp.route('/api/retrievals/<int:entry_id>', methods=['DELETE'])
 def delete_retrieval(entry_id):
     """Remove a mistaken entry. The freeze-thaw count is left alone — the tube

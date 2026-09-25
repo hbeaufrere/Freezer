@@ -314,6 +314,16 @@ and the tube is deleted: a freezer record that still lists a sample somebody
 used up is worse than no record, because it sends the next person hunting for
 it. The log entry survives either way.
 
+**A group is one trip to the freezer.** Twenty tubes for one assay are
+found once, with the filters on the Statistics page, and should be logged
+once. Tick rows in either filter's results and the same sheet logs a
+retrieval against every tube in one transaction: either all are logged or
+none is, so a tube that vanished between the search and the save fails the
+whole group rather than being silently skipped. The same bar offers a plain
+*freeze-thaw cycle* for tubes that went out and back without anyone logging
+it at the time; that writes no log entry, because there is nothing true to
+put in one.
+
 **Deleting a record is not retrieving a sample.** They look alike and are
 opposites: retrieval writes history, deletion erases it. So the delete control
 is a quiet grey button rather than a peer of *Log retrieval*, and its

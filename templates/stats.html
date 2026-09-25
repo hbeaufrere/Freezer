@@ -121,6 +121,19 @@
                     </div>
                 </div>
 
+                <div class="select-bar" id="filter-select-bar" hidden>
+                    <span class="select-bar-count"><b id="filter-selected-n">0</b> selected</span>
+                    <button type="button" class="btn btn-primary btn-sm" id="btn-filter-retrieve">
+                        <i class="bi bi-box-arrow-up me-1"></i>Log retrieval
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-filter-thaw"
+                            title="For tubes that came out and went back without a retrieval being logged">
+                        <i class="bi bi-thermometer-half me-1"></i>Record a freeze-thaw cycle
+                    </button>
+                    <button type="button" class="btn btn-link btn-sm text-body-secondary" id="btn-filter-unselect">
+                        Clear selection
+                    </button>
+                </div>
                 <div class="table-responsive filter-results" id="filter-results"></div>
                 <div class="filter-note" id="filter-note" hidden></div>
             </div>
@@ -260,6 +273,19 @@
                     </div>
                 </div>
 
+                <div class="select-bar" id="rfilter-select-bar" hidden>
+                    <span class="select-bar-count"><b id="rfilter-selected-n">0</b> selected</span>
+                    <button type="button" class="btn btn-primary btn-sm" id="btn-rfilter-retrieve">
+                        <i class="bi bi-box-arrow-up me-1"></i>Log retrieval
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-rfilter-thaw"
+                            title="For tubes that came out and went back without a retrieval being logged">
+                        <i class="bi bi-thermometer-half me-1"></i>Record a freeze-thaw cycle
+                    </button>
+                    <button type="button" class="btn btn-link btn-sm text-body-secondary" id="btn-rfilter-unselect">
+                        Clear selection
+                    </button>
+                </div>
                 <div class="table-responsive filter-results" id="rfilter-results"></div>
                 <div class="filter-note" id="rfilter-note" hidden></div>
             </div>
@@ -296,6 +322,8 @@
 {% block scripts %}
 <script src="/static/js/stats-charts.js"></script>
 <script src="/static/js/export.js"></script>
+<script src="/static/js/retrieval.js"></script>
+<script src="/static/js/select-actions.js"></script>
 <script src="/static/js/biobank-filter.js"></script>
 <script src="/static/js/research-filter.js"></script>
 <script>
