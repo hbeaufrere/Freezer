@@ -2188,3 +2188,57 @@ body {
     border-color: currentColor;
     background: transparent;
 }
+
+
+/* ============================================================
+   RESEARCH INVENTORY TREE
+   ============================================================ */
+
+.inventory { padding-top: 0.5rem; }
+
+details.inv { border-left: 2px solid var(--f-hairline); margin: 0.15rem 0 0.15rem 0.35rem; }
+details.inv-shelf { border-left-color: var(--f-accent); margin-left: 0; }
+details.inv-rack  { border-left-color: var(--f-hairline-2); }
+
+details.inv > summary {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    padding: 0.3rem 0.55rem;
+    cursor: pointer;
+    list-style: none;
+    border-radius: var(--f-radius-sm);
+}
+details.inv > summary::-webkit-details-marker { display: none; }
+details.inv > summary::before {
+    content: '▸';
+    font-size: 0.7rem;
+    color: var(--f-muted);
+    transition: transform 0.12s;
+}
+details.inv[open] > summary::before { transform: rotate(90deg); }
+details.inv > summary:hover { background: var(--f-surface-2); }
+
+.inv-label { font-family: var(--f-mono); font-weight: 600; }
+.inv-shelf > summary .inv-label { font-family: var(--f-sans); font-size: 0.95rem; }
+.inv-extra { color: var(--f-muted); font-size: 0.82rem; }
+.inv-count { margin-left: auto; font-family: var(--f-mono); font-size: 0.72rem; color: var(--f-ink-soft); white-space: nowrap; }
+.inv-count.is-empty { color: var(--f-muted); opacity: 0.7; }
+
+.inv-body { padding: 0.1rem 0 0.2rem 0.6rem; }
+.inv-none, .inv-bulk { font-size: 0.82rem; color: var(--f-muted); padding: 0.2rem 0.6rem 0.4rem; }
+.inv-bulk { color: var(--f-ink-soft); }
+
+.inv-table { margin: 0 0 0.35rem; font-size: 0.8rem; }
+.inv-table td { border: 0; padding: 0.15rem 0.5rem; }
+.inv-pos { font-family: var(--f-mono); color: var(--f-muted); width: 3rem; }
+.inv-desc { color: var(--f-ink-soft); }
+.inv-date { font-family: var(--f-mono); font-size: 0.74rem; color: var(--f-muted); white-space: nowrap; }
+
+.inv-total {
+    margin-top: 0.8rem;
+    padding-top: 0.6rem;
+    border-top: 1px solid var(--f-hairline);
+    font-size: 0.82rem;
+    color: var(--f-muted);
+}
