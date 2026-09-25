@@ -81,7 +81,8 @@ def test_freezer_tree_uses_a_fixed_number_of_queries(client, flask_app):
     finally:
         freezer_routes.get_db = real_get_db
 
-    assert counter['n'] == 4, f'expected 4 queries, got {counter["n"]}'
+    # Shelves, racks, drawers, boxes, and a peek at each research box.
+    assert counter['n'] == 5, f'expected 5 queries, got {counter["n"]}'
 
 
 def test_box_detail_includes_location(client, boxes):
@@ -1995,3 +1996,136 @@ def test_more_tubes_than_wells_never_colours_past_full(client, boxes):
     _bulk(client, box_id, tube_count=130, kind='tubes')
     assert _box_in_tree(client, box_id)['occupied'] == 100
     assert client.get('/api/stats/freezer').get_json()['research_count'] == 130
+
+
+# ------------------------------------------------------------
+# What a research box holds, from the overview
+# ------------------------------------------------------------
+
+def test_the_freezer_tree_says_what_each_research_box_holds(client, boxes):
+    box_id = boxes['research']['id']
+    for i, (sid, desc) in enumerate([('CLIPR-01', 'Kestrel plasma'), ('CLIPR-02', ''), ('', 'no id')], start=1):
+        client.post('/api/research/tubes', json={
+            'box_id': box_id, 'row_pos': 1, 'col_pos': i, 'sample_id': sid, 'description': desc,
+        })
+
+    box = _box_in_tree(client, box_id)
+    assert box['contents']['count'] == 3
+    ids = [s['sample_id'] for s in box['contents']['samples']]
+    assert ids == ['CLIPR-01', 'CLIPR-02', '(untitled)']
+    assert box['contents']['samples'][0]['description'] == 'Kestrel plasma'
+
+    empty = _box_in_tree(client, _second_research_box(client))
+    assert empty['contents'] == {'count': 0, 'samples': []}
+
+    # Raptor boxes are not peeked: their tubes are found by species and ID
+    # on their own page, and the overview stays one query lighter for it.
+    assert 'contents' not in _box_in_tree(client, boxes['raptor']['id'])
+
+
+def test_the_peek_is_capped_but_the_count_is_not(client, boxes, flask_app):
+    from db import get_db
+
+    box_id = boxes['research']['id']
+    with flask_app.app_context():
+        db = get_db()
+        db.execute("insert into research_tubes (box_id, row_pos, col_pos, sample_id) "
+                   "select %s, (g - 1) / 10 + 1, (g - 1) %% 10 + 1, 'S-' || g "
+                   "from generate_series(1, 30) g", (box_id,))
+        db.commit()
+
+    box = _box_in_tree(client, box_id)
+    assert box['contents']['count'] == 30
+    assert len(box['contents']['samples']) == 8
+    assert box['contents']['samples'][0]['sample_id'] == 'S-1'
+
+
+# ------------------------------------------------------------
+# Research: find, filter, and the inventory tree
+# ------------------------------------------------------------
+
+@pytest.fixture
+def research_set(client, boxes):
+    box_a = boxes['research']['id']
+    box_b = _second_research_box(client)
+    for box, col, sid, desc, date in [
+        (box_a, 1, 'CLIPR-2026-001', 'Kestrel plasma', '2026-03-01'),
+        (box_a, 2, 'CLIPR-2026-002', 'Kestrel liver', '2026-03-15'),
+        (box_b, 1, 'WNV-07', 'Red-tail serum', '2026-06-01'),
+    ]:
+        client.post('/api/research/tubes', json={
+            'box_id': box, 'row_pos': 1, 'col_pos': col, 'sample_id': sid,
+            'description': desc, 'date_stored': date,
+        })
+    return {'a': box_a, 'b': box_b}
+
+
+def _rf(client, **c):
+    return client.get('/api/research/filter?' + '&'.join(f'{k}={v}' for k, v in c.items())).get_json()
+
+
+def test_research_filter_by_text_matches_id_and_description(client, research_set):
+    assert _rf(client)['matched'] == 3
+    assert _rf(client, q='clipr')['matched'] == 2
+    assert _rf(client, q='kestrel')['matched'] == 2
+    assert _rf(client, q='serum')['matched'] == 1
+    assert _rf(client, q='nothing')['matched'] == 0
+
+
+def test_research_filter_by_rack_and_date(client, research_set):
+    rack_a = next(r for r in client.get('/api/research/filter-options').get_json()['racks']
+                  if r['count'] == 2)
+    assert _rf(client, rack_id=rack_a['id'])['matched'] == 2
+    assert _rf(client, date_from='2026-03-10')['matched'] == 2
+    assert _rf(client, date_from='2026-03-10', date_to='2026-03-31')['matched'] == 1
+    assert _rf(client, q='kestrel', date_to='2026-03-10')['matched'] == 1
+
+
+def test_research_filter_finds_whole_boxes_by_study_and_counts_their_tubes(client, research_set):
+    box_c = client.get('/api/freezer').get_json()
+    box_c = next(s for s in box_c if s['section'] == 'research')['racks'][2]['drawers'][0]['boxes'][0]['id']
+    _set_type(client, box_c, 'bulk')
+    _bulk(client, box_c, sample_type='Plasma', tube_count=48, study='Lipoproteins surplus')
+
+    result = _rf(client, q='lipoprotein')
+    assert result['matched'] == 1 and result['tubes'] == 48
+    assert result['samples'][0]['kind'] == 'bulk_box'
+    # A date range cannot apply to an undated whole box, so it drops out.
+    assert _rf(client, q='lipoprotein', date_from='2026-01-01')['matched'] == 0
+    # And the unfiltered total counts every tube, itemised or not.
+    assert _rf(client)['tubes'] == 51
+
+
+def test_research_download_matches_the_filter(client, research_set):
+    for criteria in ({'q': 'kestrel'}, {'date_from': '2026-05-01'}, {}):
+        query = '&'.join(f'{k}={v}' for k, v in criteria.items())
+        shown = _rf(client, **criteria)['matched']
+        csv_text = client.get(f'/api/export/research/csv?{query}').get_data(as_text=True)
+        assert len([l for l in csv_text.splitlines() if l.strip()]) - 1 == shown, criteria
+
+
+def test_research_inventory_is_nested_and_counts_roll_up(client, research_set):
+    inv = client.get('/api/research/inventory').get_json()
+    assert inv['total'] == 3
+    assert [s['name'] for s in inv['shelves']] == ['Middle Shelf', 'Lower Shelf']
+    middle = inv['shelves'][0]
+    assert middle['count'] == 3
+    assert len(middle['racks']) == 6
+    assert len(middle['racks'][0]['drawers']) == 8
+    assert len(middle['racks'][0]['drawers'][0]['boxes']) == 4
+
+    box_a = next(b for r in middle['racks'] for d in r['drawers'] for b in d['boxes']
+                 if b['id'] == research_set['a'])
+    assert box_a['count'] == 2
+    assert [t['sample_id'] for t in box_a['samples']] == ['CLIPR-2026-001', 'CLIPR-2026-002']
+    assert box_a['samples'][0]['position'] == 'A1'
+    # Racks and drawers carry their own totals, so a folded unit still says
+    # how much is inside it.
+    rack_a = next(r for r in middle['racks'] if any(b['id'] == research_set['a'] for d in r['drawers'] for b in d['boxes']))
+    assert rack_a['count'] == 2
+    assert rack_a['drawers'][0]['count'] == 2
+
+
+def test_research_inventory_and_filter_need_a_session(anon):
+    for path in ('/api/research/filter', '/api/research/filter-options', '/api/research/inventory'):
+        assert anon.get(path).status_code == 401, path

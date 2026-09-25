@@ -36,6 +36,16 @@ def _raptor_filters():
     }
 
 
+def _research_filters():
+    args = request.args
+    return {
+        'q': (args.get('q') or '').strip(),
+        'rack_id': args.get('rack_id', type=int),
+        'date_from': as_date(args, 'date_from'),
+        'date_to': as_date(args, 'date_to'),
+    }
+
+
 def _stamped(name, extension):
     """Filenames carry the export date so downloads don't overwrite each other."""
     return f'{name}_{date.today().isoformat()}.{extension}'
@@ -69,7 +79,7 @@ def raptor_csv():
 
 @export_bp.route('/api/export/research/xlsx')
 def research_xlsx():
-    output = export_research_xlsx(get_db())
+    output = export_research_xlsx(get_db(), _research_filters())
     return send_file(
         output,
         mimetype=XLSX_MIMETYPE,
@@ -80,5 +90,5 @@ def research_xlsx():
 
 @export_bp.route('/api/export/research/csv')
 def research_csv():
-    output = export_research_csv(get_db())
+    output = export_research_csv(get_db(), _research_filters())
     return _csv_response(output, _stamped('clipr_research', 'csv'))

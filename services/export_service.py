@@ -89,15 +89,51 @@ def raptor_query(filters=None):
     return query, params
 
 
-def _research_query():
-    """Itemised tubes, then bulk boxes as one row each with their count.
+# The research criteria, mirrored from the raptor ones: one predicate for
+# the on-screen list, the CSV and the workbook, so they cannot disagree.
+# ``q`` is the one people actually type — a sample ID or a word from the
+# description — and for a whole box it matches the study and sample type.
+_RESEARCH_TUBE_CRITERIA = {
+    'q': '(rt.sample_id ilike %(q)s or rt.description ilike %(q)s)',
+    'rack_id': 'r.id = %(rack_id)s',
+    'date_from': 'rt.date_stored >= %(date_from)s',
+    'date_to': 'rt.date_stored <= %(date_to)s',
+}
+_RESEARCH_BOX_CRITERIA = {
+    'q': '(b.bulk_study ilike %(q)s or b.bulk_sample_type ilike %(q)s or b.label ilike %(q)s)',
+    'rack_id': 'r.id = %(rack_id)s',
+    # A whole box has no date, so a date range excludes it outright rather
+    # than passing it through as if it matched.
+    'date_from': 'false',
+    'date_to': 'false',
+}
 
-    A bulk box's tubes were never labelled individually, so a row per tube
+
+def research_query(filters=None):
+    """Itemised tubes, then whole boxes as one row each with their count.
+
+    A whole box's tubes were never labelled individually, so a row per tube
     would be a fiction; one row saying "48 tubes, plasma, Kestrel PK" is the
     truth the freezer holds.
     """
-    return """
-        select rt.sample_id, rt.description, 1 as tubes,
+    filters = filters or {}
+    params = {}
+    tube_where, box_where = [], []
+    for field, value in filters.items():
+        if value is None or value == '':
+            continue
+        if field == 'q':
+            params['q'] = f'%{value}%'
+        else:
+            params[field] = value
+        tube_where.append(_RESEARCH_TUBE_CRITERIA[field])
+        box_where.append(_RESEARCH_BOX_CRITERIA[field])
+
+    tube_clause = (' where ' + ' and '.join(tube_where)) if tube_where else ''
+    box_clause = ' and ' + ' and '.join(box_where) if box_where else ''
+
+    query = f"""
+        select rt.id, rt.box_id, rt.sample_id, rt.description, 1 as tubes,
                rt.date_stored, rt.freeze_thaw_cycles,
                sh.name as shelf, r.label as rack, d.label as drawer, b.label as box,
                rt.row_pos, rt.col_pos, rt.created_at,
@@ -107,8 +143,9 @@ def _research_query():
         join drawers d on b.drawer_id = d.id
         join racks r on d.rack_id = r.id
         join shelves sh on r.shelf_id = sh.id
+        {tube_clause}
         union all
-        select null as sample_id,
+        select null as id, b.id as box_id, null as sample_id,
                concat_ws(' — ', b.bulk_sample_type, b.bulk_study) as description,
                coalesce(b.bulk_tube_count, 0) as tubes,
                null as date_stored, null as freeze_thaw_cycles,
@@ -119,9 +156,10 @@ def _research_query():
         join drawers d on b.drawer_id = d.id
         join racks r on d.rack_id = r.id
         join shelves sh on r.shelf_id = sh.id
-        where b.box_type = 'bulk'
+        where b.box_type = 'bulk'{box_clause}
         order by sp, rp, dp, bp, row_pos, col_pos
     """
+    return query, params
 
 
 def _raptor_row(row):
@@ -199,13 +237,15 @@ def export_raptor_csv(db, filters=None):
     return _build_csv(RAPTOR_HEADERS, rows, _raptor_row)
 
 
-def export_research_xlsx(db):
-    rows = db.execute(_research_query()).fetchall()
+def export_research_xlsx(db, filters=None):
+    query, params = research_query(filters)
+    rows = db.execute(query, params).fetchall()
     return _build_workbook(
         'Research Samples', RESEARCH_HEADERS, _RESEARCH_FILL, rows, _research_row
     )
 
 
-def export_research_csv(db):
-    rows = db.execute(_research_query()).fetchall()
+def export_research_csv(db, filters=None):
+    query, params = research_query(filters)
+    rows = db.execute(query, params).fetchall()
     return _build_csv(RESEARCH_HEADERS, rows, _research_row)

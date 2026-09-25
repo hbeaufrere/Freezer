@@ -217,12 +217,60 @@
             </div>
         </div>
 
+        <div class="card mb-4" id="research-filter">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <span>Find research samples</span>
+                <button class="btn btn-sm btn-link p-0 text-body-secondary" id="btn-rfilter-clear">Clear</button>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-lg-5">
+                        <label for="rfilter-q" class="form-label">Sample ID, description or study</label>
+                        <input type="search" class="form-control" id="rfilter-q"
+                               placeholder="e.g. CLIPR-2026, kestrel, lipoproteins" autocomplete="off">
+                    </div>
+                    <div class="col-sm-6 col-lg-3">
+                        <label for="rfilter-rack" class="form-label">Rack</label>
+                        <select class="form-select" id="rfilter-rack">
+                            <option value="">Any rack</option>
+                        </select>
+                    </div>
+                    <div class="col-6 col-lg-2">
+                        <label for="rfilter-from" class="form-label">Stored from</label>
+                        <input type="date" class="form-control" id="rfilter-from">
+                    </div>
+                    <div class="col-6 col-lg-2">
+                        <label for="rfilter-to" class="form-label">Stored to</label>
+                        <input type="date" class="form-control" id="rfilter-to">
+                    </div>
+                </div>
+
+                <div class="filter-summary">
+                    <div class="filter-count">
+                        <span class="filter-count-value" id="rfilter-count">&ndash;&ndash;</span>
+                        <span class="filter-count-label" id="rfilter-count-label">entries</span>
+                    </div>
+                    <div class="filter-actions">
+                        <button class="btn btn-primary btn-sm" id="btn-rfilter-csv">
+                            <i class="bi bi-filetype-csv me-1"></i>Download CSV
+                        </button>
+                        <button class="btn btn-outline-secondary btn-sm" id="btn-rfilter-xlsx">
+                            <i class="bi bi-file-earmark-spreadsheet me-1"></i>Excel
+                        </button>
+                    </div>
+                </div>
+
+                <div class="table-responsive filter-results" id="rfilter-results"></div>
+                <div class="filter-note" id="rfilter-note" hidden></div>
+            </div>
+        </div>
+
         <div class="card mb-4">
             <div class="card-header">Tubes by rack</div>
             <div class="card-body"><canvas id="chart-research-rack" height="280"></canvas></div>
         </div>
 
-        <div class="card">
+        <div class="card mb-4">
             <div class="card-header">Export research data</div>
             <div class="card-body d-flex flex-wrap gap-2">
                 <button class="btn btn-primary" id="btn-export-research-xlsx">
@@ -233,6 +281,19 @@
                 </button>
             </div>
         </div>
+
+        <div class="card" id="research-inventory">
+            <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+                <span>Everything, by shelf, rack, drawer and box</span>
+                <span class="d-flex gap-1">
+                    <button class="btn btn-sm btn-outline-secondary" id="btn-inv-expand">Expand all</button>
+                    <button class="btn btn-sm btn-outline-secondary" id="btn-inv-collapse">Collapse all</button>
+                </span>
+            </div>
+            <div class="card-body inventory" id="inventory-body">
+                <div class="skeleton" style="height: 6rem"></div>
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}
@@ -241,11 +302,14 @@
 <script src="/static/js/stats-charts.js"></script>
 <script src="/static/js/export.js"></script>
 <script src="/static/js/biobank-filter.js"></script>
+<script src="/static/js/research-filter.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', () => {
         initStatsPage();
         initExportButtons();
         initBiobankFilter();
+        initResearchFilter();
+        initResearchInventory();
     });
 </script>
 {% endblock %}

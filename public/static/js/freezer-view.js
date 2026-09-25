@@ -213,11 +213,19 @@ function createRackElement(rack, options = {}) {
             const fill = bulkOther
                 ? `${box.bulk_tube_count || 0} item(s) · about ${box.bulk_fullness ?? 0}% full`
                 : `${box.occupied} of ${box.capacity} ${unit} (${pct}%)`;
-            boxEl.title = `${box.label}${kind}${contents}`
-                + `\n${depth}`
-                + `\n${fill}`;
             boxEl.setAttribute('aria-label',
                 `Box ${box.label}, ${depth}, ${box.occupied} of ${box.capacity} ${unit} filled`);
+
+            // Research boxes get a hover card listing what is inside; the
+            // native title would then show twice, so it is used only where
+            // there is no card.
+            if (box.section === 'research') {
+                attachBoxPeek(boxEl, box, { kind, depth, fill });
+            } else {
+                boxEl.title = `${box.label}${kind}${contents}`
+                    + `\n${depth}`
+                    + `\n${fill}`;
+            }
 
             boxEl.addEventListener('click', (event) => {
                 event.stopPropagation();
@@ -327,6 +335,79 @@ function drawerNoteInput(drawer) {
     input.addEventListener('click', (event) => event.stopPropagation());
 
     return input;
+}
+
+/* ---- What is in that box? ---------------------------------- */
+
+/* One card for the whole page, moved to whichever box is under the pointer.
+   A title attribute would do for a line of text, but the point here is to
+   recognise a box by what is in it — a few sample IDs — and titles cannot
+   list, take half a second to appear, and never appear on a phone (where a
+   tap opens the box instead, which is the better answer there). */
+let boxPeekEl = null;
+
+function boxPeek() {
+    if (boxPeekEl) return boxPeekEl;
+    boxPeekEl = document.createElement('div');
+    boxPeekEl.className = 'box-peek';
+    boxPeekEl.setAttribute('role', 'tooltip');
+    boxPeekEl.hidden = true;
+    document.body.appendChild(boxPeekEl);
+    return boxPeekEl;
+}
+
+function boxPeekHtml(box, meta) {
+    const head = `
+        <div class="box-peek-head">
+            <span class="box-peek-label">${escapeHtml(box.label)}</span>
+            <span class="box-peek-kind">${escapeHtml(meta.kind.replace(/[()]/g, '').trim() || 'grid')}</span>
+        </div>
+        <div class="box-peek-meta">${escapeHtml(meta.depth)} · ${escapeHtml(meta.fill)}</div>`;
+
+    if (box.box_type === 'bulk') {
+        const what = [box.bulk_sample_type, box.bulk_study].filter(Boolean).join(' — ');
+        return head + `<div class="box-peek-body">${what ? escapeHtml(what) : '<em>Contents not described yet</em>'}</div>`;
+    }
+
+    const c = box.contents || { count: 0, samples: [] };
+    if (!c.count) {
+        return head + '<div class="box-peek-body box-peek-empty">Empty</div>';
+    }
+    const rows = c.samples.map((s) => `
+        <li><span class="box-peek-id">${escapeHtml(s.sample_id)}</span>${
+            s.description ? `<span class="box-peek-desc">${escapeHtml(s.description)}</span>` : ''
+        }</li>`).join('');
+    const more = c.count > c.samples.length
+        ? `<li class="box-peek-more">+${c.count - c.samples.length} more</li>` : '';
+    return head + `<ul class="box-peek-list">${rows}${more}</ul>`;
+}
+
+function attachBoxPeek(boxEl, box, meta) {
+    const show = () => {
+        const el = boxPeek();
+        el.innerHTML = boxPeekHtml(box, meta);
+        el.hidden = false;
+        // Below the box unless that would run off the screen, then above;
+        // clamped to the viewport sideways.
+        const r = boxEl.getBoundingClientRect();
+        const w = el.offsetWidth, h = el.offsetHeight;
+        let left = r.left + r.width / 2 - w / 2;
+        left = Math.max(8, Math.min(left, window.innerWidth - w - 8));
+        let top = r.bottom + 8;
+        if (top + h > window.innerHeight - 8) top = r.top - h - 8;
+        el.style.left = `${left + window.scrollX}px`;
+        el.style.top = `${top + window.scrollY}px`;
+        boxEl.setAttribute('aria-describedby', 'box-peek');
+        el.id = 'box-peek';
+    };
+    const hide = () => {
+        if (boxPeekEl) boxPeekEl.hidden = true;
+        boxEl.removeAttribute('aria-describedby');
+    };
+    boxEl.addEventListener('mouseenter', show);
+    boxEl.addEventListener('mouseleave', hide);
+    boxEl.addEventListener('focus', show);
+    boxEl.addEventListener('blur', hide);
 }
 
 /* ---- Samples waiting at the satellite freezers ------------- */
