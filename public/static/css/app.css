@@ -1191,6 +1191,40 @@ body {
     border-width: 1.5px;
 }
 
+/* A whole box: double-ruled, one thing rather than a hundred. */
+.box-slot.is-bulk {
+    border-style: double;
+    border-width: 3px;
+}
+
+/* ---- Whole box: one entry for its contents ------------------ */
+
+.bulk-form { padding-top: 0.25rem; }
+
+.bulk-form-foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    margin-top: 1rem;
+    padding-top: 0.85rem;
+    border-top: 1px solid var(--f-hairline);
+}
+
+.bulk-form-hint {
+    font-size: 0.78rem;
+    color: var(--f-muted);
+}
+
+.result-kind {
+    margin-left: 0.4rem;
+    font-family: var(--f-sans);
+    font-weight: 500;
+    font-size: 0.7rem;
+    color: var(--f-muted);
+}
+
 .box-grid {
     display: grid;
     gap: 5px;

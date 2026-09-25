@@ -1112,7 +1112,7 @@ def test_raptor_boxes_cannot_be_made_plain(client, boxes):
 def test_unknown_box_types_are_rejected(client, boxes):
     response = _set_type(client, boxes['research']['id'], 'freeform')
     assert response.status_code == 400
-    assert "'grid' or 'plain'" in response.get_json()['error']
+    assert "'grid', 'plain' or 'bulk'" in response.get_json()['error']
 
 
 def test_positionless_samples_export_without_a_fake_position(client, boxes):
@@ -1803,3 +1803,131 @@ def test_an_unknown_case_number_says_so(client):
     response = client.get('/api/raptor/birds/NOPE-1')
     assert response.status_code == 404
     assert 'NOPE-1' in response.get_json()['error']
+
+
+# ------------------------------------------------------------
+# Whole (bulk) boxes — counted, not itemised
+# ------------------------------------------------------------
+
+def _bulk(client, box_id, **contents):
+    return client.put(f'/api/boxes/{box_id}/bulk', json=contents)
+
+
+def test_a_bulk_box_records_type_count_and_study(client, boxes):
+    box_id = boxes['research']['id']
+    assert _set_type(client, box_id, 'bulk').get_json()['box_type'] == 'bulk'
+
+    saved = _bulk(client, box_id, sample_type='Plasma', tube_count=48, study='Kestrel PK 2026')
+    assert saved.status_code == 200, saved.get_json()
+    assert saved.get_json()['bulk_tube_count'] == 48
+
+    box = client.get(f'/api/boxes/{box_id}').get_json()
+    assert box['box_type'] == 'bulk'
+    assert (box['bulk_sample_type'], box['bulk_tube_count'], box['bulk_study']) \
+        == ('Plasma', 48, 'Kestrel PK 2026')
+    assert box['tubes'] == []
+
+
+def test_a_bulk_box_counts_towards_occupancy_and_totals(client, boxes):
+    """The point of the feature: the freezer figures stay true even though
+    nothing in the box was ever labelled."""
+    box_id = boxes['research']['id']
+    _set_type(client, box_id, 'bulk')
+    _bulk(client, box_id, sample_type='Serum', tube_count=60, study='WNV')
+
+    shelves = client.get('/api/freezer').get_json()
+    box = next(b for s in shelves for r in s['racks'] for d in r['drawers'] for b in d['boxes']
+               if b['id'] == box_id)
+    assert box['occupied'] == 60
+
+    freezer = client.get('/api/stats/freezer').get_json()
+    assert freezer['research_count'] == 60
+    assert freezer['tubes_stored'] == 60
+
+    research = client.get('/api/stats/research').get_json()
+    assert research['total_samples'] == 60
+    assert research['boxes_with_samples'] == 1
+    assert sum(r['count'] for r in research['occupancy_by_rack']) == 60
+
+
+def test_a_bulk_box_refuses_individual_tubes(client, boxes):
+    """A summary in place of a list, not on top of one."""
+    box_id = boxes['research']['id']
+    _set_type(client, box_id, 'bulk')
+    response = client.post('/api/research/tubes', json={'box_id': box_id, 'sample_id': 'X'})
+    assert response.status_code == 400
+    assert 'recorded as a whole' in response.get_json()['error']
+
+
+def test_a_box_with_tubes_cannot_become_bulk(client, boxes):
+    box_id = boxes['research']['id']
+    client.post('/api/research/tubes', json={
+        'box_id': box_id, 'row_pos': 1, 'col_pos': 1, 'sample_id': 'ONE',
+    })
+    response = _set_type(client, box_id, 'bulk')
+    assert response.status_code == 400
+    assert '1 sample(s) recorded individually' in response.get_json()['error']
+    assert client.get(f'/api/boxes/{box_id}').get_json()['box_type'] == 'grid'
+
+
+def test_bulk_contents_survive_a_switch_away_and_back_but_stop_counting(client, boxes):
+    box_id = boxes['research']['id']
+    _set_type(client, box_id, 'bulk')
+    _bulk(client, box_id, sample_type='Plasma', tube_count=30, study='Study A')
+
+    _set_type(client, box_id, 'grid')
+    assert client.get('/api/stats/freezer').get_json()['research_count'] == 0, \
+        'a grid box must not carry a phantom bulk count'
+
+    _set_type(client, box_id, 'bulk')
+    box = client.get(f'/api/boxes/{box_id}').get_json()
+    assert box['bulk_tube_count'] == 30 and box['bulk_study'] == 'Study A'
+    assert client.get('/api/stats/freezer').get_json()['research_count'] == 30
+
+
+def test_bulk_contents_need_a_bulk_box(client, boxes):
+    response = _bulk(client, boxes['research']['id'], sample_type='Plasma', tube_count=5)
+    assert response.status_code == 400
+    assert 'not a bulk box' in response.get_json()['error']
+
+
+def test_raptor_boxes_cannot_become_bulk(client, boxes):
+    assert _set_type(client, boxes['raptor']['id'], 'bulk').status_code == 400
+
+
+def test_a_bulk_box_is_found_by_its_study_or_type(client, boxes):
+    box_id = boxes['research']['id']
+    _set_type(client, box_id, 'bulk')
+    _bulk(client, box_id, sample_type='Liver', tube_count=12, study='Lead toxicosis cohort')
+
+    for query in ('lead tox', 'LIVER'):
+        hits = client.get(f'/api/research/search?q={query}').get_json()
+        assert hits and hits[0]['kind'] == 'bulk_box', query
+        assert hits[0]['box_id'] == box_id
+        assert hits[0]['bulk_tube_count'] == 12
+
+    assert client.get('/api/research/search?q=nothing-here').get_json() == []
+
+
+def test_a_bulk_box_exports_as_one_row_with_its_count(client, boxes):
+    box_id = boxes['research']['id']
+    _set_type(client, box_id, 'bulk')
+    _bulk(client, box_id, sample_type='Plasma', tube_count=48, study='Kestrel PK')
+    client.post('/api/research/tubes', json={
+        'box_id': _second_research_box(client), 'row_pos': 1, 'col_pos': 1, 'sample_id': 'SOLO',
+    })
+
+    csv_text = client.get('/api/export/research/csv').get_data(as_text=True)
+    lines = [l for l in csv_text.splitlines() if l.strip()]
+    assert 'Tubes' in lines[0]
+    rows = lines[1:]
+    assert len(rows) == 2
+    bulk_row = next(r for r in rows if '(whole box)' in r)
+    assert 'Plasma — Kestrel PK' in bulk_row and ',48,' in bulk_row
+    assert any('SOLO' in r and ',1,' in r for r in rows)
+
+
+def _second_research_box(client):
+    shelves = client.get('/api/freezer').get_json()
+    research = next(s for s in shelves if s['section'] == 'research')
+    return research['racks'][1]['drawers'][0]['boxes'][0]['id']

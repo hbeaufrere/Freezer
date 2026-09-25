@@ -40,6 +40,10 @@ function renderBoxGrid(container, boxData, options = {}) {
         renderPlainBox(container, boxData, options);
         return null;
     }
+    if (boxData.box_type === 'bulk') {
+        renderBulkBox(container, boxData, options);
+        return null;
+    }
 
     const rows = boxData.grid_rows || 10;
     const cols = boxData.grid_cols || 10;
@@ -183,6 +187,71 @@ function renderPlainBox(container, boxData, options = {}) {
         : '<i class="bi bi-plus-lg me-1"></i>Add a sample';
     add.addEventListener('click', () => options.onEmptyClick?.(null, null));
     list.appendChild(add);
+
+    container.textContent = '';
+    container.appendChild(shell);
+}
+
+/* A bulk box: one entry for the whole thing.
+
+   For boxes whose tubes cannot be read without thawing them. What the box
+   holds is said once — type, how many, which study — and that is the record,
+   rather than an empty grid pretending nothing is there. */
+function renderBulkBox(container, boxData, options = {}) {
+    const shell = document.createElement('div');
+    shell.className = 'box-grid-shell bulk-box';
+    const count = boxData.bulk_tube_count || 0;
+    shell.innerHTML = `
+        <div class="box-grid-head">
+            <span class="box-grid-title">${escapeHtml(boxData.label || 'Box')}</span>
+            ${depthBadge(boxData)}
+            <span class="box-grid-count">${count} ${count === 1 ? 'tube' : 'tubes'}, recorded as a whole</span>
+        </div>
+        <form class="bulk-form" autocomplete="off">
+            <div class="row g-3">
+                <div class="col-sm-5">
+                    <label class="form-label" for="bulk-sample-type">Sample type</label>
+                    <input type="text" class="form-control" id="bulk-sample-type" maxlength="100"
+                           list="bulk-type-suggestions" placeholder="e.g. Plasma, Serum, Liver">
+                    <datalist id="bulk-type-suggestions">
+                        <option value="Plasma"><option value="Serum"><option value="Whole blood">
+                        <option value="Packed RBCs"><option value="Liver"><option value="Tissue">
+                        <option value="Feathers"><option value="Swabs">
+                    </datalist>
+                </div>
+                <div class="col-sm-3">
+                    <label class="form-label" for="bulk-tube-count">Number of tubes</label>
+                    <input type="number" class="form-control" id="bulk-tube-count"
+                           min="0" max="10000" inputmode="numeric">
+                </div>
+                <div class="col-sm-4">
+                    <label class="form-label" for="bulk-study">Study</label>
+                    <input type="text" class="form-control" id="bulk-study" maxlength="200"
+                           placeholder="e.g. Kestrel PK 2026">
+                </div>
+            </div>
+            <div class="bulk-form-foot">
+                <span class="bulk-form-hint">
+                    Tubes in this box are counted in the freezer totals but not listed one by one.
+                </span>
+                <button type="submit" class="btn btn-primary btn-sm">
+                    <i class="bi bi-check-lg me-1"></i>Save
+                </button>
+            </div>
+        </form>`;
+
+    shell.querySelector('#bulk-sample-type').value = boxData.bulk_sample_type || '';
+    shell.querySelector('#bulk-tube-count').value = boxData.bulk_tube_count ?? '';
+    shell.querySelector('#bulk-study').value = boxData.bulk_study || '';
+
+    shell.querySelector('.bulk-form').addEventListener('submit', (event) => {
+        event.preventDefault();
+        options.onBulkSave?.({
+            sample_type: shell.querySelector('#bulk-sample-type').value.trim(),
+            tube_count: parseInt(shell.querySelector('#bulk-tube-count').value, 10) || 0,
+            study: shell.querySelector('#bulk-study').value.trim(),
+        });
+    });
 
     container.textContent = '';
     container.appendChild(shell);

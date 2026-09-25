@@ -20,7 +20,7 @@ RAPTOR_HEADERS = [
 ]
 
 RESEARCH_HEADERS = [
-    'Sample ID', 'Description', 'Date Stored', 'Freeze-Thaw Cycles',
+    'Sample ID', 'Description', 'Tubes', 'Date Stored', 'Freeze-Thaw Cycles',
     'Shelf', 'Rack', 'Drawer', 'Box', 'Position',
     'Date Added',
 ]
@@ -90,16 +90,37 @@ def raptor_query(filters=None):
 
 
 def _research_query():
+    """Itemised tubes, then bulk boxes as one row each with their count.
+
+    A bulk box's tubes were never labelled individually, so a row per tube
+    would be a fiction; one row saying "48 tubes, plasma, Kestrel PK" is the
+    truth the freezer holds.
+    """
     return """
-        select rt.sample_id, rt.description, rt.date_stored, rt.freeze_thaw_cycles,
+        select rt.sample_id, rt.description, 1 as tubes,
+               rt.date_stored, rt.freeze_thaw_cycles,
                sh.name as shelf, r.label as rack, d.label as drawer, b.label as box,
-               rt.row_pos, rt.col_pos, rt.created_at
+               rt.row_pos, rt.col_pos, rt.created_at,
+               sh.position as sp, r.position as rp, d.position as dp, b.position as bp
         from research_tubes rt
         join boxes b on rt.box_id = b.id
         join drawers d on b.drawer_id = d.id
         join racks r on d.rack_id = r.id
         join shelves sh on r.shelf_id = sh.id
-        order by sh.position, r.position, d.position, b.position, rt.row_pos, rt.col_pos
+        union all
+        select null as sample_id,
+               concat_ws(' — ', b.bulk_sample_type, b.bulk_study) as description,
+               coalesce(b.bulk_tube_count, 0) as tubes,
+               null as date_stored, null as freeze_thaw_cycles,
+               sh.name, r.label, d.label, b.label,
+               null, null, null,
+               sh.position, r.position, d.position, b.position
+        from boxes b
+        join drawers d on b.drawer_id = d.id
+        join racks r on d.rack_id = r.id
+        join shelves sh on r.shelf_id = sh.id
+        where b.box_type = 'bulk'
+        order by sp, rp, dp, bp, row_pos, col_pos
     """
 
 
@@ -118,7 +139,8 @@ def _raptor_row(row):
 
 def _research_row(row):
     return [
-        row['sample_id'], row['description'], row['date_stored'], row['freeze_thaw_cycles'],
+        row['sample_id'] or '(whole box)', row['description'], row['tubes'],
+        row['date_stored'], row['freeze_thaw_cycles'],
         row['shelf'], row['rack'], row['drawer'], row['box'],
         format_position(row['row_pos'], row['col_pos']),
         row['created_at'],

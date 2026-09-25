@@ -79,7 +79,19 @@ async function openResearchBox(boxId) {
         renderBoxGrid(document.getElementById('research-grid-area'), box, {
             onTubeClick: openResearchEditModal,
             onEmptyClick: openResearchAddModal,
+            onBulkSave: (contents) => saveBulkContents(box, contents),
         });
+    } catch (err) {
+        showToast(err.message, 'error');
+    }
+}
+
+async function saveBulkContents(box, contents) {
+    try {
+        const saved = await API.put(`/api/boxes/${box.id}/bulk`, contents);
+        showToast(`${box.label}: ${saved.bulk_tube_count} tube(s) recorded`);
+        await openResearchBox(box.id);
+        loadResearchQuickStats();
     } catch (err) {
         showToast(err.message, 'error');
     }
@@ -96,23 +108,27 @@ function renderBoxTypeSwitch(box) {
     const host = document.getElementById('research-box-type');
     if (!host) return;
 
-    const isPlain = box.box_type === 'plain';
+    const type = box.box_type || 'grid';
+    const HINTS = {
+        grid: 'Each sample sits in a numbered well.',
+        plain: 'Samples are listed, with no fixed position.',
+        bulk: 'One entry for the whole box — type, count, study — no individual tubes.',
+    };
+    const btn = (key, icon, label) => `
+        <button type="button" class="btn ${type === key ? 'btn-primary' : 'btn-outline-secondary'}"
+                data-type="${key}" ${type === key ? 'aria-current="true"' : ''}>
+            <i class="bi ${icon} me-1"></i>${label}
+        </button>`;
+
     host.hidden = false;
     host.innerHTML = `
         <span class="box-type-label">Box type</span>
         <div class="btn-group btn-group-sm" role="group" aria-label="Box type">
-            <button type="button" class="btn ${isPlain ? 'btn-outline-secondary' : 'btn-primary'}"
-                    data-type="grid" ${isPlain ? '' : 'aria-current="true"'}>
-                <i class="bi bi-grid-3x3 me-1"></i>${box.grid_rows}&times;${box.grid_cols} grid
-            </button>
-            <button type="button" class="btn ${isPlain ? 'btn-primary' : 'btn-outline-secondary'}"
-                    data-type="plain" ${isPlain ? 'aria-current="true"' : ''}>
-                <i class="bi bi-bag me-1"></i>Plain box
-            </button>
+            ${btn('grid', 'bi-grid-3x3', `${box.grid_rows}&times;${box.grid_cols} grid`)}
+            ${btn('plain', 'bi-bag', 'Plain box')}
+            ${btn('bulk', 'bi-box-seam', 'Whole box')}
         </div>
-        <span class="box-type-hint">${isPlain
-            ? 'Samples are listed, with no fixed position.'
-            : 'Each sample sits in a numbered well.'}</span>`;
+        <span class="box-type-hint">${HINTS[type]}</span>`;
 
     host.querySelectorAll('button[data-type]').forEach((button) => {
         button.addEventListener('click', () => changeBoxType(box, button.dataset.type));
@@ -130,9 +146,10 @@ async function changeBoxType(box, boxType) {
         if (!ok) return;
     }
 
+    const NAMES = { grid: 'Now a 10×10 grid', plain: 'Now a plain box', bulk: 'Now recorded as a whole box' };
     try {
         await API.put(`/api/boxes/${box.id}/type`, { box_type: boxType });
-        showToast(boxType === 'plain' ? 'Now a plain box' : 'Now a 10×10 grid');
+        showToast(NAMES[boxType]);
         await openResearchBox(box.id);
     } catch (err) {
         showToast(err.message, 'error');
@@ -279,13 +296,25 @@ async function runResearchSearch() {
                 item.className = 'search-result-item';
                 item.dataset.selectable = 'true';
                 item.setAttribute('role', 'option');
-                item.innerHTML = `
-                    <span class="result-id">${escapeHtml(row.sample_id || 'Untitled sample')}</span>
-                    <div class="result-meta">
-                        ${escapeHtml(row.rack_label)} · ${escapeHtml(row.box_label)} ·
-                        ${positionLabel(row.row_pos, row.col_pos)}
-                        ${row.description ? '— ' + escapeHtml(row.description.slice(0, 60)) : ''}
-                    </div>`;
+                if (row.kind === 'bulk_box') {
+                    // A whole box matched — by its study or its sample type.
+                    const what = [row.bulk_sample_type, row.bulk_study].filter(Boolean).join(' — ');
+                    item.innerHTML = `
+                        <span class="result-id"><i class="bi bi-box-seam me-1"></i>${escapeHtml(row.box_label)}
+                            <span class="result-kind">whole box · ${row.bulk_tube_count || 0} tubes</span></span>
+                        <div class="result-meta">
+                            ${escapeHtml(row.rack_label)} · ${escapeHtml(row.drawer_label)}
+                            ${what ? '— ' + escapeHtml(what.slice(0, 70)) : ''}
+                        </div>`;
+                } else {
+                    item.innerHTML = `
+                        <span class="result-id">${escapeHtml(row.sample_id || 'Untitled sample')}</span>
+                        <div class="result-meta">
+                            ${escapeHtml(row.rack_label)} · ${escapeHtml(row.box_label)} ·
+                            ${positionLabel(row.row_pos, row.col_pos)}
+                            ${row.description ? '— ' + escapeHtml(row.description.slice(0, 60)) : ''}
+                        </div>`;
+                }
                 item.addEventListener('click', () => {
                     dropdown.classList.remove('show');
                     openResearchBox(row.box_id);

@@ -191,7 +191,8 @@ function createRackElement(rack, options = {}) {
             // A plain box holds samples rather than filling positions, so it
             // is described — and outlined — differently.
             const isPlain = box.box_type === 'plain';
-            const unit = isPlain ? 'samples' : 'positions';
+            const isBulk = box.box_type === 'bulk';
+            const unit = isBulk ? 'tubes' : (isPlain ? 'samples' : 'positions');
 
             const depth = depthLabel(box.position, drawer.boxes.length);
 
@@ -199,9 +200,14 @@ function createRackElement(rack, options = {}) {
             boxEl.type = 'button';
             boxEl.className = `box-slot ${occupancyClass(box.occupied, box.capacity)}`
                 + (isPlain ? ' is-plain' : '')
+                + (isBulk ? ' is-bulk' : '')
                 + (box.position === 1 ? ' is-front' : '');
             boxEl.dataset.boxId = box.id;
-            boxEl.title = `${box.label}${isPlain ? ' (plain box)' : ''}`
+            const kind = isBulk ? ' (whole box)' : (isPlain ? ' (plain box)' : '');
+            const contents = isBulk
+                ? `\n${[box.bulk_sample_type, box.bulk_study].filter(Boolean).join(' — ') || 'contents not described'}`
+                : '';
+            boxEl.title = `${box.label}${kind}${contents}`
                 + `\n${depth}`
                 + `\n${box.occupied} of ${box.capacity} ${unit} (${pct}%)`;
             boxEl.setAttribute('aria-label',

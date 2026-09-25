@@ -10,10 +10,14 @@ from routes.support import as_int, json_body, one_or_404, require, text, write
 freezer_bp = Blueprint('freezer', __name__)
 
 # Occupancy per box, counting both sections. Used wherever boxes are listed.
-_BOX_COLUMNS = """
+# A bulk box has no tube rows; its count is the box's own. Only counted while
+# the box is bulk, so switching it back to a grid does not double-count.
+_BULK_COUNT = "case when b.box_type = 'bulk' then coalesce(b.bulk_tube_count, 0) else 0 end"
+
+_BOX_COLUMNS = f"""
     b.id, b.drawer_id, b.position, b.label, b.grid_rows, b.grid_cols, b.section,
-    b.box_type,
-    coalesce(rc.cnt, 0) + coalesce(rp.cnt, 0) as occupied,
+    b.box_type, b.bulk_sample_type, b.bulk_tube_count, b.bulk_study,
+    coalesce(rc.cnt, 0) + coalesce(rp.cnt, 0) + {_BULK_COUNT} as occupied,
     b.grid_rows * b.grid_cols as capacity
 """
 
@@ -115,7 +119,8 @@ def get_box(box_id):
 
     box = one_or_404(db.execute(
         """select b.id, b.position, b.label, b.grid_rows, b.grid_cols, b.section,
-                  b.box_type, b.grid_rows * b.grid_cols as capacity,
+                  b.box_type, b.bulk_sample_type, b.bulk_tube_count, b.bulk_study,
+                  b.grid_rows * b.grid_cols as capacity,
                   -- How deep this box sits, and how deep the drawer goes: the
                   -- page says "front of the drawer" rather than just "B1".
                   (select count(*) from boxes b2 where b2.drawer_id = b.drawer_id)
@@ -285,8 +290,8 @@ def set_box_type(box_id):
     require(data, 'box_type')
 
     box_type = text(data, 'box_type')
-    if box_type not in ('grid', 'plain'):
-        raise ApiError("Box type must be either 'grid' or 'plain'.")
+    if box_type not in ('grid', 'plain', 'bulk'):
+        raise ApiError("Box type must be 'grid', 'plain' or 'bulk'.")
 
     box = one_or_404(
         db.execute(
@@ -299,7 +304,19 @@ def set_box_type(box_id):
     # Raptor samples are found by position; a biobank box without one is not a
     # thing the rest of the app — or the freezer layout — knows how to handle.
     if box['section'] != 'research':
-        raise ApiError('Only CLIPR research boxes can be changed to a plain box.')
+        raise ApiError('Only CLIPR research boxes can change type.')
+
+    # A bulk box is a summary instead of tubes, not as well as them: with
+    # both, every count in the app would be wrong by the overlap.
+    if box_type == 'bulk' and box['box_type'] != 'bulk':
+        held = db.execute(
+            'select count(*) as n from research_tubes where box_id = %s', (box_id,)
+        ).fetchone()['n']
+        if held:
+            raise ApiError(
+                f'This box has {held} sample(s) recorded individually. Move or remove '
+                'them first; a bulk box is a summary in place of a list, not on top of one.'
+            )
 
     if box_type == 'grid' and box['box_type'] != 'grid':
         unplaced = db.execute(
@@ -320,6 +337,36 @@ def set_box_type(box_id):
         db.execute('update boxes set box_type = %s where id = %s', (box_type, box_id))
 
     return jsonify({'id': box_id, 'box_type': box_type})
+
+
+@freezer_bp.route('/api/boxes/<int:box_id>/bulk', methods=['PUT'])
+def set_bulk_contents(box_id):
+    """What a bulk box holds: sample type, how many, which study."""
+    db = get_db()
+    data = json_body()
+
+    box = one_or_404(
+        db.execute('select id, box_type, section from boxes where id = %s', (box_id,)).fetchone(),
+        'Box',
+    )
+    if box['box_type'] != 'bulk':
+        raise ApiError('This box is not a bulk box. Switch its type first.')
+
+    count = as_int(data, 'tube_count', minimum=0, maximum=10000, default=0)
+    sample_type = text(data, 'sample_type')
+    study = text(data, 'study')
+    if len(sample_type) > 100 or len(study) > 200:
+        raise ApiError('Keep the sample type under 100 characters and the study under 200.')
+
+    with write(db):
+        row = db.execute(
+            """update boxes
+               set bulk_sample_type = %s, bulk_tube_count = %s, bulk_study = %s
+               where id = %s
+               returning id, box_type, bulk_sample_type, bulk_tube_count, bulk_study""",
+            (sample_type or None, count, study or None, box_id),
+        ).fetchone()
+    return jsonify(dict(row))
 
 
 @freezer_bp.route('/api/boxes/<int:box_id>', methods=['DELETE'])

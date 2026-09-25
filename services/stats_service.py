@@ -61,12 +61,17 @@ def get_raptor_stats(db):
 def get_research_stats(db):
     stats = {}
 
+    # Bulk boxes hold tubes that were never itemised; they still count.
     stats['total_samples'] = db.execute(
-        'select count(*) as n from research_tubes'
+        """select (select count(*) from research_tubes)
+                + (select coalesce(sum(bulk_tube_count), 0) from boxes where box_type = 'bulk')
+                as n"""
     ).fetchone()['n']
 
     stats['boxes_with_samples'] = db.execute(
-        'select count(distinct box_id) as n from research_tubes'
+        """select count(*) as n from boxes b
+           where exists (select 1 from research_tubes rt where rt.box_id = b.id)
+              or (b.box_type = 'bulk' and coalesce(b.bulk_tube_count, 0) > 0)"""
     ).fetchone()['n']
 
     stats['total_boxes'] = db.execute(
@@ -74,7 +79,10 @@ def get_research_stats(db):
     ).fetchone()['n']
 
     stats['occupancy_by_rack'] = [dict(r) for r in db.execute(
-        """select r.label as rack, count(rt.id) as count
+        """select r.label as rack,
+                  count(rt.id)
+                  + coalesce(sum(case when b.box_type = 'bulk' then b.bulk_tube_count end)
+                             filter (where rt.id is null), 0) as count
            from racks r
            join drawers d on d.rack_id = r.id
            join boxes b on b.drawer_id = d.id
@@ -120,14 +128,18 @@ def get_freezer_stats(db):
         ).fetchall()
     ]
     stats['research_count'] = db.execute(
-        'select count(*) as n from research_tubes'
+        """select (select count(*) from research_tubes)
+                + (select coalesce(sum(bulk_tube_count), 0) from boxes where box_type = 'bulk')
+                as n"""
     ).fetchone()['n']
 
     # Physical occupancy is one slot per tube, so multi-tube samples count
     # individually here even though the biobank totals count them as one bird.
     stats['tubes_stored'] = db.execute(
         """select (select count(*) from raptor_tubes)
-                + (select count(*) from research_tubes) as n"""
+                + (select count(*) from research_tubes)
+                + (select coalesce(sum(bulk_tube_count), 0) from boxes where box_type = 'bulk')
+                as n"""
     ).fetchone()['n']
     stats['total_stored'] = stats['raptor_count'] + stats['research_count']
 
