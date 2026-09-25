@@ -1848,7 +1848,6 @@ def test_a_bulk_box_counts_towards_occupancy_and_totals(client, boxes):
     research = client.get('/api/stats/research').get_json()
     assert research['total_samples'] == 60
     assert research['boxes_with_samples'] == 1
-    assert sum(r['count'] for r in research['occupancy_by_rack']) == 60
 
 
 def test_a_bulk_box_refuses_individual_tubes(client, boxes):

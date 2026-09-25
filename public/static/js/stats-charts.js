@@ -140,17 +140,10 @@ async function loadResearchStats() {
 }
 
 function drawResearchCharts(stats) {
-    const theme = chartTheme();
-
     document.getElementById('research-total').textContent = stats.total_samples;
     document.getElementById('research-boxes-used').textContent = stats.boxes_with_samples;
     document.getElementById('research-total-boxes').textContent = stats.total_boxes;
     document.getElementById('research-avg-ft').textContent = stats.avg_freeze_thaw_cycles;
-
-    const racks = stats.occupancy_by_rack || [];
-    renderBar('research-rack', 'chart-research-rack',
-        racks.map((d) => d.rack), racks.map((d) => d.count),
-        theme.research, baseOptions(theme));
 }
 
 /* ---- Page ------------------------------------------------- */
