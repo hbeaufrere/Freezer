@@ -1410,7 +1410,7 @@ body {
     margin: 0.9rem 0 0.4rem;
 }
 
-.sidebar-heading:first-child { margin-top: 0; }
+.sidebar-shelf:first-child .sidebar-heading { margin-top: 0; }
 
 .rack-sidebar .rack {
     min-width: 0;
@@ -1879,12 +1879,19 @@ body {
 @media (max-width: 991px) {
     .section-layout { grid-template-columns: minmax(0, 1fr); }
 
-    /* On a phone the racks run in one row you swipe through, one rack per
-       screen, rather than wrapping into a grid inside a short scrolling
-       box. Left and right is how the racks sit on the shelf. */
+    /* On a phone each shelf is its own row you swipe through, one rack per
+       screen, rather than the racks wrapping into a grid inside a short
+       scrolling box. Left and right is how the racks sit on the shelf, and
+       two shelves are two rows that move on their own. */
     .rack-sidebar {
         position: static;
         max-height: none;
+        overflow: visible;
+        padding-right: 0;
+    }
+    .sidebar-shelf + .sidebar-shelf { margin-top: 0.75rem; }
+    .rack-sidebar .sidebar-heading { margin: 0 0 0.35rem 0.15rem; }
+    .sidebar-shelf-racks {
         display: flex;
         gap: 0.6rem;
         overflow-x: auto;
@@ -1894,9 +1901,6 @@ body {
         padding-bottom: 0.5rem;
         scrollbar-width: thin;
     }
-    /* The page title already names the shelves; in a swipe strip the
-       heading would only push the first rack off screen. */
-    .rack-sidebar .sidebar-heading { display: none; }
     .rack-sidebar .rack {
         display: block;
         flex: 0 0 min(82vw, 320px);

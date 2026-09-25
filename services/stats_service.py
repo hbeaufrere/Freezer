@@ -79,20 +79,6 @@ def get_research_stats(db):
         "select count(*) as n from boxes where section = 'research'"
     ).fetchone()['n']
 
-    stats['occupancy_by_rack'] = [dict(r) for r in db.execute(
-        """select r.label as rack,
-                  count(rt.id)
-                  + coalesce(sum(case when b.box_type = 'bulk' then b.bulk_tube_count end)
-                             filter (where rt.id is null), 0) as count
-           from racks r
-           join drawers d on d.rack_id = r.id
-           join boxes b on b.drawer_id = d.id
-           left join research_tubes rt on rt.box_id = b.id
-           where b.section = 'research'
-           group by r.id, r.label
-           order by r.label"""
-    ).fetchall()]
-
     stats['avg_freeze_thaw_cycles'] = db.execute(
         """select coalesce(round(avg(freeze_thaw_cycles), 1), 0)::float8 as avg
            from research_tubes"""

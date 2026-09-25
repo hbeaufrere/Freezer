@@ -547,15 +547,28 @@ async function renderSectionSidebar(containerId, section, onBoxClick) {
             return shelves;
         }
 
+        // One block per shelf. On a desktop that is a heading over a column
+        // of racks; on a phone each shelf becomes its own row you swipe
+        // through, so the two research shelves scroll independently rather
+        // than running together as one long strip.
         matching.forEach((shelf) => {
+            const block = document.createElement('section');
+            block.className = 'sidebar-shelf';
+            block.dataset.shelfId = shelf.id;
+
             const heading = document.createElement('div');
             heading.className = 'sidebar-heading';
             heading.textContent = shelf.name;
-            container.appendChild(heading);
+            block.appendChild(heading);
 
+            const strip = document.createElement('div');
+            strip.className = 'sidebar-shelf-racks';
             shelf.racks.forEach((rack) =>
-                container.appendChild(
+                strip.appendChild(
                     createRackElement(rack, { onBoxClick, editableNotes: true })));
+            block.appendChild(strip);
+
+            container.appendChild(block);
         });
 
         return shelves;
