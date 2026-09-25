@@ -1201,6 +1201,36 @@ body {
 
 .bulk-form { padding-top: 0.25rem; }
 
+.bulk-kind {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 0.9rem;
+}
+
+.bulk-kind .btn-check:checked + .btn {
+    background: var(--f-accent);
+    border-color: var(--f-accent);
+    color: var(--f-accent-ink);
+}
+
+.bulk-fullness-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.bulk-fullness-row .form-range { flex: 1 1 auto; }
+
+/* The very swatch the freezer map will show, so the slider is not abstract. */
+.bulk-fullness-swatch.box-slot {
+    width: 34px;
+    height: 22px;
+    cursor: default;
+    flex: 0 0 auto;
+}
+
 .bulk-form-foot {
     display: flex;
     flex-wrap: wrap;

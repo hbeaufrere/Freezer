@@ -10,14 +10,23 @@ from routes.support import as_int, json_body, one_or_404, require, text, write
 freezer_bp = Blueprint('freezer', __name__)
 
 # Occupancy per box, counting both sections. Used wherever boxes are listed.
-# A bulk box has no tube rows; its count is the box's own. Only counted while
-# the box is bulk, so switching it back to a grid does not double-count.
-_BULK_COUNT = "case when b.box_type = 'bulk' then coalesce(b.bulk_tube_count, 0) else 0 end"
+# How much of a whole box is used, in well-equivalents, so it colours like
+# any other box. Tubes: the count. Anything else: the fullness the person
+# stated, scaled to the box. Only counted while the box is bulk, so switching
+# it back to a grid does not double-count.
+_BULK_SPACE = """
+    case when b.box_type = 'bulk' then
+        case when b.bulk_kind = 'other'
+             then round(coalesce(b.bulk_fullness, 0) * b.grid_rows * b.grid_cols / 100.0)::int
+             else least(coalesce(b.bulk_tube_count, 0), b.grid_rows * b.grid_cols) end
+    else 0 end
+"""
 
 _BOX_COLUMNS = f"""
     b.id, b.drawer_id, b.position, b.label, b.grid_rows, b.grid_cols, b.section,
     b.box_type, b.bulk_sample_type, b.bulk_tube_count, b.bulk_study,
-    coalesce(rc.cnt, 0) + coalesce(rp.cnt, 0) + {_BULK_COUNT} as occupied,
+    b.bulk_kind, b.bulk_fullness,
+    coalesce(rc.cnt, 0) + coalesce(rp.cnt, 0) + {_BULK_SPACE} as occupied,
     b.grid_rows * b.grid_cols as capacity
 """
 
@@ -120,6 +129,7 @@ def get_box(box_id):
     box = one_or_404(db.execute(
         """select b.id, b.position, b.label, b.grid_rows, b.grid_cols, b.section,
                   b.box_type, b.bulk_sample_type, b.bulk_tube_count, b.bulk_study,
+                  b.bulk_kind, b.bulk_fullness,
                   b.grid_rows * b.grid_cols as capacity,
                   -- How deep this box sits, and how deep the drawer goes: the
                   -- page says "front of the drawer" rather than just "B1".
@@ -358,13 +368,22 @@ def set_bulk_contents(box_id):
     if len(sample_type) > 100 or len(study) > 200:
         raise ApiError('Keep the sample type under 100 characters and the study under 200.')
 
+    kind = text(data, 'kind', 'tubes') or 'tubes'
+    if kind not in ('tubes', 'other'):
+        raise ApiError("Contents must be 'tubes' or 'other'.")
+    # Tubes colour themselves from the count; anything else needs to be told
+    # how full it is, and a stale fullness must not survive a switch to tubes.
+    fullness = as_int(data, 'fullness', minimum=0, maximum=100) if kind == 'other' else None
+
     with write(db):
         row = db.execute(
             """update boxes
-               set bulk_sample_type = %s, bulk_tube_count = %s, bulk_study = %s
+               set bulk_sample_type = %s, bulk_tube_count = %s, bulk_study = %s,
+                   bulk_kind = %s, bulk_fullness = %s
                where id = %s
-               returning id, box_type, bulk_sample_type, bulk_tube_count, bulk_study""",
-            (sample_type or None, count, study or None, box_id),
+               returning id, box_type, bulk_sample_type, bulk_tube_count, bulk_study,
+                         bulk_kind, bulk_fullness""",
+            (sample_type or None, count, study or None, kind, fullness, box_id),
         ).fetchone()
     return jsonify(dict(row))
 
