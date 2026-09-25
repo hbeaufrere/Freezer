@@ -625,6 +625,7 @@ def filter_samples():
     rows = db.execute(query, params).fetchall()
 
     samples = [{
+        'id': row['id'],
         'tube_id': row['tube_id'],
         'banding_code': row['banding_code'],
         'common_name': row['common_name'],

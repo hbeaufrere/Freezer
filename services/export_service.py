@@ -62,7 +62,7 @@ _RAPTOR_CRITERIA = {
 
 def raptor_query(filters=None):
     query = """
-        select rt.tube_id, s.banding_code, s.common_name, s.scientific_name,
+        select rt.id, rt.tube_id, s.banding_code, s.common_name, s.scientific_name,
                rt.sample_type, rt.blood_timing, rt.anticoagulant,
                rt.collection_date, rt.age, rt.sex,
                rt.freeze_thaw_cycles, rt.wrmd_number, rt.vmth_number,

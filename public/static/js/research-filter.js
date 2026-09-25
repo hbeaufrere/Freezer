@@ -7,8 +7,16 @@ const RFILTER_FIELDS = {
     q: 'rfilter-q', rack_id: 'rfilter-rack', date_from: 'rfilter-from', date_to: 'rfilter-to',
 };
 
+let researchSelection = null;
+
 async function initResearchFilter() {
     if (!document.getElementById('research-filter')) return;
+
+    researchSelection = makeSelection({
+        section: 'research', prefix: 'rfilter',
+        tableHost: document.getElementById('rfilter-results'),
+        onDone: runResearchFilter,
+    });
 
     try {
         const options = await API.get('/api/research/filter-options');
@@ -23,7 +31,7 @@ async function initResearchFilter() {
 
     Object.entries(RFILTER_FIELDS).forEach(([field, id]) => {
         const el = document.getElementById(id);
-        const handler = () => { rfilter[field] = el.value.trim(); runResearchFilter(); };
+        const handler = () => { rfilter[field] = el.value.trim(); researchSelection?.clear(); runResearchFilter(); };
         el.addEventListener(field === 'q' ? 'input' : 'change', field === 'q' ? debounce(handler, 250) : handler);
     });
     document.getElementById('btn-rfilter-clear').addEventListener('click', () => {
@@ -77,11 +85,13 @@ async function runResearchFilter() {
     results.innerHTML = `
         <table class="table table-sm align-middle filter-table">
             <thead><tr>
+                ${pickHeaderCell()}
                 <th>Sample ID</th><th>Description</th><th>Tubes</th><th>Stored</th>
                 <th>F/T</th><th>Where it is</th>
             </tr></thead>
             <tbody>${data.samples.map(rfilterRow).join('')}</tbody>
         </table>`;
+    researchSelection?.wire();
     note.hidden = data.showing >= data.matched;
     note.textContent = `Showing the first ${data.showing.toLocaleString()} of `
         + `${data.matched.toLocaleString()}. The download has all of them.`;
@@ -93,6 +103,7 @@ function rfilterRow(s) {
         ? `<i class="bi bi-box-seam me-1"></i>${escapeHtml(s.box)} <span class="result-kind">whole box</span>`
         : escapeHtml(s.sample_id || 'Untitled');
     return `<tr>
+        ${pickCell(s.kind === 'tube' ? s.id : null, s.sample_id || 'Untitled')}
         <td class="filter-tube"><a href="/research?box=${s.box_id}">${id}</a></td>
         <td>${escapeHtml(s.description || '')}</td>
         <td>${s.tubes}</td>

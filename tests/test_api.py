@@ -2128,3 +2128,103 @@ def test_research_inventory_is_nested_and_counts_roll_up(client, research_set):
 def test_research_inventory_and_filter_need_a_session(anon):
     for path in ('/api/research/filter', '/api/research/filter-options', '/api/research/inventory'):
         assert anon.get(path).status_code == 401, path
+
+
+# ------------------------------------------------------------
+# Retrieving, and thawing, several tubes at once
+# ------------------------------------------------------------
+
+def _three_raptor_tubes(client, boxes, species_id):
+    return [client.post('/api/raptor/tubes', json={
+        'box_id': boxes['raptor']['id'], 'row_pos': 1, 'col_pos': c,
+        'species_id': species_id, 'collection_date': '2026-04-01',
+    }).get_json() for c in (1, 2, 3)]
+
+
+def test_a_group_retrieval_logs_each_tube_and_counts_a_thaw_on_each(client, boxes, species_id):
+    tubes = _three_raptor_tubes(client, boxes, species_id)
+    result = client.post('/api/retrievals/bulk', json={
+        'section': 'raptor', 'tube_ids': [t['id'] for t in tubes],
+        'retrieved_by': 'H. Beaufrere', 'purpose': 'Lipoprotein panel',
+    })
+    assert result.status_code == 201, result.get_json()
+    assert result.get_json() == {
+        'logged': 3, 'removed': 0, 'thawed': 3,
+        'labels': ['RTHA26001', 'RTHA26002', 'RTHA26003'],
+    }
+
+    entries = client.get('/api/retrievals').get_json()['entries']
+    assert len(entries) == 3
+    assert {e['tube_label'] for e in entries} == {'RTHA26001', 'RTHA26002', 'RTHA26003'}
+    assert all(e['purpose'] == 'Lipoprotein panel' and e['consumed'] is False for e in entries)
+
+    box = client.get(f'/api/boxes/{boxes["raptor"]["id"]}').get_json()
+    assert [t['freeze_thaw_cycles'] for t in box['tubes']] == [1, 1, 1]
+
+
+def test_a_consumed_group_leaves_the_freezer_with_its_history(client, boxes, species_id):
+    tubes = _three_raptor_tubes(client, boxes, species_id)
+    result = client.post('/api/retrievals/bulk', json={
+        'section': 'raptor', 'tube_ids': [tubes[0]['id'], tubes[2]['id']],
+        'retrieved_by': 'Alice', 'consumed': True,
+    }).get_json()
+    assert result['removed'] == 2 and result['thawed'] == 0
+
+    box = client.get(f'/api/boxes/{boxes["raptor"]["id"]}').get_json()
+    assert [t['tube_id'] for t in box['tubes']] == ['RTHA26002']
+    entries = client.get('/api/retrievals').get_json()['entries']
+    assert {e['tube_label'] for e in entries} == {'RTHA26001', 'RTHA26003'}
+    assert all(e['consumed'] and e['raptor_tube_id'] is None and e['position_label'] for e in entries)
+
+
+def test_a_group_with_a_vanished_tube_is_refused_whole(client, boxes, species_id):
+    """Either every tube is logged or none is — a group that quietly dropped
+    one would leave it in the freezer with no record of the trip."""
+    tubes = _three_raptor_tubes(client, boxes, species_id)
+    client.delete(f'/api/raptor/tubes/{tubes[1]["id"]}')
+    response = client.post('/api/retrievals/bulk', json={
+        'section': 'raptor', 'tube_ids': [t['id'] for t in tubes], 'retrieved_by': 'Alice',
+    })
+    assert response.status_code == 404
+    assert '1 of those tubes no longer exist' in response.get_json()['error']
+    assert client.get('/api/retrievals').get_json()['total'] == 0
+    box = client.get(f'/api/boxes/{boxes["raptor"]["id"]}').get_json()
+    assert all(t['freeze_thaw_cycles'] == 0 for t in box['tubes'])
+
+
+def test_group_retrieval_works_for_research_too(client, boxes):
+    ids = [client.post('/api/research/tubes', json={
+        'box_id': boxes['research']['id'], 'row_pos': 1, 'col_pos': c, 'sample_id': f'S-{c}',
+    }).get_json()['id'] for c in (1, 2)]
+    result = client.post('/api/retrievals/bulk', json={
+        'section': 'research', 'tube_ids': ids, 'retrieved_by': 'Bob',
+    }).get_json()
+    assert result['logged'] == 2 and result['labels'] == ['S-1', 'S-2']
+    assert client.get('/api/retrievals?section=research').get_json()['total'] == 2
+
+
+def test_a_group_thaw_counts_a_cycle_on_each_with_no_log_entry(client, boxes, species_id):
+    tubes = _three_raptor_tubes(client, boxes, species_id)
+    result = client.post('/api/tubes/thaw', json={
+        'section': 'raptor', 'tube_ids': [t['id'] for t in tubes[:2]],
+    }).get_json()
+    assert result['thawed'] == 2
+    assert set(result['cycles'].values()) == {1}
+
+    box = client.get(f'/api/boxes/{boxes["raptor"]["id"]}').get_json()
+    assert [t['freeze_thaw_cycles'] for t in box['tubes']] == [1, 1, 0]
+    assert client.get('/api/retrievals').get_json()['total'] == 0
+
+
+def test_group_calls_validate_their_input(client, boxes, species_id):
+    _three_raptor_tubes(client, boxes, species_id)
+    assert client.post('/api/retrievals/bulk', json={'section': 'raptor', 'tube_ids': [], 'retrieved_by': 'A'}).status_code == 400
+    assert client.post('/api/retrievals/bulk', json={'section': 'raptor', 'tube_ids': ['x'], 'retrieved_by': 'A'}).status_code == 400
+    assert client.post('/api/tubes/thaw', json={'section': 'plasma', 'tube_ids': [1]}).status_code == 400
+    assert client.post('/api/tubes/thaw', json={'section': 'raptor', 'tube_ids': list(range(1, 502))}).status_code == 400
+
+
+def test_the_biobank_filter_carries_the_ids_the_group_actions_need(client, boxes, species_id):
+    tubes = _three_raptor_tubes(client, boxes, species_id)
+    rows = client.get('/api/raptor/filter').get_json()['samples']
+    assert sorted(r['id'] for r in rows) == sorted(t['id'] for t in tubes)

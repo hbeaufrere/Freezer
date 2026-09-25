@@ -17,14 +17,23 @@ const FILTER_FIELDS = {
     age: 'filter-age',
 };
 
+let biobankSelection = null;
+
 async function initBiobankFilter() {
     if (!document.getElementById('biobank-filter')) return;
+
+    biobankSelection = makeSelection({
+        section: 'raptor', prefix: 'filter',
+        tableHost: document.getElementById('filter-results'),
+        onDone: runBiobankFilter,
+    });
 
     await loadFilterOptions();
 
     Object.entries(FILTER_FIELDS).forEach(([field, id]) => {
         document.getElementById(id).addEventListener('change', (event) => {
             filterState[field] = event.target.value;
+            biobankSelection?.clear();
             runBiobankFilter();
         });
     });
@@ -125,13 +134,15 @@ async function runBiobankFilter() {
         <table class="table table-sm align-middle filter-table">
             <thead>
                 <tr>
-                    <th>Tube ID</th><th>Species</th><th>Type</th><th>Timing</th>
+                    ${pickHeaderCell()}
+                    <th>Tube ID</th><th>Type</th><th>Timing</th><th>Anticoagulant</th>
                     <th>Sex</th><th>Age</th><th>Collected</th>
                     <th>Where it is</th><th>WRMD</th><th>VMACS</th>
                 </tr>
             </thead>
             <tbody>${data.samples.map(filterRow).join('')}</tbody>
         </table>`;
+    biobankSelection?.wire();
 
     // Saying "showing 250 of 812" matters: without it the list looks complete
     // and the download looks wrong.
@@ -146,10 +157,11 @@ function filterRow(sample) {
         .filter(Boolean).join(' › ');
     return `
         <tr>
+            ${pickCell(sample.id, sample.tube_id)}
             <td class="filter-tube">${escapeHtml(sample.tube_id)}</td>
-            <td>${escapeHtml(sample.common_name || sample.banding_code || '')}</td>
             <td>${escapeHtml(sample.sample_type || '')}</td>
             <td>${escapeHtml(sample.blood_timing || '')}</td>
+            <td>${escapeHtml(sample.anticoagulant || '')}</td>
             <td>${escapeHtml(sample.sex || '')}</td>
             <td>${escapeHtml(sample.age || '')}</td>
             <td>${escapeHtml(sample.collection_date || '')}</td>
