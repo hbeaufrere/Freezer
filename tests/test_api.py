@@ -43,10 +43,10 @@ def test_freezer_tree_is_fully_nested(client):
 
     assert len(shelves) == 3
     assert sum(len(s['racks']) for s in shelves) == 18
-    assert sum(len(d['drawers']) for s in shelves for d in s['racks']) == 126
+    assert sum(len(d['drawers']) for s in shelves for d in s['racks']) == 144
 
     boxes = [b for s in shelves for r in s['racks'] for d in r['drawers'] for b in d['boxes']]
-    assert len(boxes) == 504
+    assert len(boxes) == 576
     assert all(b['capacity'] == 100 for b in boxes)
     assert all(b['occupied'] == 0 for b in boxes)
 
@@ -384,8 +384,8 @@ def test_stats_count_birds_not_tubes(client, boxes, species_id):
     assert isinstance(raptor['avg_freeze_thaw_cycles'], float)
 
     freezer = client.get('/api/stats/freezer').get_json()
-    assert freezer['total_boxes'] == 504
-    assert freezer['total_capacity'] == 50400
+    assert freezer['total_boxes'] == 576
+    assert freezer['total_capacity'] == 57600
     assert freezer['raptor_count'] == 1
     assert freezer['tubes_stored'] == 4, 'occupancy counts physical tubes'
 
@@ -397,7 +397,7 @@ def test_research_stats(client, boxes):
     stats = client.get('/api/stats/research').get_json()
     assert stats['total_samples'] == 1
     assert stats['boxes_with_samples'] == 1
-    assert stats['total_boxes'] == 336
+    assert stats['total_boxes'] == 384
 
 
 # ------------------------------------------------------------
@@ -506,7 +506,7 @@ def test_migrations_are_applied_in_place_and_are_idempotent(client, flask_app):
     with flask_app.app_context():
         db = get_db()
         assert db.execute('select count(*) as n from species').fetchone()['n'] == before
-        assert db.execute('select count(*) as n from boxes').fetchone()['n'] == 504
+        assert db.execute('select count(*) as n from boxes').fetchone()['n'] == 576
         assert db.execute('select count(*) as n from collection_sites').fetchone()['n'] == 2
 
         # Replaying must not rotate the site tokens — printed QR codes on the
@@ -1150,7 +1150,7 @@ def test_boxes_come_back_front_to_back(client):
             for drawer in rack['drawers']:
                 positions = [b['position'] for b in drawer['boxes']]
                 assert positions == sorted(positions) == [1, 2, 3, 4]
-            assert [d['position'] for d in rack['drawers']] == list(range(1, 8))
+            assert [d['position'] for d in rack['drawers']] == list(range(1, 9))
 
 
 def test_the_schema_records_which_end_is_the_front(client, flask_app):

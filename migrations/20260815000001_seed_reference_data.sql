@@ -121,7 +121,7 @@ join (
     select id, case position when 1 then 'U' when 2 then 'M' else 'L' end as prefix
     from shelves
 ) sh on sh.id = r.shelf_id
-cross join generate_series(1, 7) as pos(n)
+cross join generate_series(1, 8) as pos(n)
 on conflict (rack_id, position) do nothing;
 
 -- ------------------------------------------------------------

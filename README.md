@@ -1,7 +1,7 @@
 # CLIPR Sample Repository and Raptor Biobank
 
 Freezer management for the biorepository: an Eppendorf CryoCube F740hi laid out
-as 3 shelves × 6 racks × 7 drawers × 4 boxes, each box a 10×10 grid — 5,040 tube
+as 3 shelves × 6 racks × 8 drawers × 4 boxes, each box a 10×10 grid — 57,600 tube
 positions in all.
 
 The upper shelf holds the **raptor plasma biobank**, where each bird gets an
@@ -54,7 +54,7 @@ Nothing to do by hand. Open the app and it shows a banner:
 > **The database needs an update.** 4 updates to apply. **[Update now]**
 
 Click it. That applies everything in `migrations/` and seeds 46 raptor species
-plus the full freezer structure (504 boxes, `U1-D1-B1` through `L6-D7-B4`).
+plus the full freezer structure (576 boxes, `U1-D1-B1` through `L6-D8-B4`).
 The same banner appears after any deploy that adds a migration.
 
 If you would rather do it from a terminal:
