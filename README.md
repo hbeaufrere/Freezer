@@ -237,8 +237,8 @@ cannot move to a bird of another species — the base ID encodes the species,
 and moving it would make the ID lie.
 
 **Blood carries two facts tissues do not.** Plasma and packed RBCs record a
-**timing** — Intake, Under care or Pre-release, the variable a rehab biobank
-compares across — and an **anticoagulant**, Heparin, EDTA or Other, which is
+**timing** — Intake, Under care, Pre-release or Resident/captive (a permanent
+resident or other captive bird), the variable a rehab biobank compares across — and an **anticoagulant**, Heparin, EDTA or Other, which is
 the first thing a collaborator asks about a plasma sample. Timing is required
 for blood; both are null for tissues whatever the form sent, because a liver
 marked "pre-release" is a contradiction the record should not carry. Both are

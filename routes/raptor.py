@@ -23,7 +23,7 @@ MAX_TUBES_PER_SAMPLE = 20
 # facts the tissues do not: when in the bird's stay it was drawn, and what it
 # was drawn into. Both live on the tube, not the bird.
 BLOOD_TYPES = ('Plasma', 'Packed RBCs')
-BLOOD_TIMINGS = ('Intake', 'Under care', 'Pre-release')
+BLOOD_TIMINGS = ('Intake', 'Under care', 'Pre-release', 'Resident/captive')
 ANTICOAGULANTS = ('Heparin', 'EDTA', 'Other')
 
 
@@ -35,7 +35,7 @@ def _blood_fields(data, sample_type):
         return None, None
     timing = text(data, 'blood_timing')
     if timing not in BLOOD_TIMINGS:
-        raise ApiError('Blood samples need a timing: Intake, Under care or Pre-release.')
+        raise ApiError('Blood samples need a timing: Intake, Under care, Pre-release or Resident/captive.')
     anticoagulant = text(data, 'anticoagulant')
     if anticoagulant and anticoagulant not in ANTICOAGULANTS:
         raise ApiError('Anticoagulant must be Heparin, EDTA or Other.')

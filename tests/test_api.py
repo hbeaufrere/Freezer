@@ -1609,12 +1609,18 @@ def test_blood_needs_a_timing(raw_client, boxes, species_id, sample_type):
     """The variable a rehab biobank compares across, so it cannot be blank."""
     response = _blood(raw_client, boxes['raptor']['id'], species_id, sample_type=sample_type)
     assert response.status_code == 400
-    assert 'Intake, Under care or Pre-release' in response.get_json()['error']
+    assert 'Intake, Under care, Pre-release or Resident/captive' in response.get_json()['error']
 
     ok = _blood(raw_client, boxes['raptor']['id'], species_id,
                 sample_type=sample_type, blood_timing='Pre-release')
     assert ok.status_code == 201, ok.get_json()
     assert ok.get_json()['blood_timing'] == 'Pre-release'
+
+    # A permanent resident has no intake or release, so it needs its own value.
+    resident = _blood(raw_client, boxes['raptor']['id'], species_id, col_pos=2,
+                      sample_type=sample_type, blood_timing='Resident/captive')
+    assert resident.status_code == 201, resident.get_json()
+    assert resident.get_json()['blood_timing'] == 'Resident/captive'
 
 
 def test_timing_must_be_one_of_the_three(raw_client, boxes, species_id):
