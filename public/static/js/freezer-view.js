@@ -366,7 +366,8 @@ function boxPeekHtml(box, meta) {
 
     if (box.box_type === 'bulk') {
         const what = [box.bulk_sample_type, box.bulk_study].filter(Boolean).join(' — ');
-        return head + `<div class="box-peek-body">${what ? escapeHtml(what) : '<em>Contents not described yet</em>'}</div>`;
+        const when = box.bulk_date ? `<div class="box-peek-more">Stored ${escapeHtml(box.bulk_date)}</div>` : '';
+        return head + `<div class="box-peek-body">${what ? escapeHtml(what) : '<em>Contents not described yet</em>'}</div>${when}`;
     }
 
     const c = box.contents || { count: 0, samples: [] };

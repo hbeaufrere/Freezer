@@ -311,7 +311,7 @@ async function runResearchSearch() {
                     const what = [row.bulk_sample_type, row.bulk_study].filter(Boolean).join(' — ');
                     item.innerHTML = `
                         <span class="result-id"><i class="bi bi-box-seam me-1"></i>${escapeHtml(row.box_label)}
-                            <span class="result-kind">whole box · ${row.bulk_tube_count || 0} tubes</span></span>
+                            <span class="result-kind">whole box · ${row.bulk_tube_count || 0} tubes${row.bulk_date ? ' · ' + escapeHtml(row.bulk_date) : ''}</span></span>
                         <div class="result-meta">
                             ${escapeHtml(row.rack_label)} · ${escapeHtml(row.drawer_label)}
                             ${what ? '— ' + escapeHtml(what.slice(0, 70)) : ''}

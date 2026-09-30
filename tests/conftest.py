@@ -64,7 +64,7 @@ def clean_database(flask_app):
         # next test's writes behaved.
         db.execute("update boxes set box_type = 'grid', bulk_sample_type = null, "
                    "bulk_tube_count = null, bulk_study = null, bulk_kind = 'tubes', "
-                   "bulk_fullness = null")
+                   "bulk_fullness = null, bulk_date = null")
         db.execute("delete from species where banding_code = 'ZZZZ'")
         db.commit()
     yield

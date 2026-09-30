@@ -222,7 +222,7 @@ function renderBulkBox(container, boxData, options = {}) {
                 <span class="box-type-hint" id="bulk-kind-hint"></span>
             </div>
             <div class="row g-3">
-                <div class="col-sm-5">
+                <div class="col-sm-4">
                     <label class="form-label" for="bulk-sample-type">Sample type</label>
                     <input type="text" class="form-control" id="bulk-sample-type" maxlength="100"
                            list="bulk-type-suggestions" placeholder="e.g. Plasma, Serum, Liver">
@@ -232,15 +232,19 @@ function renderBulkBox(container, boxData, options = {}) {
                         <option value="Feathers"><option value="Swabs">
                     </datalist>
                 </div>
-                <div class="col-sm-3">
+                <div class="col-sm-2">
                     <label class="form-label" for="bulk-tube-count" id="bulk-count-label">Number of tubes</label>
                     <input type="number" class="form-control" id="bulk-tube-count"
                            min="0" max="10000" inputmode="numeric">
                 </div>
-                <div class="col-sm-4">
+                <div class="col-sm-3">
                     <label class="form-label" for="bulk-study">Study</label>
                     <input type="text" class="form-control" id="bulk-study" maxlength="200"
                            placeholder="e.g. Kestrel PK 2026">
+                </div>
+                <div class="col-sm-3">
+                    <label class="form-label" for="bulk-date">Date stored</label>
+                    <input type="date" class="form-control" id="bulk-date">
                 </div>
                 <div class="col-12 bulk-other-only" id="bulk-fullness-wrap" hidden>
                     <label class="form-label" for="bulk-fullness">
@@ -266,6 +270,7 @@ function renderBulkBox(container, boxData, options = {}) {
     shell.querySelector('#bulk-sample-type').value = boxData.bulk_sample_type || '';
     shell.querySelector('#bulk-tube-count').value = boxData.bulk_tube_count ?? '';
     shell.querySelector('#bulk-study').value = boxData.bulk_study || '';
+    shell.querySelector('#bulk-date').value = boxData.bulk_date || '';
 
     const kind = boxData.bulk_kind === 'other' ? 'other' : 'tubes';
     shell.querySelector(`#bulk-kind-${kind}`).checked = true;
@@ -299,6 +304,7 @@ function renderBulkBox(container, boxData, options = {}) {
             sample_type: shell.querySelector('#bulk-sample-type').value.trim(),
             tube_count: parseInt(shell.querySelector('#bulk-tube-count').value, 10) || 0,
             study: shell.querySelector('#bulk-study').value.trim(),
+            date: shell.querySelector('#bulk-date').value || null,
             kind: other ? 'other' : 'tubes',
             fullness: other ? (parseInt(fullness.value, 10) || 0) : null,
         });
