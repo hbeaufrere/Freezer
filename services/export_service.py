@@ -102,10 +102,10 @@ _RESEARCH_TUBE_CRITERIA = {
 _RESEARCH_BOX_CRITERIA = {
     'q': '(b.bulk_study ilike %(q)s or b.bulk_sample_type ilike %(q)s or b.label ilike %(q)s)',
     'rack_id': 'r.id = %(rack_id)s',
-    # A whole box has no date, so a date range excludes it outright rather
-    # than passing it through as if it matched.
-    'date_from': 'false',
-    'date_to': 'false',
+    # A whole box carries the date it was stored. One without a date is
+    # excluded by a range, since null compares as neither in nor out.
+    'date_from': 'b.bulk_date >= %(date_from)s',
+    'date_to': 'b.bulk_date <= %(date_to)s',
 }
 
 
@@ -148,7 +148,7 @@ def research_query(filters=None):
         select null as id, b.id as box_id, null as sample_id,
                concat_ws(' — ', b.bulk_sample_type, b.bulk_study) as description,
                coalesce(b.bulk_tube_count, 0) as tubes,
-               null as date_stored, null as freeze_thaw_cycles,
+               b.bulk_date as date_stored, null as freeze_thaw_cycles,
                sh.name, r.label, d.label, b.label,
                null, null, null,
                sh.position, r.position, d.position, b.position

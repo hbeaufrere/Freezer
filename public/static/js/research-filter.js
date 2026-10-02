@@ -151,7 +151,8 @@ async function initResearchInventory() {
         if (b.box_type === 'bulk') {
             const what = [b.bulk_sample_type, b.bulk_study].filter(Boolean).join(' — ') || 'contents not described';
             const full = b.bulk_kind === 'other' && b.bulk_fullness != null ? ` · about ${b.bulk_fullness}% full` : '';
-            inner = `<div class="inv-bulk"><i class="bi bi-box-seam me-1"></i>Whole box: ${escapeHtml(what)}${full}</div>`;
+            const when = b.bulk_date ? ` · stored ${escapeHtml(b.bulk_date)}` : '';
+            inner = `<div class="inv-bulk"><i class="bi bi-box-seam me-1"></i>Whole box: ${escapeHtml(what)}${full}${when}</div>`;
         } else if (!b.samples.length) {
             inner = '<div class="inv-none">Nothing in this box.</div>';
         } else {

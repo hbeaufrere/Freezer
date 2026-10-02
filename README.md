@@ -11,8 +11,10 @@ lower shelves hold **CLIPR research** samples with free-text sample IDs.
 A research box can also be switched to a **plain box**, which holds a list of
 samples with no fixed positions — for whirl-paks of tissue and anything else
 that has no well to sit in — or to a **whole box**, one entry for the lot:
-sample type, how many, which study. That is for boxes whose tube labels cannot
-be read without thawing them. A whole box says whether it holds **tubes**, in
+sample type, how many, which study, and the date it was stored. That is for
+boxes whose tube labels cannot be read without thawing them. The date is what
+lets a date range on the research filter find the box, and what the export
+prints as its stored date. A whole box says whether it holds **tubes**, in
 which case it colours itself by count over the box's wells, or **other**
 things — bags, blocks, swabs — in which case the person who closed the lid
 states how full it is, since twelve whirl-paks might pack a box or rattle
@@ -237,8 +239,8 @@ cannot move to a bird of another species — the base ID encodes the species,
 and moving it would make the ID lie.
 
 **Blood carries two facts tissues do not.** Plasma and packed RBCs record a
-**timing** — Intake, Under care or Pre-release, the variable a rehab biobank
-compares across — and an **anticoagulant**, Heparin, EDTA or Other, which is
+**timing** — Intake, Under care, Pre-release or Resident/captive (a permanent
+resident or other captive bird), the variable a rehab biobank compares across — and an **anticoagulant**, Heparin, EDTA or Other, which is
 the first thing a collaborator asks about a plasma sample. Timing is required
 for blood; both are null for tissues whatever the form sent, because a liver
 marked "pre-release" is a contradiction the record should not carry. Both are

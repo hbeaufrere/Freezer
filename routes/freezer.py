@@ -5,7 +5,7 @@ from collections import defaultdict
 from flask import Blueprint, jsonify
 
 from db import ApiError, get_db, insert_returning_id
-from routes.support import as_int, json_body, one_or_404, require, text, write
+from routes.support import as_date, as_int, json_body, one_or_404, require, text, write
 
 freezer_bp = Blueprint('freezer', __name__)
 
@@ -25,7 +25,7 @@ _BULK_SPACE = """
 _BOX_COLUMNS = f"""
     b.id, b.drawer_id, b.position, b.label, b.grid_rows, b.grid_cols, b.section,
     b.box_type, b.bulk_sample_type, b.bulk_tube_count, b.bulk_study,
-    b.bulk_kind, b.bulk_fullness,
+    b.bulk_kind, b.bulk_fullness, b.bulk_date,
     coalesce(rc.cnt, 0) + coalesce(rp.cnt, 0) + {_BULK_SPACE} as occupied,
     b.grid_rows * b.grid_cols as capacity
 """
@@ -156,7 +156,7 @@ def get_box(box_id):
     box = one_or_404(db.execute(
         """select b.id, b.position, b.label, b.grid_rows, b.grid_cols, b.section,
                   b.box_type, b.bulk_sample_type, b.bulk_tube_count, b.bulk_study,
-                  b.bulk_kind, b.bulk_fullness,
+                  b.bulk_kind, b.bulk_fullness, b.bulk_date,
                   b.grid_rows * b.grid_cols as capacity,
                   -- How deep this box sits, and how deep the drawer goes: the
                   -- page says "front of the drawer" rather than just "B1".
@@ -378,7 +378,7 @@ def set_box_type(box_id):
 
 @freezer_bp.route('/api/boxes/<int:box_id>/bulk', methods=['PUT'])
 def set_bulk_contents(box_id):
-    """What a bulk box holds: sample type, how many, which study."""
+    """What a bulk box holds: sample type, how many, which study, stored when."""
     db = get_db()
     data = json_body()
 
@@ -401,16 +401,17 @@ def set_bulk_contents(box_id):
     # Tubes colour themselves from the count; anything else needs to be told
     # how full it is, and a stale fullness must not survive a switch to tubes.
     fullness = as_int(data, 'fullness', minimum=0, maximum=100) if kind == 'other' else None
+    stored = as_date(data, 'date')
 
     with write(db):
         row = db.execute(
             """update boxes
                set bulk_sample_type = %s, bulk_tube_count = %s, bulk_study = %s,
-                   bulk_kind = %s, bulk_fullness = %s
+                   bulk_kind = %s, bulk_fullness = %s, bulk_date = %s
                where id = %s
                returning id, box_type, bulk_sample_type, bulk_tube_count, bulk_study,
-                         bulk_kind, bulk_fullness""",
-            (sample_type or None, count, study or None, kind, fullness, box_id),
+                         bulk_kind, bulk_fullness, bulk_date""",
+            (sample_type or None, count, study or None, kind, fullness, stored, box_id),
         ).fetchone()
     return jsonify(dict(row))
 

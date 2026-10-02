@@ -178,7 +178,7 @@ def search_tubes():
     # since a whole box is a bigger find than one tube.
     boxes = db.execute(
         """select b.id as box_id, b.label as box_label, b.bulk_sample_type,
-                  b.bulk_tube_count, b.bulk_study,
+                  b.bulk_tube_count, b.bulk_study, b.bulk_date,
                   d.label as drawer_label, r.label as rack_label, sh.name as shelf_name
            from boxes b
            join drawers d on b.drawer_id = d.id
@@ -285,7 +285,8 @@ def inventory():
                   d.id as drawer_id, d.label as drawer, d.note as drawer_note, d.position as drawer_pos,
                   b.id as box_id, b.label as box, b.position as box_pos, b.box_type,
                   b.grid_rows * b.grid_cols as capacity,
-                  b.bulk_sample_type, b.bulk_tube_count, b.bulk_study, b.bulk_kind, b.bulk_fullness
+                  b.bulk_sample_type, b.bulk_tube_count, b.bulk_study, b.bulk_kind, b.bulk_fullness,
+                  b.bulk_date
            from boxes b
            join drawers d on b.drawer_id = d.id
            join racks r on d.rack_id = r.id
@@ -332,6 +333,7 @@ def inventory():
             'capacity': row['capacity'], 'count': count,
             'bulk_sample_type': row['bulk_sample_type'], 'bulk_study': row['bulk_study'],
             'bulk_kind': row['bulk_kind'], 'bulk_fullness': row['bulk_fullness'],
+            'bulk_date': row['bulk_date'],
             'samples': samples,
         })
         drawer['count'] += count

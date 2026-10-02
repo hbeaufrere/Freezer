@@ -1609,12 +1609,18 @@ def test_blood_needs_a_timing(raw_client, boxes, species_id, sample_type):
     """The variable a rehab biobank compares across, so it cannot be blank."""
     response = _blood(raw_client, boxes['raptor']['id'], species_id, sample_type=sample_type)
     assert response.status_code == 400
-    assert 'Intake, Under care or Pre-release' in response.get_json()['error']
+    assert 'Intake, Under care, Pre-release or Resident/captive' in response.get_json()['error']
 
     ok = _blood(raw_client, boxes['raptor']['id'], species_id,
                 sample_type=sample_type, blood_timing='Pre-release')
     assert ok.status_code == 201, ok.get_json()
     assert ok.get_json()['blood_timing'] == 'Pre-release'
+
+    # A permanent resident has no intake or release, so it needs its own value.
+    resident = _blood(raw_client, boxes['raptor']['id'], species_id, col_pos=2,
+                      sample_type=sample_type, blood_timing='Resident/captive')
+    assert resident.status_code == 201, resident.get_json()
+    assert resident.get_json()['blood_timing'] == 'Resident/captive'
 
 
 def test_timing_must_be_one_of_the_three(raw_client, boxes, species_id):
@@ -2228,3 +2234,57 @@ def test_the_biobank_filter_carries_the_ids_the_group_actions_need(client, boxes
     tubes = _three_raptor_tubes(client, boxes, species_id)
     rows = client.get('/api/raptor/filter').get_json()['samples']
     assert sorted(r['id'] for r in rows) == sorted(t['id'] for t in tubes)
+
+
+# ------------------------------------------------------------
+# A whole box has a date of its own
+# ------------------------------------------------------------
+
+def _bulk_box(client, boxes, **fields):
+    box_id = boxes['research']['id']
+    assert client.put(f'/api/boxes/{box_id}/type', json={'box_type': 'bulk'}).status_code == 200
+    saved = client.put(f'/api/boxes/{box_id}/bulk', json={
+        'sample_type': 'Liver', 'tube_count': 40, 'study': 'Kestrel PK 2026', **fields,
+    })
+    return box_id, saved
+
+
+def test_a_whole_box_records_when_it_was_stored(client, boxes):
+    box_id, saved = _bulk_box(client, boxes, date='2026-03-15')
+    assert saved.status_code == 200, saved.get_json()
+    assert saved.get_json()['bulk_date'] == '2026-03-15'
+    assert client.get(f'/api/boxes/{box_id}').get_json()['bulk_date'] == '2026-03-15'
+
+    # The date is optional, and clearing it clears it.
+    cleared = client.put(f'/api/boxes/{box_id}/bulk', json={'sample_type': 'Liver', 'tube_count': 40})
+    assert cleared.get_json()['bulk_date'] is None
+
+    bad = client.put(f'/api/boxes/{box_id}/bulk', json={'sample_type': 'Liver', 'date': '15/03/2026'})
+    assert bad.status_code == 400
+    assert 'YYYY-MM-DD' in bad.get_json()['error']
+
+
+def test_a_dated_whole_box_is_found_by_a_date_range(client, boxes):
+    box_id, _ = _bulk_box(client, boxes, date='2026-03-15')
+
+    inside = client.get('/api/research/filter?date_from=2026-03-01&date_to=2026-03-31').get_json()
+    assert [s['box_id'] for s in inside['samples'] if s['kind'] == 'bulk_box'] == [box_id]
+    assert inside['samples'][0]['date_stored'] == '2026-03-15'
+
+    outside = client.get('/api/research/filter?date_from=2026-04-01').get_json()
+    assert outside['matched'] == 0
+
+    csv = client.get('/api/export/research/csv?date_from=2026-03-01&date_to=2026-03-31').data.decode()
+    assert '(whole box)' in csv and '2026-03-15' in csv
+
+    inv = client.get('/api/research/inventory').get_json()
+    box = next(b for sh in inv['shelves'] for r in sh['racks'] for d in r['drawers']
+               for b in d['boxes'] if b['id'] == box_id)
+    assert box['bulk_date'] == '2026-03-15'
+
+
+def test_an_undated_whole_box_stays_out_of_a_date_range(client, boxes):
+    """Null is neither inside nor outside a range; the box must not slip in."""
+    box_id, _ = _bulk_box(client, boxes)
+    assert client.get('/api/research/filter?date_from=2000-01-01').get_json()['matched'] == 0
+    assert client.get('/api/research/filter').get_json()['matched'] == 1
