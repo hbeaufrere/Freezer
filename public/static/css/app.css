@@ -1035,6 +1035,32 @@ body {
     height: 11px;
     border-radius: 3px;
     border: 1px solid var(--f-muted);
+    background: var(--f-surface);
+    flex: 0 0 auto;
+}
+
+/* The outline key repeats the box styles exactly, so what the legend shows
+   is what the drawers draw. */
+.legend-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    align-items: flex-end;
+}
+
+.legend-title { min-width: 5.6rem; }
+
+.outline-legend .legend-swatch { width: 18px; height: 13px; }
+.outline-legend .legend-swatch.is-plain { border-style: dashed; border-width: 1.5px; }
+.outline-legend .legend-swatch.is-bulk { border-style: double; border-width: 3px; }
+.outline-legend .legend-swatch.is-front {
+    border-left-width: 4px;
+    border-left-style: solid;
+    border-left-color: var(--f-accent);
+}
+
+@media (max-width: 991px) {
+    .legend-stack { align-items: flex-start; }
 }
 
 /* ============================================================
