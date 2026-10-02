@@ -692,11 +692,6 @@ body {
     font-weight: 700;
 }
 
-.box-slot.is-front {
-    border-left-width: 3px;
-    border-left-color: var(--f-accent);
-}
-
 /* Free-text drawer label — experiment, species, project. */
 .drawer-note {
     flex: 1 1 0;
@@ -1195,6 +1190,16 @@ body {
 .box-slot.is-bulk {
     border-style: double;
     border-width: 3px;
+}
+
+/* The front box of a drawer carries a bar on its left edge. This sits after
+   the fill colours and the plain/whole-box borders on purpose: a full box
+   paints its whole border red and a plain box makes it dashed, and either
+   used to wipe the bar off exactly the boxes it was most needed on. */
+.box-slot.is-front {
+    border-left-width: 4px;
+    border-left-style: solid;
+    border-left-color: var(--f-accent);
 }
 
 /* ---- Whole box: one entry for its contents ------------------ */
