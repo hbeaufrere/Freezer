@@ -8,6 +8,23 @@ function slotIsEmpty(box) {
     return !box.occupied && !box.bulk_sample_type && !box.bulk_study && !box.bulk_tube_count;
 }
 
+function drawerIsEmpty(drawer) {
+    return drawer.boxes.every(slotIsEmpty);
+}
+
+function drawerHasAnything(drawer) {
+    return Boolean(drawer.note) || !drawerIsEmpty(drawer);
+}
+
+function emptyDrawerOptions(shelves, section, exceptDrawerId) {
+    return shelves.filter((s) => s.section === section).flatMap((shelf) =>
+        shelf.racks.map((rack) => ({
+            group: `${shelf.name} › ${rack.label}${rack.designation ? ' — ' + rack.designation : ''}`,
+            slots: rack.drawers.filter((d) => d.id !== exceptDrawerId && drawerIsEmpty(d))
+                .map((d) => ({ id: d.id, label: `${d.label || 'D' + d.position}${d.position === 1 ? ' · top' : ''}` })),
+        }))).filter((g) => g.slots.length);
+}
+
 function rackIsEmpty(rack) {
     return rack.drawers.every((d) => d.boxes.every(slotIsEmpty));
 }
@@ -79,6 +96,28 @@ async function openMoveBoxDialog(box, section) {
             showToast(`${result.from} moved to ${result.to}`);
             document.dispatchEvent(new CustomEvent('boxmoved', {
                 detail: { section, fromBoxId: box.id, toBoxId: result.target_box_id },
+            }));
+        },
+    );
+}
+
+/* drawer: as the freezer map has it. */
+async function openMoveDrawerDialog(drawer, section) {
+    let shelves;
+    try { shelves = await API.get('/api/freezer'); } catch (err) { showToast(err.message, 'error'); return; }
+
+    const boxes = drawer.boxes.filter((b) => !slotIsEmpty(b)).length;
+    showMoveModal(
+        'Move drawer',
+        `${drawer.label}${drawer.note ? ` (${drawer.note})` : ''} holds ${boxes} box${boxes === 1 ? '' : 'es'} with samples. `
+        + 'Each box moves to the same slot in the new drawer; the drawer label goes with it.',
+        'Only drawers with nothing in them are listed.',
+        emptyDrawerOptions(shelves, section, drawer.id),
+        async (targetId) => {
+            const result = await API.post(`/api/drawers/${drawer.id}/move`, { target_drawer_id: targetId });
+            showToast(`${result.from} moved to ${result.to}: ${result.boxes_moved} box(es), ${result.tubes_moved} tube(s)`);
+            document.dispatchEvent(new CustomEvent('rackmoved', {
+                detail: { section, toDrawerId: result.target_drawer_id, boxMap: result.box_map },
             }));
         },
     );

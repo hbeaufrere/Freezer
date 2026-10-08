@@ -259,6 +259,19 @@ function createRackElement(rack, options = {}) {
         // The line the lab writes on the drawer: experiment, species, project.
         if (options.editableNotes) {
             drawerEl.appendChild(drawerNoteInput(drawer));
+            if (typeof openMoveDrawerDialog === 'function' && drawerHasAnything(drawer)) {
+                const move = document.createElement('button');
+                move.type = 'button';
+                move.className = 'drawer-move-btn';
+                move.title = 'Move this drawer\u2019s contents to an empty drawer';
+                move.setAttribute('aria-label', `Move ${drawer.label || 'drawer ' + drawer.position}`);
+                move.innerHTML = '<i class="bi bi-arrows-move"></i>';
+                move.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                    openMoveDrawerDialog(drawer, options.section);
+                });
+                drawerEl.appendChild(move);
+            }
         } else if (drawer.note) {
             const note = document.createElement('span');
             note.className = 'drawer-note-static';

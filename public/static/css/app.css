@@ -2333,3 +2333,21 @@ details.inv > summary:hover { background: var(--f-surface-2); }
 .rack-move-btn:focus-visible { color: var(--f-accent); background: var(--f-accent-wash); }
 
 .move-what { font-size: 0.9rem; }
+
+.drawer-move-btn {
+    flex: 0 0 auto;
+    padding: 0 3px;
+    font-size: 0.62rem;
+    line-height: 1.4;
+    color: var(--f-muted);
+    background: transparent;
+    border: 0;
+    border-radius: 3px;
+    opacity: 0.45;
+}
+
+.drawer-slot:hover .drawer-move-btn,
+.drawer-move-btn:focus-visible { opacity: 1; }
+
+.drawer-move-btn:hover,
+.drawer-move-btn:focus-visible { color: var(--f-accent); background: var(--f-accent-wash); }
