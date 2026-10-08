@@ -74,6 +74,7 @@ async function openResearchBox(boxId) {
             `<span>&rsaquo;</span><span>${escapeHtml(box.rack_label)}</span>` +
             `<span>&rsaquo;</span><span>${escapeHtml(box.drawer_label)}</span>` +
             `<span>&rsaquo;</span><strong>${escapeHtml(box.label)}</strong>`;
+        crumb.appendChild(moveBoxButton(box, 'research'));
 
         renderBoxTypeSwitch(box);
         renderBoxGrid(document.getElementById('research-grid-area'), box, {
@@ -339,3 +340,20 @@ async function runResearchSearch() {
         console.error('Search failed:', err);
     }
 }
+
+
+/* After a move the sidebar colours and the open box are both stale. Follow
+   the contents to where they went. */
+document.addEventListener('boxmoved', async (event) => {
+    if (event.detail.section !== 'research') return;
+    await refreshResearchSidebar();
+    openResearchBox(event.detail.toBoxId);
+    loadResearchQuickStats();
+});
+document.addEventListener('rackmoved', async (event) => {
+    if (event.detail.section !== 'research') return;
+    await refreshResearchSidebar();
+    const followed = event.detail.boxMap[currentResearchBoxId];
+    if (followed) openResearchBox(followed);
+    loadResearchQuickStats();
+});

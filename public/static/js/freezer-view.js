@@ -146,7 +146,23 @@ function createRackElement(rack, options = {}) {
         <div class="rack-drawers"></div>`;
 
     const drawers = rackEl.querySelector('.rack-drawers');
-    if (options.editableNotes) drawers.before(rackDesignationInput(rack));
+    if (options.editableNotes) {
+        drawers.before(rackDesignationInput(rack));
+        // A rack with something in it can be carried, whole, to an empty one.
+        if (typeof openMoveRackDialog === 'function' && rackHasAnything(rack)) {
+            const move = document.createElement('button');
+            move.type = 'button';
+            move.className = 'rack-move-btn';
+            move.title = 'Move this rack\u2019s contents to an empty rack';
+            move.setAttribute('aria-label', `Move ${rack.label || 'rack ' + rack.position}`);
+            move.innerHTML = '<i class="bi bi-arrows-move"></i>';
+            move.addEventListener('click', (event) => {
+                event.stopPropagation();
+                openMoveRackDialog(rack, options.section);
+            });
+            rackEl.querySelector('.rack-label').appendChild(move);
+        }
+    }
 
     // Column numbers over the box strip. Without them the four rectangles are
     // anonymous, and B3 is only discoverable by hovering.
@@ -577,7 +593,7 @@ async function renderSectionSidebar(containerId, section, onBoxClick) {
             strip.className = 'sidebar-shelf-racks';
             shelf.racks.forEach((rack) =>
                 strip.appendChild(
-                    createRackElement(rack, { onBoxClick, editableNotes: true })));
+                    createRackElement(rack, { onBoxClick, editableNotes: true, section })));
             block.appendChild(strip);
 
             container.appendChild(block);

@@ -208,6 +208,7 @@ async function openRaptorBox(boxId) {
             (box.rack_designation
                 ? `<span class="ms-1 text-body-secondary">(${escapeHtml(box.rack_designation)})</span>`
                 : '');
+        crumb.appendChild(moveBoxButton(box, 'raptor'));
 
         const legendData = renderBoxGrid(document.getElementById('raptor-grid-area'), box, {
             onTubeClick: openRaptorEditModal,
@@ -704,3 +705,29 @@ async function runRaptorSearch() {
         console.error('Search failed:', err);
     }
 }
+
+
+/* After a move: redraw the racks, and follow the contents to the new box. */
+async function refreshRaptorSidebar() {
+    const shelves = await renderSectionSidebar('raptor-rack-sidebar', 'raptor', openRaptorBox);
+    if (shelves) {
+        rackDesignations = shelves
+            .filter((s) => s.section === 'raptor')
+            .flatMap((s) => s.racks.map((r) => r.designation).filter(Boolean));
+    }
+    document.querySelector(`#raptor-rack-sidebar .box-slot[data-box-id="${currentRaptorBoxId}"]`)
+        ?.classList.add('selected');
+}
+document.addEventListener('boxmoved', async (event) => {
+    if (event.detail.section !== 'raptor') return;
+    await refreshRaptorSidebar();
+    openRaptorBox(event.detail.toBoxId);
+    loadRaptorQuickStats();
+});
+document.addEventListener('rackmoved', async (event) => {
+    if (event.detail.section !== 'raptor') return;
+    await refreshRaptorSidebar();
+    const followed = event.detail.boxMap[currentRaptorBoxId];
+    if (followed) openRaptorBox(followed);
+    loadRaptorQuickStats();
+});
