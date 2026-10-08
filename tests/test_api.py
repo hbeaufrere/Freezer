@@ -2409,3 +2409,49 @@ def test_a_rack_only_moves_into_an_empty_rack(client, boxes):
     raptor = next(r for sh in shelves if sh['section'] == 'raptor' for r in sh['racks'])
     across = client.post(f'/api/racks/{src["id"]}/move', json={'target_rack_id': raptor['id']})
     assert across.status_code == 400 and 'own section' in across.get_json()['error']
+
+
+def test_a_drawer_moves_slot_for_slot_with_its_label(client, boxes):
+    shelves = client.get('/api/freezer').get_json()
+    research = [r for sh in shelves if sh['section'] == 'research' for r in sh['racks']]
+    src = research[0]['drawers'][0]
+    dst = research[3]['drawers'][6]
+    assert boxes['research']['id'] == src['boxes'][0]['id']
+
+    b1, b4 = src['boxes'][0]['id'], src['boxes'][3]['id']
+    client.post('/api/research/tubes', json={'box_id': b1, 'row_pos': 1, 'col_pos': 1, 'sample_id': 'A'})
+    client.post('/api/research/tubes', json={'box_id': b4, 'row_pos': 3, 'col_pos': 7, 'sample_id': 'B'})
+    client.put(f'/api/drawers/{src["id"]}', json={'note': 'Poloxamer study'})
+
+    result = client.post(f'/api/drawers/{src["id"]}/move', json={'target_drawer_id': dst['id']})
+    assert result.status_code == 200, result.get_json()
+    body = result.get_json()
+    assert body['tubes_moved'] == 2 and body['boxes_moved'] == 2
+    assert body['box_map'][str(b4)] == dst['boxes'][3]['id']
+
+    shelves = client.get('/api/freezer').get_json()
+    drawers = {d['id']: d for sh in shelves for r in sh['racks'] for d in r['drawers']}
+    assert drawers[dst['id']]['note'] == 'Poloxamer study' and drawers[src['id']]['note'] is None
+    assert [b['occupied'] for b in drawers[dst['id']]['boxes']] == [1, 0, 0, 1]
+    assert all(b['occupied'] == 0 for b in drawers[src['id']]['boxes'])
+    tube = client.get(f'/api/boxes/{dst["boxes"][3]["id"]}').get_json()['tubes'][0]
+    assert (tube['sample_id'], tube['row_pos'], tube['col_pos']) == ('B', 3, 7)
+
+
+def test_a_drawer_only_moves_into_an_empty_drawer_in_its_section(client, boxes, species_id):
+    shelves = client.get('/api/freezer').get_json()
+    research = [r for sh in shelves if sh['section'] == 'research' for r in sh['racks']]
+    src, dst = research[0]['drawers'][0], research[0]['drawers'][1]
+    client.post('/api/research/tubes', json={'box_id': boxes['research']['id'],
+                                             'row_pos': 1, 'col_pos': 1, 'sample_id': 'A'})
+    client.post('/api/research/tubes', json={'box_id': dst['boxes'][2]['id'],
+                                             'row_pos': 1, 'col_pos': 1, 'sample_id': 'Z'})
+    busy = client.post(f'/api/drawers/{src["id"]}/move', json={'target_drawer_id': dst['id']})
+    assert busy.status_code == 409 and 'not empty' in busy.get_json()['error']
+    assert client.get(f'/api/boxes/{boxes["research"]["id"]}').get_json()['tubes'][0]['sample_id'] == 'A'
+
+    raptor = next(r for sh in shelves if sh['section'] == 'raptor' for r in sh['racks'])
+    across = client.post(f'/api/drawers/{src["id"]}/move',
+                         json={'target_drawer_id': raptor['drawers'][0]['id']})
+    assert across.status_code == 400 and 'own section' in across.get_json()['error']
+    assert client.post(f'/api/drawers/{src["id"]}/move', json={'target_drawer_id': src['id']}).status_code == 400

@@ -1,12 +1,13 @@
-"""Moving things: a box's contents to an empty slot, or a whole rack's to an
-empty rack.
+"""Moving things: a box's contents to an empty slot, a drawer's to an empty
+drawer, or a whole rack's to an empty rack.
 
 The freezer's structure is fixed — every drawer already has its four box
 slots, every shelf its racks — so "moving a box" cannot mean moving a row in
 the boxes table. It means carrying what the slot holds (tubes, or a whole-box
 entry, and the slot's type) to another slot and leaving the first one empty.
-A rack move does the same for every slot in the rack, position for position,
-and carries the rack's name and drawer notes with it.
+A drawer or rack move does the same for every slot in it, position for
+position, and carries the labels — the drawer's note, the rack's name — with
+it.
 
 Both are one transaction: a half-moved rack would be worse than an unmoved
 one. The destination must be empty, since a move is a relocation, never a
@@ -103,6 +104,69 @@ def _rack_boxes(db, rack_id):
     return {(r['drawer_position'], r['position']): r for r in rows}
 
 
+def _carry_slots(db, src_boxes, dst_boxes, what_dst):
+    """Move every slot of one container onto the matching slot of another.
+
+    Both are dicts keyed by position; the layouts must match, every target
+    slot must be empty, and the whole thing is refused before anything moves
+    if either is not so. Returns (tubes_moved, boxes_moved, box_map)."""
+    if set(src_boxes) != set(dst_boxes):
+        raise ApiError('The two are not laid out the same way.')
+    for key, box in src_boxes.items():
+        if not _same_shape(box, dst_boxes[key]):
+            raise ApiError('The two hold boxes of different sizes.')
+    occupied = [b['label'] for b in dst_boxes.values() if not _is_empty(b)]
+    if occupied:
+        raise ApiError(f'{what_dst} is not empty ({", ".join(occupied[:4])}'
+                       f'{"…" if len(occupied) > 4 else ""}). A move needs an empty one.', 409)
+
+    tubes_moved = boxes_moved = 0
+    box_map = {}
+    for key, box in src_boxes.items():
+        target = dst_boxes[key]
+        box_map[box['id']] = target['id']
+        if _is_empty(box) and box['box_type'] == 'grid':
+            continue
+        tubes_moved += _carry_box(db, box, target)
+        boxes_moved += 1
+    return tubes_moved, boxes_moved, box_map
+
+
+@move_bp.route('/api/drawers/<int:drawer_id>/move', methods=['POST'])
+def move_drawer(drawer_id):
+    db = get_db()
+    data = json_body()
+    require(data, 'target_drawer_id')
+    target_id = as_int(data, 'target_drawer_id')
+    if target_id == drawer_id:
+        raise ApiError('That is the drawer it already is.')
+
+    def drawer(did):
+        return one_or_404(db.execute(
+            """select d.id, d.label, d.note, sh.section
+               from drawers d join racks r on d.rack_id = r.id
+               join shelves sh on r.shelf_id = sh.id where d.id = %s""",
+            (did,)).fetchone(), 'Drawer')
+
+    src, dst = drawer(drawer_id), drawer(target_id)
+    if src['section'] != dst['section']:
+        raise ApiError('A drawer can only move within its own section.')
+
+    def slots(did):
+        rows = db.execute(f'{_BOX_STATE} where b.drawer_id = %s order by b.position',
+                          (did,)).fetchall()
+        return {r['position']: r for r in rows}
+
+    with write(db):
+        tubes, boxes, box_map = _carry_slots(db, slots(drawer_id), slots(target_id), dst['label'])
+        # The note describes the contents, so it goes where they go.
+        db.execute('update drawers set note = %s where id = %s', (src['note'], target_id))
+        db.execute('update drawers set note = null where id = %s', (drawer_id,))
+
+    return jsonify({'from': src['label'], 'to': dst['label'], 'target_drawer_id': target_id,
+                    'tubes_moved': tubes, 'boxes_moved': boxes, 'box_map': box_map})
+
+
 @move_bp.route('/api/racks/<int:rack_id>/move', methods=['POST'])
 def move_rack(rack_id):
     db = get_db()
@@ -122,29 +186,11 @@ def move_rack(rack_id):
     if src['section'] != dst['section']:
         raise ApiError('A rack can only move within its own section.')
 
-    src_boxes, dst_boxes = _rack_boxes(db, rack_id), _rack_boxes(db, target_id)
-    if set(src_boxes) != set(dst_boxes):
-        raise ApiError('The two racks are not laid out the same way.')
-    for key, box in src_boxes.items():
-        if not _same_shape(box, dst_boxes[key]):
-            raise ApiError('The two racks hold boxes of different sizes.')
-    occupied = [b['label'] for b in dst_boxes.values() if not _is_empty(b)]
-    if occupied:
-        raise ApiError(f'{dst["label"]} is not empty ({", ".join(occupied[:4])}'
-                       f'{"…" if len(occupied) > 4 else ""}). A move needs an empty rack.', 409)
-
     notes = db.execute('select position, note from drawers where rack_id = %s', (rack_id,)).fetchall()
 
-    tubes_moved = boxes_moved = 0
-    box_map = {}
     with write(db):
-        for key, box in src_boxes.items():
-            target = dst_boxes[key]
-            box_map[box['id']] = target['id']
-            if _is_empty(box) and box['box_type'] == 'grid':
-                continue
-            tubes_moved += _carry_box(db, box, target)
-            boxes_moved += 1
+        tubes_moved, boxes_moved, box_map = _carry_slots(
+            db, _rack_boxes(db, rack_id), _rack_boxes(db, target_id), dst['label'])
         # The rack's name travels with its contents, and so do the drawer
         # labels: "Bearded dragon research" describes what is in the drawer,
         # not the drawer.
