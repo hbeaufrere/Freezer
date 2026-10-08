@@ -2303,3 +2303,33 @@ details.inv > summary:hover { background: var(--f-surface-2); }
 
 .filter-table .pick-col { width: 2rem; text-align: center; }
 .filter-table .pick-col .form-check-input { margin: 0; cursor: pointer; }
+
+
+/* ---- Moving boxes and racks ------------------------------- */
+
+.breadcrumb-nav .move-box-btn { margin-left: auto; }
+
+.rack-label { position: relative; }
+
+.rack-move-btn {
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    padding: 0 0.25rem;
+    font-size: 0.72rem;
+    line-height: 1.4;
+    color: var(--f-muted);
+    background: transparent;
+    border: 0;
+    border-radius: 4px;
+    opacity: 0.55;
+}
+
+.rack:hover .rack-move-btn,
+.rack-move-btn:focus-visible { opacity: 1; }
+
+.rack-move-btn:hover,
+.rack-move-btn:focus-visible { color: var(--f-accent); background: var(--f-accent-wash); }
+
+.move-what { font-size: 0.9rem; }

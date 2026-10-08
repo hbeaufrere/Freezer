@@ -181,6 +181,7 @@ routes/
   freezer.py             Shelves, racks, drawers, boxes
   collection.py          Satellite sites and the public drop-off page
   retrieval.py           Retrieval log
+  move.py                Moving a box or a rack to an empty place
   raptor.py              Raptor samples, species
   research.py            Research tubes
   stats.py               Dashboard aggregates
@@ -325,6 +326,14 @@ whole group rather than being silently skipped. The same bar offers a plain
 *freeze-thaw cycle* for tubes that went out and back without anyone logging
 it at the time; that writes no log entry, because there is nothing true to
 put in one.
+
+**Moving is relocation, never merging.** A box's contents — tubes with their
+positions, or a whole-box entry — can be carried to any empty slot in the same
+section, and a rack's contents to any empty rack, slot for slot, with the
+rack's name and drawer labels. The destination must be empty: merging two
+boxes of positioned tubes would need a decision per tube, so the app refuses
+rather than guessing. Tube IDs never change on a move; the retrieval log
+keeps the box label each tube had when it was taken out.
 
 **Deleting a record is not retrieving a sample.** They look alike and are
 opposites: retrieval writes history, deletion erases it. So the delete control

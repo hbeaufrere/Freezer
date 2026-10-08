@@ -86,9 +86,10 @@ def create_app():
     from routes.research import research_bp
     from routes.retrieval import retrieval_bp
     from routes.stats import stats_bp
+    from routes.move import move_bp
 
     for blueprint in (freezer_bp, research_bp, raptor_bp, stats_bp,
-                      export_bp, retrieval_bp, collection_bp):
+                      export_bp, retrieval_bp, collection_bp, move_bp):
         app.register_blueprint(blueprint)
 
     # ------------------------------------------------------------

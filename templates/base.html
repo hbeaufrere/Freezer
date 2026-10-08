@@ -141,6 +141,32 @@
         </div>
     </div>
 
+    <!-- Move a box's contents, or a whole rack's, to an empty place -->
+    <div class="modal fade" id="moveModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 class="modal-title fs-5" id="move-title">Move box</h2>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="move-what" id="move-what"></p>
+                    <div class="mb-3">
+                        <label for="move-target" class="form-label" id="move-target-label">Move to</label>
+                        <select class="form-select" id="move-target"></select>
+                        <div class="form-text" id="move-hint"></div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="btn-move-save">
+                        <i class="bi bi-arrow-right-square me-1"></i>Move
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="modal fade" id="retrievalModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
