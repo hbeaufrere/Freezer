@@ -70,6 +70,48 @@
 </div>
 <!-- Drop-off QR for a satellite freezer. Nothing to do with tube labels:
      this is a sign that gets printed and taped to a freezer door. -->
+<!-- Record a drop-off by hand, for samples that arrived without a scan -->
+<div class="modal fade" id="dropoffModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title fs-5">Add samples to collect</h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="dropoff-site-id">
+                <p class="move-what">
+                    Samples waiting at <strong id="dropoff-site-name"></strong>.
+                    Use this when something arrived without anyone scanning the sign.
+                </p>
+                <div class="row g-3">
+                    <div class="col-5">
+                        <label for="dropoff-count" class="form-label">How many samples</label>
+                        <input type="number" class="form-control" id="dropoff-count"
+                               min="1" max="500" inputmode="numeric" value="1">
+                    </div>
+                    <div class="col-7">
+                        <label for="dropoff-by" class="form-label">Left by <span class="text-body-secondary fw-normal">(optional)</span></label>
+                        <input type="text" class="form-control" id="dropoff-by" maxlength="100"
+                               placeholder="e.g. CRC volunteer">
+                    </div>
+                    <div class="col-12">
+                        <label for="dropoff-note" class="form-label">Note <span class="text-body-secondary fw-normal">(optional)</span></label>
+                        <input type="text" class="form-control" id="dropoff-note" maxlength="200"
+                               placeholder="e.g. 3 plasma, 2 RBC, red-tail 26-1042">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="btn-dropoff-save">
+                    <i class="bi bi-plus-lg me-1"></i>Add
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade" id="siteQrModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">

@@ -500,10 +500,16 @@ function renderCollectionPanel(sites, mail) {
         card.innerHTML = `
             <div class="collect-site-head">
                 <span class="collect-code">${escapeHtml(site.code)}</span>
-                <button type="button" class="copy-btn collect-qr" title="Show the QR code"
-                        aria-label="Show the drop-off QR code for ${escapeHtml(site.code)}">
-                    <i class="bi bi-qr-code"></i>
-                </button>
+                <span class="d-flex gap-1">
+                    <button type="button" class="copy-btn collect-add" title="Add samples by hand"
+                            aria-label="Record samples waiting at ${escapeHtml(site.code)} without a scan">
+                        <i class="bi bi-plus-lg"></i>
+                    </button>
+                    <button type="button" class="copy-btn collect-qr" title="Show the QR code"
+                            aria-label="Show the drop-off QR code for ${escapeHtml(site.code)}">
+                        <i class="bi bi-qr-code"></i>
+                    </button>
+                </span>
             </div>
             <div class="collect-count">${waiting}</div>
             <div class="collect-age">${
@@ -522,12 +528,62 @@ function renderCollectionPanel(sites, mail) {
 
         card.querySelector('.collect-qr')
             .addEventListener('click', () => showSiteQr(site));
+        card.querySelector('.collect-add')
+            .addEventListener('click', () => openDropoffModal(site));
 
         list.appendChild(card);
     });
 
     return panel;
 }
+
+/* The QR sign is the usual way in; this is for the rest — a bag found in
+   the satellite freezer, a phone call, a note. Same list, same collection. */
+function openDropoffModal(site) {
+    document.getElementById('dropoff-site-id').value = site.id;
+    document.getElementById('dropoff-site-name').textContent = `${site.code} — ${site.name}`;
+    document.getElementById('dropoff-count').value = 1;
+    document.getElementById('dropoff-by').value = '';
+    document.getElementById('dropoff-note').value = '';
+    const modal = document.getElementById('dropoffModal');
+    modal.addEventListener('shown.bs.modal', () => document.getElementById('dropoff-count').select(), { once: true });
+    bootstrap.Modal.getOrCreateInstance(modal).show();
+}
+
+async function saveDropoff() {
+    const siteId = document.getElementById('dropoff-site-id').value;
+    const count = parseInt(document.getElementById('dropoff-count').value, 10);
+    if (!count || count < 1) {
+        showToast('Say how many samples are waiting.', 'error');
+        document.getElementById('dropoff-count').focus();
+        return;
+    }
+    const button = document.getElementById('btn-dropoff-save');
+    button.disabled = true;
+    try {
+        const result = await API.post(`/api/collection-sites/${siteId}/dropoffs`, {
+            sample_count: count,
+            dropped_by: document.getElementById('dropoff-by').value.trim(),
+            note: document.getElementById('dropoff-note').value.trim(),
+        });
+        showToast(`${count} sample${count === 1 ? '' : 's'} added — ${result.total_waiting} waiting at ${result.site}`);
+        bootstrap.Modal.getInstance(document.getElementById('dropoffModal')).hide();
+        loadFreezerOverview();
+    } catch (err) {
+        showToast(err.message, 'error');
+    } finally {
+        button.disabled = false;
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const save = document.getElementById('btn-dropoff-save');
+    if (!save) return;
+    save.addEventListener('click', saveDropoff);
+    document.getElementById('dropoffModal').addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' && event.target.tagName === 'INPUT') { event.preventDefault(); saveDropoff(); }
+    });
+});
 
 /* Checking the mail settings should not require standing at a freezer. */
 async function sendTestEmail(button) {

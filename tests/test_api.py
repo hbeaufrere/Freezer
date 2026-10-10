@@ -2455,3 +2455,31 @@ def test_a_drawer_only_moves_into_an_empty_drawer_in_its_section(client, boxes, 
                          json={'target_drawer_id': raptor['drawers'][0]['id']})
     assert across.status_code == 400 and 'own section' in across.get_json()['error']
     assert client.post(f'/api/drawers/{src["id"]}/move', json={'target_drawer_id': src['id']}).status_code == 400
+
+
+def test_the_lab_can_add_a_dropoff_by_hand(client, anon, flask_app, mailbox):
+    """Same list as the QR sign feeds, collected the same way, and no email —
+    the lab is the one typing it in."""
+    site = next(s for s in client.get('/api/collection-sites').get_json() if s['code'] == 'VMTH')
+    added = client.post(f'/api/collection-sites/{site["id"]}/dropoffs', json={
+        'sample_count': 4, 'dropped_by': 'VMTH tech', 'note': 'Found in the freezer Monday'})
+    assert added.status_code == 201, added.get_json()
+    assert added.get_json()['total_waiting'] == 4
+    assert len(mailbox) == 0
+
+    # Lands beside a scanned drop and is collected with it.
+    anon.post(f'/api/drop/{_token(flask_app, "VMTH")}', json={'sample_count': 2})
+    site = next(s for s in client.get('/api/collection-sites').get_json() if s['code'] == 'VMTH')
+    assert site['pending_samples'] == 6
+    recent = client.get(f'/api/collection-sites/{site["id"]}/dropoffs').get_json()
+    assert {(r['sample_count'], r['dropped_by']) for r in recent} == {(4, 'VMTH tech'), (2, None)}
+    collected = client.post(f'/api/collection-sites/{site["id"]}/collect', json={}).get_json()
+    assert collected['collected_samples'] == 6
+
+
+def test_a_hand_added_dropoff_is_bounded_and_needs_a_session(client, anon):
+    site = client.get('/api/collection-sites').get_json()[0]
+    assert client.post(f'/api/collection-sites/{site["id"]}/dropoffs', json={'sample_count': 0}).status_code == 400
+    assert client.post(f'/api/collection-sites/{site["id"]}/dropoffs', json={'sample_count': 501}).status_code == 400
+    assert client.post('/api/collection-sites/999999/dropoffs', json={'sample_count': 1}).status_code == 404
+    assert anon.post(f'/api/collection-sites/{site["id"]}/dropoffs', json={'sample_count': 1}).status_code == 401

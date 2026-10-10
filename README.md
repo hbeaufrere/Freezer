@@ -335,6 +335,12 @@ boxes of positioned tubes would need a decision per tube, so the app refuses
 rather than guessing. Tube IDs never change on a move; the retrieval log
 keeps the box label each tube had when it was taken out.
 
+**The sign is the usual way in, not the only one.** The QR sign on each
+satellite freezer writes a drop-off with no login. The lab can also add one
+by hand from the collect panel — a bag found on a Monday, a phone call — and
+it lands in the same list and is collected the same way. That path sends no
+email, since the lab is the one typing.
+
 **Deleting a record is not retrieving a sample.** They look alike and are
 opposites: retrieval writes history, deletion erases it. So the delete control
 is a quiet grey button rather than a peer of *Log retrieval*, and its
