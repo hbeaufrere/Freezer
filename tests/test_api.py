@@ -2483,3 +2483,49 @@ def test_a_hand_added_dropoff_is_bounded_and_needs_a_session(client, anon):
     assert client.post(f'/api/collection-sites/{site["id"]}/dropoffs', json={'sample_count': 501}).status_code == 400
     assert client.post('/api/collection-sites/999999/dropoffs', json={'sample_count': 1}).status_code == 404
     assert anon.post(f'/api/collection-sites/{site["id"]}/dropoffs', json={'sample_count': 1}).status_code == 401
+
+
+def test_the_raptor_map_shows_structure_and_no_contents(client, anon, boxes, species_id):
+    client.post('/api/raptor/tubes', json={'box_id': boxes['raptor']['id'], 'row_pos': 1, 'col_pos': 1,
+                                           'species_id': species_id, 'collection_date': '2026-04-01'})
+    page = client.get('/raptor/map')
+    assert page.status_code == 200
+    html = page.data.decode()
+    assert 'Rack U1' in html and 'Rack U6' in html
+    assert 'RTHA / RSHA / SWHA' in html and 'Red-tailed Hawk' in html
+    assert 'U1-D8-B4' in html and 'D1</b> is the top drawer' in html
+    # The tube just filed is not on the map, nor is anything about fullness.
+    assert 'RTHA26' not in html and 'occupied' not in html
+    # Research shelves are not on it either.
+    assert 'Rack M1' not in html
+    assert anon.get('/raptor/map').status_code == 302
+
+
+def test_each_site_has_a_printable_poster_with_its_own_code(client, anon):
+    sites = {s['code']: s for s in client.get('/api/collection-sites').get_json()}
+    vmth = client.get(f'/collection-sites/{sites["VMTH"]["id"]}/poster')
+    assert vmth.status_code == 200
+    html = vmth.data.decode()
+    assert 'room 181' in html and 'VMACS case number' in html
+    assert 'Spin the tube' in html and 'Packed red cells' in html and 'Scan the code' in html
+    assert client.get(f'/api/collection-sites/{sites["VMTH"]["id"]}/qr').get_json()['drop_url'] in html
+
+    crc = client.get(f'/collection-sites/{sites["CRC"]["id"]}/poster').data.decode()
+    assert 'WRMD number' in crc and 'room 181' not in crc
+
+    assert client.get('/collection-sites/999999/poster').status_code == 404
+    assert anon.get(f'/collection-sites/{sites["VMTH"]["id"]}/poster').status_code == 302
+
+
+def test_stats_count_sample_types_per_species(client, boxes, species_id):
+    other = next(s for s in client.get('/api/species').get_json() if s['id'] != species_id)
+    for col, sp, kind in [(1, species_id, 'Plasma'), (2, species_id, 'Packed RBCs'),
+                          (3, species_id, 'Plasma'), (4, other['id'], 'Liver')]:
+        r = client.post('/api/raptor/tubes', json={'box_id': boxes['raptor']['id'], 'row_pos': 1, 'col_pos': col,
+                                                   'species_id': sp, 'collection_date': '2026-04-01', 'sample_type': kind})
+        assert r.status_code == 201, r.get_json()
+    rows = client.get('/api/stats/raptor').get_json()['types_by_species']
+    counts = {(r['code'], r['sample_type']): r['count'] for r in rows}
+    assert counts[('RTHA', 'Plasma')] == 2 and counts[('RTHA', 'Packed RBCs')] == 1
+    assert counts[(other['banding_code'], 'Liver')] == 1
+    assert len(counts) == 3

@@ -69,6 +69,71 @@ function renderBar(key, canvasId, labels, values, colors, options) {
     });
 }
 
+/* Sample types keep one colour each wherever they appear, so plasma is the
+   same straw and red cells the same red on every chart. Anything else takes
+   a colour from the series palette in order of appearance. */
+const TYPE_COLORS = {
+    'Plasma': '#d9a521', 'Packed RBCs': '#b4322a', 'Liver': '#6b4a2b',
+    'Whole blood': '#8e1c1c', 'Serum': '#e3c35a', 'Unspecified': '#9aa6b8',
+};
+
+/* One stacked bar per species, one segment per sample type: how deep the
+   bank is for each species, and which types are missing. */
+function renderTypesBySpecies(rows, theme) {
+    destroyChart('typesSpecies');
+    const canvas = document.getElementById('chart-types-species');
+    if (!canvas) return;
+    if (!rows.length) {
+        renderBar('typesSpecies', 'chart-types-species', [], [], [], {});
+        return;
+    }
+
+    const speciesOrder = [];
+    const totals = {};
+    rows.forEach((r) => {
+        if (!(r.code in totals)) { totals[r.code] = 0; speciesOrder.push({ code: r.code, species: r.species }); }
+        totals[r.code] += r.count;
+    });
+    speciesOrder.sort((a, b) => totals[b.code] - totals[a.code] || a.species.localeCompare(b.species));
+
+    // Blood first, in the order the form lists them; anything else after.
+    const preferred = Object.keys(TYPE_COLORS);
+    const types = [...new Set(rows.map((r) => r.sample_type))].sort((a, b) => {
+        const ia = preferred.indexOf(a), ib = preferred.indexOf(b);
+        return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b);
+    });
+    let extra = 0;
+    const datasets = types.map((type) => ({
+        label: type,
+        data: speciesOrder.map((s) => rows.find((r) => r.code === s.code && r.sample_type === type)?.count || 0),
+        backgroundColor: TYPE_COLORS[type] || SERIES_COLORS[(extra++) % SERIES_COLORS.length],
+        borderWidth: 0,
+        borderRadius: 2,
+    }));
+
+    const base = baseOptions(theme, { horizontal: true });
+    charts.typesSpecies = new Chart(canvas, {
+        type: 'bar',
+        data: { labels: speciesOrder.map((s) => s.code), datasets },
+        options: {
+            ...base,
+            scales: {
+                x: { ...base.scales.x, stacked: true },
+                y: { ...base.scales.y, stacked: true },
+            },
+            plugins: {
+                legend: { display: true, position: 'top', labels: { color: theme.text, boxWidth: 12 } },
+                tooltip: {
+                    callbacks: {
+                        title: (items) => speciesOrder[items[0].dataIndex].species,
+                        footer: (items) => `${totals[speciesOrder[items[0].dataIndex].code]} tubes in all`,
+                    },
+                },
+            },
+        },
+    });
+}
+
 /* ---- Raptor ----------------------------------------------- */
 
 async function loadRaptorStats() {
@@ -109,6 +174,8 @@ function drawRaptorCharts(stats) {
             },
         }
     );
+
+    renderTypesBySpecies(stats.types_by_species || [], theme);
 
     const monthly = stats.monthly_counts || [];
     renderBar('monthly', 'chart-monthly',

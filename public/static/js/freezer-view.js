@@ -501,6 +501,11 @@ function renderCollectionPanel(sites, mail) {
             <div class="collect-site-head">
                 <span class="collect-code">${escapeHtml(site.code)}</span>
                 <span class="d-flex gap-1">
+                    <a class="copy-btn collect-poster" href="/collection-sites/${site.id}/poster" target="_blank" rel="noopener"
+                       title="Print the how-to poster for this freezer"
+                       aria-label="Print the drop-off poster for ${escapeHtml(site.code)}">
+                        <i class="bi bi-printer"></i>
+                    </a>
                     <button type="button" class="copy-btn collect-add" title="Add samples by hand"
                             aria-label="Record samples waiting at ${escapeHtml(site.code)} without a scan">
                         <i class="bi bi-plus-lg"></i>

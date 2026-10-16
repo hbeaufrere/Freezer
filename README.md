@@ -335,6 +335,19 @@ boxes of positioned tubes would need a decision per tube, so the app refuses
 rather than guessing. Tube IDs never change on a move; the retrieval log
 keeps the box label each tube had when it was taken out.
 
+**The map says where things go, not what is there.** `/raptor/map` is a
+printable page of the raptor shelf: racks with their species lines, drawers
+top to bottom, box slots front to back, and a legend for the codes. It shows
+no contents on purpose: it is for the person at the freezer with a tube in
+hand, and a map that also listed samples would be out of date by the time
+it was taped up.
+
+**A poster for the satellite freezer.** Each site has a printable how-to at
+`/collection-sites/<id>/poster`: the seven steps from blood draw to QR scan,
+with flat vector icons and the site's own drop-off code as the last step.
+The freezer's location comes from the site record, so a poster never says
+"ordinary freezer" when it should say "room 181".
+
 **The sign is the usual way in, not the only one.** The QR sign on each
 satellite freezer writes a drop-off with no login. The lab can also add one
 by hand from the collect panel — a bag found on a Monday, a phone call — and
