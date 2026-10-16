@@ -43,6 +43,11 @@
     .step.last h2 { font-size: 18px; }
     .step.last .big { font-size: 15px; color: var(--ink); margin-top: 4px; }
 
+    .supplies { display: flex; gap: 10px; align-items: center; margin: 0 0 14px; padding: 9px 12px;
+                border: 1.5px dashed var(--accent); border-radius: 10px; background: var(--wash); font-size: 14px; }
+    .supplies svg { width: 34px; height: 30px; flex: 0 0 auto; }
+    .supplies b { color: var(--accent); margin-right: 4px; }
+
     .foot { margin-top: 16px; display: flex; justify-content: space-between; gap: 12px; font-size: 12px; color: var(--soft);
             border-top: 1px solid var(--line); padding-top: 8px; }
 
@@ -66,6 +71,21 @@
     <h1>Dropping off raptor blood samples</h1>
     <div class="sub">Seven steps from the bird to the biobank. Takes about ten minutes after the draw.</div>
 </div>
+
+{% if site.supplies %}
+<div class="supplies">
+    <!-- open cabinet with tubes -->
+    <svg viewBox="0 0 34 30" aria-hidden="true">
+        <g fill="none" stroke="#16233a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="28" height="24" rx="2" fill="#fff"/>
+            <path d="M3 15 h28" />
+            <path d="M9 6 v6 M14 6 v6 M19 6 v6" stroke="#0a2a5e"/>
+            <path d="M9 18 v6 M14 18 v6 M19 18 v6 M24 18 v6" stroke="#0a2a5e"/>
+        </g>
+    </svg>
+    <div><b>Supplies:</b>{{ site.supplies }}</div>
+</div>
+{% endif %}
 
 <div class="steps">
     <div class="step"><span class="n">1</span>

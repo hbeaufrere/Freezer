@@ -160,7 +160,7 @@ def create_app():
         from routes.support import one_or_404
         db = get_db()
         site = one_or_404(db.execute(
-            'select id, code, name, location, token from collection_sites where id = %s',
+            'select id, code, name, location, supplies, token from collection_sites where id = %s',
             (site_id,)).fetchone(), 'Site')
         case_number = 'VMACS case number' if site['code'] == 'VMTH' else 'WRMD number'
         drop_url = request.url_root.rstrip('/') + f"/drop/{site['token']}"
