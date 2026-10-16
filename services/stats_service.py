@@ -25,6 +25,18 @@ def get_raptor_stats(db):
             order by count desc, s.common_name"""
     ).fetchall()]
 
+    # Tubes, not birds: a bird with plasma and liver counts once in each
+    # type, which is the point of the chart.
+    stats['types_by_species'] = [dict(r) for r in db.execute(
+        """select s.banding_code as code, s.common_name as species,
+                  coalesce(nullif(rt.sample_type, ''), 'Unspecified') as sample_type,
+                  count(*) as count
+           from raptor_tubes rt
+           join species s on rt.species_id = s.id
+           group by s.id, s.banding_code, s.common_name, sample_type
+           order by s.common_name, sample_type"""
+    ).fetchall()]
+
     stats['monthly_counts'] = [dict(r) for r in db.execute(
         f"""select to_char(rt.collection_date, 'YYYY-MM') as month,
                    count(distinct {_BASE_ID}) as count

@@ -109,6 +109,37 @@ def collect_site(site_id):
     })
 
 
+@collection_bp.route('/api/collection-sites/<int:site_id>/dropoffs', methods=['POST'])
+def add_dropoff(site_id):
+    """Record a drop-off from inside the app, for samples that arrived without
+    anyone scanning the sign — a phone call, a note on the freezer, a bag
+    found on a Monday. Same row as the QR page writes, so it is collected
+    the same way. No email: the lab is the one typing it in."""
+    db = get_db()
+    site = one_or_404(
+        db.execute('select id, name from collection_sites where id = %s', (site_id,)).fetchone(),
+        'Site',
+    )
+    data = json_body()
+    require(data, 'sample_count')
+    count = as_int(data, 'sample_count', minimum=1, maximum=MAX_PER_DROP)
+
+    with write(db):
+        entry = db.execute(
+            """insert into pending_dropoffs (site_id, sample_count, dropped_by, note)
+               values (%s, %s, %s, %s)
+               returning id, sample_count, dropped_at""",
+            (site_id, count, text(data, 'dropped_by') or None, text(data, 'note') or None),
+        ).fetchone()
+        waiting = db.execute(
+            """select coalesce(sum(sample_count), 0) as n
+               from pending_dropoffs where site_id = %s and collected_at is null""",
+            (site_id,),
+        ).fetchone()['n']
+
+    return jsonify({'recorded': dict(entry), 'site': site['name'], 'total_waiting': waiting}), 201
+
+
 @collection_bp.route('/api/collection-sites/<int:site_id>/dropoffs')
 def site_dropoffs(site_id):
     """Recent drops at one site, newest first."""

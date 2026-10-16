@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Raptor Biobank — freezer map</title>
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+<style>
+    :root { --ink: #16233a; --soft: #5b6b85; --line: #b9c4d6; --wash: #eef2f8; --accent: #0a2a5e; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; background: #fff; color: var(--ink); }
+    body { font: 11.5px/1.35 -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; padding: 18px 22px; }
+    code, .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+
+    .map-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem;
+                border-bottom: 2px solid var(--ink); padding-bottom: 6px; margin-bottom: 10px; }
+    .map-head h1 { margin: 0; font-size: 18px; letter-spacing: 0.01em; }
+    .map-head .sub { color: var(--soft); font-size: 11px; }
+    .map-head .when { color: var(--soft); font-size: 10.5px; text-align: right; }
+
+    .toolbar { display: flex; gap: 8px; margin-bottom: 12px; }
+    .toolbar button, .toolbar a { font: inherit; font-size: 12px; padding: 5px 11px; border-radius: 5px;
+                                   border: 1px solid var(--line); background: #fff; color: var(--ink);
+                                   text-decoration: none; cursor: pointer; }
+    .toolbar button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+    .orient { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 11px; color: var(--soft);
+              margin: 0 0 10px; }
+    .orient b { color: var(--ink); }
+    .front-swatch { display: inline-block; width: 14px; height: 10px; border: 1px solid var(--line);
+                    border-left: 3px solid var(--accent); vertical-align: -1px; border-radius: 2px; }
+
+    .shelf-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
+                   color: var(--soft); margin: 6px 0 6px; }
+    .shelf-note { font-size: 10.5px; color: var(--soft); margin: -4px 0 8px; }
+
+    .racks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px 12px; }
+    .rack { border: 1.5px solid var(--ink); border-radius: 6px; padding: 6px 7px 7px; break-inside: avoid; }
+    .rack-title { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; }
+    .rack-title .label { font-family: ui-monospace, Menlo, Consolas, monospace; font-weight: 700; font-size: 12px; }
+    .rack-title .pos { font-size: 10px; color: var(--soft); }
+    .rack-designation { font-size: 13px; font-weight: 700; color: var(--accent); margin: 1px 0 5px;
+                        min-height: 1.3em; }
+    .rack-designation.empty { color: var(--soft); font-weight: 400; font-style: italic; }
+
+    table.grid { border-collapse: separate; border-spacing: 3px 2px; width: 100%; }
+    table.grid th { font-weight: 600; font-size: 9.5px; color: var(--soft); text-align: center; padding: 0 0 1px; }
+    table.grid th.front { color: var(--accent); }
+    table.grid td { text-align: center; }
+    table.grid td.d { font-family: ui-monospace, Menlo, Consolas, monospace; font-weight: 700; font-size: 10px;
+                      color: var(--ink); text-align: right; padding-right: 3px; width: 2.2em; }
+    .slot { display: block; border: 1px solid var(--line); border-radius: 3px; padding: 3px 0;
+            font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 9.5px; color: var(--ink);
+            background: #fff; }
+    .slot.front { border-left: 3px solid var(--accent); }
+    .slot .named { display: block; font-family: inherit; font-size: 8.5px; color: var(--soft);
+                   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 9em; margin: 0 auto; }
+    td.note { text-align: left; font-size: 9.5px; color: var(--soft); padding-left: 4px;
+              max-width: 9em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .legend { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 8px; break-inside: avoid; }
+    .legend h2 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--soft); margin: 0 0 5px; }
+    .legend ul { list-style: none; margin: 0; padding: 0; columns: 3; column-gap: 24px; font-size: 11px; }
+    .legend li { break-inside: avoid; padding: 1px 0; }
+    .legend code { font-weight: 700; margin-right: 6px; }
+    .legend i { color: var(--soft); }
+
+    @page { size: A4 portrait; margin: 12mm; }
+    @media print {
+        body { padding: 0; font-size: 10.5px; }
+        .toolbar { display: none; }
+        a { color: inherit; text-decoration: none; }
+    }
+    @media (max-width: 760px) { .racks { grid-template-columns: 1fr 1fr; } .legend ul { columns: 2; } }
+    @media (max-width: 480px) { .racks { grid-template-columns: 1fr; } .legend ul { columns: 1; } }
+</style>
+</head>
+<body>
+<div class="toolbar">
+    <button type="button" class="primary" onclick="window.print()">Print</button>
+    <a href="/raptor">Back to the biobank</a>
+</div>
+
+<div class="map-head">
+    <div>
+        <h1>Raptor Biobank — freezer map</h1>
+        <div class="sub">Eppendorf CryoCube F740hi · which rack takes which species. Contents are not shown.</div>
+    </div>
+    <div class="when">Printed {{ printed_on }}<br>Check the app before filing if the map is more than a few weeks old.</div>
+</div>
+
+<div class="orient">
+    <span><b>D1</b> is the top drawer; drawers run down to <b>D{{ drawer_rows }}</b>.</span>
+    <span><span class="front-swatch"></span> <b>B1</b> is the box at the front of the drawer; <b>B{{ box_columns }}</b> is at the back.</span>
+    <span>Each box is a 10&times;10 cryobox, rows A&ndash;K (no I), columns 1&ndash;10.</span>
+</div>
+
+{% for shelf in shelves %}
+<div class="shelf-title">{{ shelf.name }}</div>
+<div class="shelf-note">Racks {{ shelf.racks[0].label.replace('Rack ', '') if shelf.racks else '' }} to
+    {{ shelf.racks[-1].label.replace('Rack ', '') if shelf.racks else '' }} stand left to right on the shelf.</div>
+<div class="racks">
+    {% for rack in shelf.racks %}
+    <div class="rack">
+        <div class="rack-title">
+            <span class="label">{{ rack.label }}</span>
+            <span class="pos">{{ loop.index }} of {{ shelf.racks|length }} from the left</span>
+        </div>
+        {% if rack.designation %}
+        <div class="rack-designation">{{ rack.designation }}</div>
+        {% else %}
+        <div class="rack-designation empty">no species assigned</div>
+        {% endif %}
+        <table class="grid">
+            <thead>
+                <tr>
+                    <th></th>
+                    {% for n in range(1, box_columns + 1) %}
+                    <th class="{{ 'front' if n == 1 else '' }}">B{{ n }}{% if n == 1 %} front{% elif n == box_columns %} back{% endif %}</th>
+                    {% endfor %}
+                    {% if rack.drawers|selectattr('note')|list %}<th></th>{% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for drawer in rack.drawers %}
+                <tr>
+                    <td class="d">D{{ drawer.position }}</td>
+                    {% for box in drawer.boxes %}
+                    {% set std = rack.label.replace('Rack ', '') ~ '-D' ~ drawer.position ~ '-B' ~ box.position %}
+                    <td><span class="slot {{ 'front' if box.position == 1 else '' }}">{{ std }}{% if box.label and box.label != std %}<span class="named">{{ box.label }}</span>{% endif %}</span></td>
+                    {% endfor %}
+                    {% if rack.drawers|selectattr('note')|list %}<td class="note" title="{{ drawer.note or '' }}">{{ drawer.note or '' }}</td>{% endif %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endfor %}
+</div>
+{% endfor %}
+
+{% if legend %}
+<div class="legend">
+    <h2>Species codes on the racks</h2>
+    <ul>
+        {% for item in legend %}
+        <li><code>{{ item.code }}</code>{{ item.name }} <i>{{ item.scientific }}</i></li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+</body>
+</html>

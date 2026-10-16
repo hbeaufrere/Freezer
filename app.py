@@ -152,6 +152,31 @@ def create_app():
     def raptor_page():
         return render_template('raptor.html')
 
+    @app.route('/collection-sites/<int:site_id>/poster')
+    def site_poster_page(site_id):
+        """A printable how-to for the satellite freezer: the steps from blood
+        draw to QR scan, with the site's own code as the last step."""
+        from db import get_db
+        from routes.support import one_or_404
+        db = get_db()
+        site = one_or_404(db.execute(
+            'select id, code, name, location, token from collection_sites where id = %s',
+            (site_id,)).fetchone(), 'Site')
+        case_number = 'VMACS case number' if site['code'] == 'VMTH' else 'WRMD number'
+        drop_url = request.url_root.rstrip('/') + f"/drop/{site['token']}"
+        return render_template('site_poster.html', site=site, case_number=case_number,
+                               drop_url=drop_url)
+
+    @app.route('/raptor/map')
+    def raptor_map_page():
+        """A printable map of the raptor biobank: shelf, racks, their species
+        lines, drawers and box slots — and nothing about what is in them. It is
+        for the person standing at the freezer with a tube in hand, who needs
+        to know which rack takes a kestrel, not what is already there."""
+        from db import get_db
+        from services.freezer_map import raptor_map
+        return render_template('raptor_map.html', **raptor_map(get_db()))
+
     @app.route('/stats')
     def stats_page():
         return render_template('stats.html')
