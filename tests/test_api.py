@@ -2507,11 +2507,12 @@ def test_each_site_has_a_printable_poster_with_its_own_code(client, anon):
     assert vmth.status_code == 200
     html = vmth.data.decode()
     assert 'room 181' in html and 'VMACS case number' in html
+    assert 'cabinet above the microscope in room 184' in html
     assert 'Spin the tube' in html and 'Packed red cells' in html and 'Scan the code' in html
     assert client.get(f'/api/collection-sites/{sites["VMTH"]["id"]}/qr').get_json()['drop_url'] in html
 
     crc = client.get(f'/collection-sites/{sites["CRC"]["id"]}/poster').data.decode()
-    assert 'WRMD number' in crc and 'room 181' not in crc
+    assert 'WRMD number' in crc and 'room 181' not in crc and 'Supplies' not in crc
 
     assert client.get('/collection-sites/999999/poster').status_code == 404
     assert anon.get(f'/collection-sites/{sites["VMTH"]["id"]}/poster').status_code == 302
