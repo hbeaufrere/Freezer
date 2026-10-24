@@ -17,6 +17,7 @@ merge — merging two boxes of positioned tubes would need a decision per tube.
 from flask import Blueprint, jsonify
 
 from db import ApiError, get_db
+from services.activity import record
 from routes.support import as_int, json_body, one_or_404, require, write
 
 move_bp = Blueprint('move', __name__)
@@ -93,6 +94,9 @@ def move_box(box_id):
 
     with write(db):
         moved = _carry_box(db, src, dst)
+        record(db, 'moved', src['section'], box_label=dst['label'],
+               detail=f"box {src['label']} → {dst['label']}, {moved} tube(s)"
+                      + (' and a whole-box entry' if src['box_type'] == 'bulk' else ''))
 
     return jsonify({'from': src['label'], 'to': dst['label'], 'target_box_id': dst['id'],
                     'tubes_moved': moved, 'box_type': src['box_type']})
@@ -162,6 +166,8 @@ def move_drawer(drawer_id):
         # The note describes the contents, so it goes where they go.
         db.execute('update drawers set note = %s where id = %s', (src['note'], target_id))
         db.execute('update drawers set note = null where id = %s', (drawer_id,))
+        record(db, 'moved', src['section'], box_label=dst['label'],
+               detail=f"drawer {src['label']} → {dst['label']}, {boxes} box(es), {tubes} tube(s)")
 
     return jsonify({'from': src['label'], 'to': dst['label'], 'target_drawer_id': target_id,
                     'tubes_moved': tubes, 'boxes_moved': boxes, 'box_map': box_map})
@@ -200,6 +206,9 @@ def move_rack(rack_id):
             db.execute('update drawers set note = %s where rack_id = %s and position = %s',
                        (n['note'], target_id, n['position']))
         db.execute('update drawers set note = null where rack_id = %s', (rack_id,))
+        record(db, 'moved', src['section'], box_label=dst['label'],
+               detail=f"rack {src['label']} → {dst['label']}, {boxes_moved} box(es), {tubes_moved} tube(s)"
+                      + (f" · {src['designation']}" if src['designation'] else ''))
 
     return jsonify({'from': src['label'], 'to': dst['label'], 'target_rack_id': target_id,
                     'tubes_moved': tubes_moved, 'boxes_moved': boxes_moved,

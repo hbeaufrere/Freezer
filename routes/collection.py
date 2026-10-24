@@ -13,6 +13,7 @@ import hmac
 from flask import Blueprint, current_app, jsonify, render_template, request
 
 from db import ApiError, get_db
+from services.activity import record
 from routes.support import as_int, json_body, one_or_404, require, text, write
 
 collection_bp = Blueprint('collection', __name__)
@@ -102,6 +103,10 @@ def collect_site(site_id):
                returning sample_count""",
             (text(data, 'collected_by') or None, site_id),
         ).fetchall()
+        if result:
+            site_name = db.execute('select name from collection_sites where id = %s', (site_id,)).fetchone()['name']
+            record(db, 'collected', 'sites', box_label=site_name,
+                   detail=f"{sum(r['sample_count'] for r in result)} sample(s) collected for the -80")
 
     return jsonify({
         'collected_dropoffs': len(result),
@@ -136,6 +141,9 @@ def add_dropoff(site_id):
                from pending_dropoffs where site_id = %s and collected_at is null""",
             (site_id,),
         ).fetchone()['n']
+        record(db, 'dropoff', 'sites', box_label=site['name'],
+               detail=f"{count} sample(s) added by hand" + (f" · left by {text(data, 'dropped_by')}" if text(data, 'dropped_by') else '')
+                      + (f" · {text(data, 'note')}" if text(data, 'note') else ''))
 
     return jsonify({'recorded': dict(entry), 'site': site['name'], 'total_waiting': waiting}), 201
 
@@ -206,6 +214,10 @@ def record_dropoff(token):
                where site_id = %s and collected_at is null""",
             (site['id'],),
         ).fetchone()['n']
+        record(db, 'dropoff', 'sites', box_label=site['name'],
+               detail=f"{count} sample(s) dropped off via the QR sign"
+                      + (f" · left by {text(data, 'dropped_by')}" if text(data, 'dropped_by') else '')
+                      + (f" · {text(data, 'note')}" if text(data, 'note') else ''))
 
     # After the commit, so the email can never describe a drop that was rolled
     # back — and so a slow mail server cannot hold a write transaction open.

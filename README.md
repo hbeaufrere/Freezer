@@ -180,7 +180,7 @@ db.py                    Connection pool, request-scoped connections, error tran
 routes/
   freezer.py             Shelves, racks, drawers, boxes
   collection.py          Satellite sites and the public drop-off page
-  retrieval.py           Retrieval log
+  retrieval.py           Retrieval log and the activity feed
   move.py                Moving a box, drawer or rack to an empty place
   raptor.py              Raptor samples, species
   research.py            Research tubes
@@ -304,6 +304,14 @@ is a counter, not specimen records: the worst case is an inflated number the
 lab can reset, and the token is compared in constant time and never included
 in the site list the rest of the app loads. Replaying migrations does not
 rotate the tokens, so printed QR codes keep working.
+
+**The activity log says what happened; the retrieval log says who took
+what.** `activity` holds one row per change — tubes added, edited, removed,
+moved, thawed; boxes retyped; drop-offs and collections — each a snapshot in
+words, so it still reads after the tube is renamed or gone. Retrievals keep
+their own table, and the Activity page reads both as one feed. The person
+is whatever name the browser has been given; the app has one shared
+password, so names are self-declared, and absent when nobody has typed one.
 
 **The retrieval log outlives the tube.** `retrievals` keeps a snapshot of the
 tube ID, box and position alongside a nullable foreign key, so consuming a

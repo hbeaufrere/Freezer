@@ -2530,3 +2530,82 @@ def test_stats_count_sample_types_per_species(client, boxes, species_id):
     assert counts[('RTHA', 'Plasma')] == 2 and counts[('RTHA', 'Packed RBCs')] == 1
     assert counts[(other['banding_code'], 'Liver')] == 1
     assert len(counts) == 3
+
+
+# ------------------------------------------------------------
+# The activity log
+# ------------------------------------------------------------
+
+def _feed(client, **params):
+    return client.get('/api/activity', query_string=params).get_json()['entries']
+
+
+def test_adding_editing_and_removing_a_tube_is_logged_with_a_snapshot(client, boxes, species_id):
+    tube = client.post('/api/raptor/tubes', json={
+        'box_id': boxes['raptor']['id'], 'row_pos': 2, 'col_pos': 3, 'species_id': species_id,
+        'collection_date': '2026-04-01', 'sample_type': 'Plasma',
+    }, headers={'X-Freezer-User': 'Hugues'}).get_json()
+
+    added = _feed(client, kind='added')
+    assert len(added) == 1
+    e = added[0]
+    assert (e['kind'], e['tube_label'], e['position_label'], e['actor']) == ('added', tube['tube_id'], 'B3', 'Hugues')
+    assert e['species_name'] == 'Red-tailed Hawk' and e['box_label'] and 'Plasma' in e['detail']
+
+    client.put(f'/api/raptor/tubes/{tube["id"]}', json={
+        'collection_date': '2026-04-02', 'sample_type': 'Liver', 'wrmd_number': '26-1'})
+    client.delete(f'/api/raptor/tubes/{tube["id"]}')
+
+    kinds = [x['kind'] for x in _feed(client)]
+    assert kinds == ['removed', 'edited', 'added']
+    removed = _feed(client, kind='removed')[0]
+    # Gone from the freezer, still named in the log.
+    assert removed['tube_label'] == tube['tube_id'] and removed['position_label'] == 'B3'
+    assert removed['actor'] is None
+
+
+def test_the_feed_merges_retrievals_moves_and_thaws(client, boxes, species_id):
+    t = client.post('/api/raptor/tubes', json={
+        'box_id': boxes['raptor']['id'], 'row_pos': 1, 'col_pos': 1, 'species_id': species_id,
+        'collection_date': '2026-04-01'}).get_json()
+    client.post('/api/retrievals', json={'section': 'raptor', 'tube_id': t['id'],
+                                         'retrieved_by': 'Alice', 'purpose': 'Lipids'})
+    client.post('/api/tubes/thaw', json={'section': 'raptor', 'tube_ids': [t['id']]})
+    other = next(b for *_, b in _freezer_boxes(client, 'raptor') if b['id'] != boxes['raptor']['id'])['id']
+    client.post(f'/api/boxes/{boxes["raptor"]["id"]}/move', json={'target_box_id': other})
+
+    feed = _feed(client)
+    assert [x['kind'] for x in feed] == ['moved', 'thawed', 'retrieved', 'added']
+    retrieved = feed[2]
+    assert retrieved['source'] == 'retrieval' and retrieved['actor'] == 'Alice' and retrieved['detail'] == 'Lipids'
+    assert feed[0]['detail'].startswith('box ') and '1 tube' in feed[0]['detail']
+
+    assert [x['kind'] for x in _feed(client, kind='retrieved')] == ['retrieved']
+    assert _feed(client, section='research') == []
+    assert client.get('/api/activity').get_json()['total'] == 4
+
+    stats = client.get('/api/stats/activity').get_json()
+    assert (stats['added_30'], stats['retrieved_30'], stats['moved_30'], stats['total']) == (1, 1, 1, 4)
+
+
+def test_box_changes_and_dropoffs_are_logged_too(client, anon, flask_app, boxes):
+    box = boxes['research']['id']
+    client.put(f'/api/boxes/{box}/type', json={'box_type': 'bulk'})
+    client.put(f'/api/boxes/{box}/bulk', json={'sample_type': 'Liver', 'tube_count': 60, 'study': 'Kestrel PK'})
+    anon.post(f'/api/drop/{_token(flask_app, "CRC")}', json={'sample_count': 2, 'dropped_by': 'Jane'})
+    site = next(s for s in client.get('/api/collection-sites').get_json() if s['code'] == 'CRC')
+    client.post(f'/api/collection-sites/{site["id"]}/collect', json={'collected_by': 'Hugues'})
+
+    kinds = [(x['kind'], x['section']) for x in _feed(client)]
+    assert kinds == [('collected', 'sites'), ('dropoff', 'sites'), ('box', 'research'), ('box', 'research')]
+    details = [x['detail'] for x in _feed(client)]
+    assert 'Liver · 60 tubes · Kestrel PK' in details[2] and 'whole-box entry' in details[3]
+    assert '2 sample(s) dropped off via the QR sign · left by Jane' == details[1]
+    assert [x['kind'] for x in _feed(client, kind='box')] == ['box', 'box']
+    assert [x['kind'] for x in _feed(client, section='sites')] == ['collected', 'dropoff']
+
+
+def test_the_old_retrieval_log_address_still_works(client):
+    r = client.get('/retrievals')
+    assert r.status_code == 302 and r.headers['Location'].endswith('/activity')
+    assert client.get('/activity').status_code == 200

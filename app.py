@@ -181,9 +181,14 @@ def create_app():
     def stats_page():
         return render_template('stats.html')
 
+    @app.route('/activity')
+    def activity_page():
+        return render_template('activity.html')
+
     @app.route('/retrievals')
     def retrievals_page():
-        return render_template('retrievals.html')
+        # The retrieval log grew into the activity log; old links still work.
+        return redirect(url_for('activity_page'))
 
     @app.route('/api/health')
     def health():

@@ -2351,3 +2351,33 @@ details.inv > summary:hover { background: var(--f-surface-2); }
 
 .drawer-move-btn:hover,
 .drawer-move-btn:focus-visible { color: var(--f-accent); background: var(--f-accent-wash); }
+
+
+/* ---- Activity log ----------------------------------------- */
+
+.who-field { display: flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; color: var(--f-muted); margin: 0; }
+.who-field input { width: 9.5rem; }
+
+.kind-badge {
+    display: inline-block;
+    padding: 0.1rem 0.5rem;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    background: var(--f-surface-2);
+    color: var(--f-ink-soft);
+    border: 1px solid var(--f-hairline);
+}
+.kind-added     { background: color-mix(in srgb, #1f7a5a 14%, transparent); color: #1f7a5a; border-color: transparent; }
+.kind-retrieved { background: var(--f-accent-wash); color: var(--f-accent); border-color: transparent; }
+.kind-consumed  { background: color-mix(in srgb, #b4322a 14%, transparent); color: #b4322a; border-color: transparent; }
+.kind-removed   { background: color-mix(in srgb, #b4322a 10%, transparent); color: #b4322a; border-color: transparent; }
+.kind-moved     { background: color-mix(in srgb, #7a3f9d 12%, transparent); color: #7a3f9d; border-color: transparent; }
+.kind-thawed    { background: color-mix(in srgb, #0f6f7c 12%, transparent); color: #0f6f7c; border-color: transparent; }
+.kind-edited    { background: var(--f-surface-2); color: var(--f-ink-soft); }
+.kind-box       { background: color-mix(in srgb, #99631a 12%, transparent); color: #99631a; border-color: transparent; }
+.kind-dropoff   { background: color-mix(in srgb, #2563a8 12%, transparent); color: #2563a8; border-color: transparent; }
+
+.log-detail { font-size: 0.82rem; color: var(--f-ink-soft); max-width: 28rem; }

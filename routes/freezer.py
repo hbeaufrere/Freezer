@@ -5,6 +5,7 @@ from collections import defaultdict
 from flask import Blueprint, jsonify
 
 from db import ApiError, get_db, insert_returning_id
+from services.activity import record
 from routes.support import as_date, as_int, json_body, one_or_404, require, text, write
 
 freezer_bp = Blueprint('freezer', __name__)
@@ -332,7 +333,7 @@ def set_box_type(box_id):
 
     box = one_or_404(
         db.execute(
-            'select id, section, grid_rows, grid_cols, box_type from boxes where id = %s',
+            'select id, section, grid_rows, grid_cols, box_type, label from boxes where id = %s',
             (box_id,),
         ).fetchone(),
         'Box',
@@ -372,6 +373,8 @@ def set_box_type(box_id):
 
     with write(db):
         db.execute('update boxes set box_type = %s where id = %s', (box_type, box_id))
+        record(db, 'box', box['section'], box_label=box['label'],
+               detail={'grid': 'now a gridded box', 'plain': 'now a plain box', 'bulk': 'now a whole-box entry'}[box_type])
 
     return jsonify({'id': box_id, 'box_type': box_type})
 
@@ -413,7 +416,18 @@ def set_bulk_contents(box_id):
                          bulk_kind, bulk_fullness, bulk_date""",
             (sample_type or None, count, study or None, kind, fullness, stored, box_id),
         ).fetchone()
+        what = ' · '.join(filter(None, [
+            sample_type or None,
+            f"{count} {'items' if kind == 'other' else 'tubes'}",
+            study or None,
+            f'stored {stored}' if stored else None,
+        ]))
+        record(db, 'box', box['section'], box_label=row_label(db, box_id), detail=f'whole box: {what}')
     return jsonify(dict(row))
+
+
+def row_label(db, box_id):
+    return db.execute('select label from boxes where id = %s', (box_id,)).fetchone()['label']
 
 
 @freezer_bp.route('/api/boxes/<int:box_id>', methods=['DELETE'])

@@ -3,6 +3,7 @@
 from flask import Blueprint, jsonify, request
 
 from db import ApiError, get_db
+from services.activity import record, research_snapshot
 from routes.support import (
     as_date,
     as_int,
@@ -94,6 +95,8 @@ def create_tube():
                 as_int(data, 'freeze_thaw_cycles', minimum=0, default=0),
             ),
         ).fetchone()
+        record(db, 'added', 'research', **research_snapshot(db, tube['id']),
+               detail=text(data, 'description') or None)
 
     return jsonify(dict(tube)), 201
 
@@ -118,6 +121,9 @@ def update_tube(tube_id):
                 tube_id,
             ),
         ).fetchone()
+        if tube:
+            record(db, 'edited', 'research', **research_snapshot(db, tube_id),
+                   detail=text(data, 'description') or None)
 
     return jsonify(dict(one_or_404(tube, 'Tube')))
 
@@ -135,6 +141,9 @@ def record_thaw(tube_id):
                 returning {_TUBE_COLUMNS}""",
             (tube_id,),
         ).fetchone()
+        if tube:
+            record(db, 'thawed', 'research', **research_snapshot(db, tube_id),
+                   detail=f"freeze-thaw now {tube['freeze_thaw_cycles']}")
 
     return jsonify(dict(one_or_404(tube, 'Tube')))
 
@@ -143,7 +152,10 @@ def record_thaw(tube_id):
 def delete_tube(tube_id):
     db = get_db()
     with write(db):
+        snap = research_snapshot(db, tube_id)
         deleted = db.execute('delete from research_tubes where id = %s', (tube_id,)).rowcount
+        if deleted:
+            record(db, 'removed', 'research', **snap, detail='record deleted to reconcile')
     if not deleted:
         raise ApiError('Tube not found.', 404)
     return jsonify({'success': True})
