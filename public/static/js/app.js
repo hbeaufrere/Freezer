@@ -3,6 +3,12 @@
 const API = {
     async _send(url, method, data) {
         const options = { method, headers: {} };
+        // The name the retrieval sheet remembers goes on every request, so
+        // the activity log can say who added or moved something.
+        try {
+            const who = (localStorage.getItem('freezer-retrieved-by') || '').trim();
+            if (who) options.headers['X-Freezer-User'] = who;
+        } catch (e) { /* private mode */ }
         if (data !== undefined) {
             options.headers['Content-Type'] = 'application/json';
             options.body = JSON.stringify(data);

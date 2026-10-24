@@ -14,6 +14,7 @@ from flask import Blueprint, jsonify, request
 
 from db import ApiError, get_db
 from routes.support import as_int, json_body, like_pattern, one_or_404, require, text, write
+from services.activity import position_label as _position_label, record, snapshot
 
 retrieval_bp = Blueprint('retrieval', __name__)
 
@@ -24,17 +25,6 @@ _COLUMNS = """
     position_label, species_name, retrieved_at, retrieved_by, purpose,
     notes, consumed
 """
-
-# Row letters skip I, matching the grid and the exports.
-_ROW_LABELS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'J', 'K']
-
-
-def _position_label(row_pos, col_pos):
-    if row_pos is None or col_pos is None:
-        return None
-    letter = _ROW_LABELS[row_pos - 1] if row_pos <= len(_ROW_LABELS) else chr(64 + row_pos)
-    return f'{letter}{col_pos}'
-
 
 @retrieval_bp.route('/api/retrievals')
 def list_retrievals():
@@ -280,6 +270,9 @@ def thaw_bulk():
                 where id = any(%s) returning id, freeze_thaw_cycles""",
             (tube_ids,),
         ).fetchall()
+        for r in rows:
+            record(db, 'thawed', section, **snapshot(db, section, r['id']),
+                   detail=f"freeze-thaw now {r['freeze_thaw_cycles']} · group of {len(rows)}")
 
     return jsonify({'thawed': len(rows),
                     'cycles': {r['id']: r['freeze_thaw_cycles'] for r in rows}})
@@ -295,6 +288,80 @@ def delete_retrieval(entry_id):
     if not deleted:
         raise ApiError('Log entry not found.', 404)
     return jsonify({'success': True})
+
+
+# ------------------------------------------------------------
+# The activity feed: everything that happened, retrievals included
+# ------------------------------------------------------------
+
+# Both tables, read as one shape. A retrieval is an event like any other
+# here; its own table keeps the fields the log page's delete button needs.
+_FEED = """
+    select 'activity' as source, a.id, a.at, a.section, a.kind, a.tube_label, a.box_label,
+           a.position_label, a.species_name, a.actor, a.detail, false as consumed
+    from activity a
+    union all
+    select 'retrieval', r.id, r.retrieved_at, r.section,
+           case when r.consumed then 'consumed' else 'retrieved' end,
+           r.tube_label, r.box_label, r.position_label, r.species_name, r.retrieved_by,
+           concat_ws(' — ', nullif(r.purpose, ''), nullif(r.notes, '')), r.consumed
+    from retrievals r
+"""
+
+# The filter chips on the page. 'retrieved' covers both outcomes.
+_KIND_GROUPS = {
+    'added': ('added',), 'edited': ('edited', 'relabelled'), 'removed': ('removed',),
+    'moved': ('moved',), 'thawed': ('thawed',), 'retrieved': ('retrieved', 'consumed'),
+    'box': ('box',), 'dropoff': ('dropoff', 'collected'),
+}
+
+
+@retrieval_bp.route('/api/activity')
+def list_activity():
+    db = get_db()
+    limit = min(request.args.get('limit', PAGE_SIZE, type=int) or PAGE_SIZE, 200)
+    offset = max(request.args.get('offset', 0, type=int) or 0, 0)
+    section = request.args.get('section') or None
+    kind = request.args.get('kind') or None
+    query = (request.args.get('q') or '').strip()
+
+    where, params = [], {'limit': limit, 'offset': offset}
+    if section in ('raptor', 'research', 'sites'):
+        where.append('f.section = %(section)s')
+        params['section'] = section
+    if kind in _KIND_GROUPS:
+        where.append('f.kind = any(%(kinds)s)')
+        params['kinds'] = list(_KIND_GROUPS[kind])
+    if query:
+        where.append("""(f.tube_label ilike %(q)s or f.actor ilike %(q)s or f.detail ilike %(q)s
+                         or f.species_name ilike %(q)s or f.box_label ilike %(q)s)""")
+        params['q'] = like_pattern(query)
+    clause = (' where ' + ' and '.join(where)) if where else ''
+
+    rows = db.execute(
+        f"""select * from ({_FEED}) f {clause}
+            order by f.at desc, f.id desc limit %(limit)s offset %(offset)s""", params
+    ).fetchall()
+    total = db.execute(f'select count(*) as n from ({_FEED}) f {clause}', params).fetchone()['n']
+    return jsonify({'entries': [dict(r) for r in rows], 'total': total,
+                    'limit': limit, 'offset': offset})
+
+
+@retrieval_bp.route('/api/stats/activity')
+def activity_stats():
+    db = get_db()
+    row = db.execute(
+        """select
+             (select count(*) from activity where kind = 'added'
+                 and at >= now() - interval '30 days') as added_30,
+             (select count(*) from retrievals
+                 where retrieved_at >= now() - interval '30 days') as retrieved_30,
+             (select count(*) from retrievals where consumed) as consumed,
+             (select count(*) from activity where kind = 'moved'
+                 and at >= now() - interval '30 days') as moved_30,
+             (select count(*) from activity) + (select count(*) from retrievals) as total"""
+    ).fetchone()
+    return jsonify(dict(row))
 
 
 @retrieval_bp.route('/api/stats/retrievals')

@@ -52,7 +52,7 @@ def clean_database(flask_app):
 
     with flask_app.app_context():
         db = get_db()
-        db.execute('truncate retrievals, raptor_tubes, research_tubes, raptor_id_sequence restart identity')
+        db.execute('truncate retrievals, activity, raptor_tubes, research_tubes, raptor_id_sequence restart identity')
         db.execute('truncate pending_dropoffs restart identity')
         db.execute('update drawers set note = null')
         # Research racks are seeded with no designation; tests that name one

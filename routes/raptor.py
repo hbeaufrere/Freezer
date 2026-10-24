@@ -3,6 +3,7 @@
 from flask import Blueprint, jsonify, request
 
 from db import ApiError, get_db
+from services.activity import raptor_snapshot, record
 from routes.support import (
     as_date,
     as_int,
@@ -338,6 +339,11 @@ def create_tube():
             created.append(new_id)
 
         tubes = [dict(_fetch_tube(db, row_id)) for row_id in created]
+        for row_id in created:
+            snap = raptor_snapshot(db, row_id)
+            record(db, 'added', 'raptor', **snap,
+                   detail=f"{shared[0]}{' · ' + shared[1] if shared[1] else ''}"
+                          + (' · same bird' if bird else ''))
 
     if num_tubes == 1:
         return jsonify(tubes[0]), 201
@@ -378,6 +384,7 @@ def update_tube(tube_id):
         ).fetchone()
         one_or_404(updated, 'Tube')
         tube = _fetch_tube(db, tube_id)
+        record(db, 'edited', 'raptor', **raptor_snapshot(db, tube_id), detail=sample_type)
 
     return jsonify(dict(tube))
 
@@ -395,6 +402,8 @@ def record_thaw(tube_id):
         ).fetchone()
         one_or_404(updated, 'Tube')
         tube = _fetch_tube(db, tube_id)
+        record(db, 'thawed', 'raptor', **raptor_snapshot(db, tube_id),
+               detail=f"freeze-thaw now {tube['freeze_thaw_cycles']}")
 
     return jsonify(dict(tube))
 
@@ -454,6 +463,7 @@ def reassign_tube(tube_id):
             (new_id, tube_id),
         )
         updated = dict(_fetch_tube(db, tube_id))
+        record(db, 'relabelled', 'raptor', **raptor_snapshot(db, tube_id), detail=f'was {old_id}')
 
     return jsonify({**updated, 'previous_tube_id': old_id})
 
@@ -462,7 +472,10 @@ def reassign_tube(tube_id):
 def delete_tube(tube_id):
     db = get_db()
     with write(db):
+        snap = raptor_snapshot(db, tube_id)
         deleted = db.execute('delete from raptor_tubes where id = %s', (tube_id,)).rowcount
+        if deleted:
+            record(db, 'removed', 'raptor', **snap, detail='record deleted to reconcile')
     if not deleted:
         raise ApiError('Tube not found.', 404)
     return jsonify({'success': True})
