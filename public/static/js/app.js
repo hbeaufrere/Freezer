@@ -276,3 +276,18 @@ document.addEventListener('DOMContentLoaded', () => {
     initTheme();
     checkSchema();
 });
+
+
+/* Whole-freezer events stamped on a sample: short, dated, impossible to
+   miss at the top of the tube sheet. Empty list hides the block. */
+function renderEventStamps(host, events) {
+    if (!host) return;
+    const list = events || [];
+    host.hidden = !list.length;
+    host.innerHTML = list.map((e) => `
+        <div class="event-stamp">
+            <i class="bi bi-exclamation-triangle-fill"></i>
+            <span class="event-stamp-date">${escapeHtml(String(e.occurred_at).slice(0, 10))}</span>
+            <span class="event-stamp-note">${escapeHtml(e.note)}</span>
+        </div>`).join('');
+}

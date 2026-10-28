@@ -16,13 +16,13 @@ RAPTOR_HEADERS = [
     'Collection Date', 'Age', 'Sex', 'Freeze-Thaw Cycles',
     'WRMD Number', 'VMACS Number',
     'Shelf', 'Rack', 'Drawer', 'Box', 'Position',
-    'Notes', 'Date Added',
+    'Notes', 'Date Added', 'Freezer Events',
 ]
 
 RESEARCH_HEADERS = [
     'Sample ID', 'Description', 'Tubes', 'Date Stored', 'Freeze-Thaw Cycles',
     'Shelf', 'Rack', 'Drawer', 'Box', 'Position',
-    'Date Added',
+    'Date Added', 'Freezer Events',
 ]
 
 _HEADER_FONT = Font(bold=True, color='FFFFFF', size=11)
@@ -67,7 +67,11 @@ def raptor_query(filters=None):
                rt.collection_date, rt.age, rt.sex,
                rt.freeze_thaw_cycles, rt.wrmd_number, rt.vmth_number,
                sh.name as shelf, r.label as rack, d.label as drawer, b.label as box,
-               rt.row_pos, rt.col_pos, rt.notes, rt.created_at
+               rt.row_pos, rt.col_pos, rt.notes, rt.created_at,
+               (select string_agg(to_char(e.occurred_at, 'YYYY-MM-DD') || ' ' || e.note, '; '
+                                  order by e.occurred_at)
+                  from raptor_tube_events x join freezer_events e on e.id = x.event_id
+                 where x.tube_id = rt.id) as freezer_events
         from raptor_tubes rt
         join species s on rt.species_id = s.id
         join boxes b on rt.box_id = b.id
@@ -137,6 +141,10 @@ def research_query(filters=None):
                rt.date_stored, rt.freeze_thaw_cycles,
                sh.name as shelf, r.label as rack, d.label as drawer, b.label as box,
                rt.row_pos, rt.col_pos, rt.created_at,
+               (select string_agg(to_char(e.occurred_at, 'YYYY-MM-DD') || ' ' || e.note, '; '
+                                  order by e.occurred_at)
+                  from research_tube_events x join freezer_events e on e.id = x.event_id
+                 where x.tube_id = rt.id) as freezer_events,
                sh.position as sp, r.position as rp, d.position as dp, b.position as bp
         from research_tubes rt
         join boxes b on rt.box_id = b.id
@@ -151,6 +159,10 @@ def research_query(filters=None):
                b.bulk_date as date_stored, null as freeze_thaw_cycles,
                sh.name, r.label, d.label, b.label,
                null, null, null,
+               (select string_agg(to_char(e.occurred_at, 'YYYY-MM-DD') || ' ' || e.note, '; '
+                                  order by e.occurred_at)
+                  from box_events x join freezer_events e on e.id = x.event_id
+                 where x.box_id = b.id),
                sh.position, r.position, d.position, b.position
         from boxes b
         join drawers d on b.drawer_id = d.id
@@ -171,7 +183,7 @@ def _raptor_row(row):
         row['wrmd_number'], row['vmth_number'],
         row['shelf'], row['rack'], row['drawer'], row['box'],
         format_position(row['row_pos'], row['col_pos']),
-        row['notes'], row['created_at'],
+        row['notes'], row['created_at'], row['freezer_events'],
     ]
 
 
@@ -181,7 +193,7 @@ def _research_row(row):
         row['date_stored'], row['freeze_thaw_cycles'],
         row['shelf'], row['rack'], row['drawer'], row['box'],
         format_position(row['row_pos'], row['col_pos']),
-        row['created_at'],
+        row['created_at'], row['freezer_events'],
     ]
 
 

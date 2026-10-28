@@ -50,6 +50,7 @@ def _carry_box(db, src, dst):
     table = 'raptor_tubes' if src['section'] == 'raptor' else 'research_tubes'
     moved = db.execute(f'update {table} set box_id = %s where box_id = %s',
                        (dst['id'], src['id'])).rowcount
+    db.execute('update box_events set box_id = %s where box_id = %s', (dst['id'], src['id']))
     db.execute(
         """update boxes set box_type = %s, bulk_sample_type = %s, bulk_tube_count = %s,
                bulk_study = %s, bulk_kind = %s, bulk_fullness = %s, bulk_date = %s

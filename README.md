@@ -182,6 +182,7 @@ routes/
   collection.py          Satellite sites and the public drop-off page
   retrieval.py           Retrieval log and the activity feed
   move.py                Moving a box, drawer or rack to an empty place
+  events.py              Whole-freezer events, stamped on the samples present
   raptor.py              Raptor samples, species
   research.py            Research tubes
   stats.py               Dashboard aggregates
@@ -304,6 +305,13 @@ is a counter, not specimen records: the worst case is an inflated number the
 lab can reset, and the token is compared in constant time and never included
 in the site list the rest of the app loads. Replaying migrations does not
 rotate the tokens, so printed QR codes keep working.
+
+**A freezer event is stamped on what was there, not on what came later.**
+A failure, a power cut, a door left open: one short dated note, recorded on
+the Activity page, linked to every tube and whole-box entry present at that
+moment. The link is to the tube, so it follows a move and dies with a tube
+that is used up; a tube filed the next day has no link. The note shows at
+the top of the tube sheet, as a mark on the grid, and in the exports.
 
 **The activity log says what happened; the retrieval log says who took
 what.** `activity` holds one row per change — tubes added, edited, removed,

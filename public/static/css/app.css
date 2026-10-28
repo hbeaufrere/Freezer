@@ -2381,3 +2381,53 @@ details.inv > summary:hover { background: var(--f-surface-2); }
 .kind-dropoff   { background: color-mix(in srgb, #2563a8 12%, transparent); color: #2563a8; border-color: transparent; }
 
 .log-detail { font-size: 0.82rem; color: var(--f-ink-soft); max-width: 28rem; }
+
+
+/* ---- Whole-freezer events ---------------------------------- */
+
+.event-stamps { margin-bottom: 0.75rem; }
+
+.event-stamp {
+    display: flex;
+    align-items: baseline;
+    gap: 0.45rem;
+    padding: 0.4rem 0.6rem;
+    margin-bottom: 0.3rem;
+    border-radius: var(--f-radius-sm);
+    background: color-mix(in srgb, var(--f-warn) 14%, transparent);
+    border-left: 3px solid var(--f-warn);
+    font-size: 0.82rem;
+    color: var(--f-ink);
+}
+.event-stamp i { color: var(--f-warn); }
+.event-stamp-date { font-family: var(--f-mono); font-size: 0.74rem; color: var(--f-muted); white-space: nowrap; }
+.event-stamp-note { font-weight: 600; }
+
+.bulk-box .event-stamp { margin: 0.4rem 0 0; }
+
+/* A tube that carries an event is ringed in the warning colour. The cells
+   are circles that clip their corners, so a corner dot would never show. */
+.tube-cell.has-event {
+    box-shadow: 0 0 0 2.5px var(--f-warn);
+}
+.tube-cell.has-event:hover,
+.tube-cell.has-event:focus-visible {
+    box-shadow: 0 0 0 3px var(--f-warn);
+}
+.event-mark { color: var(--f-warn); font-size: 0.8em; margin-left: 0.2rem; }
+
+.event-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    padding: 0.45rem 0;
+    border-top: 1px solid var(--f-hairline);
+}
+.event-row:first-child { border-top: 0; }
+.event-row-icon { color: var(--f-warn); margin-top: 0.15rem; }
+.event-row-body { flex: 1 1 auto; min-width: 0; }
+.event-row-when { font-family: var(--f-mono); font-size: 0.78rem; color: var(--f-muted); margin-right: 0.4rem; }
+.event-row-note { font-weight: 600; }
+.event-row-tools { display: flex; gap: 0.1rem; flex: 0 0 auto; }
+
+.kind-event { background: color-mix(in srgb, var(--f-warn) 18%, transparent); color: #8a5a00; border-color: transparent; }

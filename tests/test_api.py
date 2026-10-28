@@ -2609,3 +2609,93 @@ def test_the_old_retrieval_log_address_still_works(client):
     r = client.get('/retrievals')
     assert r.status_code == 302 and r.headers['Location'].endswith('/activity')
     assert client.get('/activity').status_code == 200
+
+
+# ------------------------------------------------------------
+# Whole-freezer events
+# ------------------------------------------------------------
+
+def test_a_freezer_event_is_noted_on_what_was_there_and_not_on_what_came_later(client, boxes, species_id):
+    before = client.post('/api/raptor/tubes', json={
+        'box_id': boxes['raptor']['id'], 'row_pos': 1, 'col_pos': 1, 'species_id': species_id,
+        'collection_date': '2026-04-01'}).get_json()
+    rbefore = client.post('/api/research/tubes', json={'box_id': boxes['research']['id'],
+                                                       'row_pos': 1, 'col_pos': 1, 'sample_id': 'R1'}).get_json()
+
+    preview = client.get('/api/freezer-events/preview').get_json()
+    assert (preview['raptor_tubes'], preview['research_tubes'], preview['whole_boxes']) == (1, 1, 0)
+
+    made = client.post('/api/freezer-events', json={'note': 'Freezer failed overnight, reached -40 C',
+                                                    'occurred_at': '2026-10-12T03:40:00+00:00'},
+                       headers={'X-Freezer-User': 'Hugues'})
+    assert made.status_code == 201, made.get_json()
+    ev = made.get_json()
+    assert (ev['raptor_tubes'], ev['research_tubes'], ev['whole_boxes'], ev['recorded_by']) == (1, 1, 0, 'Hugues')
+
+    after = client.post('/api/raptor/tubes', json={
+        'box_id': boxes['raptor']['id'], 'row_pos': 1, 'col_pos': 2, 'species_id': species_id,
+        'collection_date': '2026-10-13'}).get_json()
+
+    tubes = {t['id']: t for t in client.get(f'/api/boxes/{boxes["raptor"]["id"]}').get_json()['tubes']}
+    assert [e['note'] for e in tubes[before['id']]['events']] == ['Freezer failed overnight, reached -40 C']
+    assert tubes[before['id']]['events'][0]['occurred_at'].startswith('2026-10-12')
+    assert tubes[after['id']]['events'] == []
+    rt = client.get(f'/api/boxes/{boxes["research"]["id"]}').get_json()['tubes'][0]
+    assert rt['id'] == rbefore['id'] and len(rt['events']) == 1
+
+    # In the exports, as a column, dated.
+    csv = client.get('/api/export/raptor/csv').data.decode()
+    assert 'Freezer Events' in csv and '2026-10-12 Freezer failed overnight' in csv
+    assert csv.count('2026-10-12 Freezer failed') == 1
+
+    # And in the activity feed.
+    feed = client.get('/api/activity?kind=event').get_json()['entries']
+    assert len(feed) == 1 and feed[0]['section'] == 'freezer' and 'noted on 1 raptor tubes' in feed[0]['detail']
+
+
+def test_a_freezer_event_follows_a_moved_tube_and_dies_with_a_used_up_one(client, boxes, species_id):
+    t = client.post('/api/raptor/tubes', json={
+        'box_id': boxes['raptor']['id'], 'row_pos': 1, 'col_pos': 1, 'species_id': species_id,
+        'collection_date': '2026-04-01'}).get_json()
+    u = client.post('/api/raptor/tubes', json={
+        'box_id': boxes['raptor']['id'], 'row_pos': 1, 'col_pos': 2, 'species_id': species_id,
+        'collection_date': '2026-04-01'}).get_json()
+    ev = client.post('/api/freezer-events', json={'note': 'Door left open 2 h'}).get_json()
+
+    other = next(b for *_, b in _freezer_boxes(client, 'raptor') if b['id'] != boxes['raptor']['id'])['id']
+    client.post(f'/api/boxes/{boxes["raptor"]["id"]}/move', json={'target_box_id': other})
+    moved = {x['id']: x for x in client.get(f'/api/boxes/{other}').get_json()['tubes']}
+    assert all(len(moved[i]['events']) == 1 for i in (t['id'], u['id']))
+
+    client.post('/api/retrievals', json={'section': 'raptor', 'tube_id': u['id'],
+                                         'retrieved_by': 'Alice', 'consumed': True})
+    listed = client.get('/api/freezer-events').get_json()
+    assert listed[0]['id'] == ev['id'] and listed[0]['raptor_tubes'] == 1
+
+
+def test_a_freezer_event_covers_whole_box_entries_and_can_be_edited_or_removed(client, boxes):
+    box = boxes['research']['id']
+    client.put(f'/api/boxes/{box}/type', json={'box_type': 'bulk'})
+    client.put(f'/api/boxes/{box}/bulk', json={'sample_type': 'Liver', 'tube_count': 60})
+    ev = client.post('/api/freezer-events', json={'note': 'Power cut'}).get_json()
+    assert ev['whole_boxes'] == 1
+    assert [e['note'] for e in client.get(f'/api/boxes/{box}').get_json()['events']] == ['Power cut']
+
+    edited = client.put(f'/api/freezer-events/{ev["id"]}', json={'note': 'Power cut, 3 h', 'occurred_at': '2026-10-01T10:00'})
+    assert edited.status_code == 200 and edited.get_json()['note'] == 'Power cut, 3 h'
+    assert client.get(f'/api/boxes/{box}').get_json()['events'][0]['note'] == 'Power cut, 3 h'
+
+    # Clearing the whole-box entry drops its stamp: the samples are gone.
+    client.put(f'/api/boxes/{box}/type', json={'box_type': 'grid'})
+    assert client.get('/api/freezer-events').get_json()[0]['whole_boxes'] == 0
+
+    assert client.delete(f'/api/freezer-events/{ev["id"]}').status_code == 200
+    assert client.get('/api/freezer-events').get_json() == []
+
+
+def test_freezer_event_notes_are_short_and_dated_sensibly(client):
+    assert client.post('/api/freezer-events', json={'note': '   '}).status_code == 400
+    assert client.post('/api/freezer-events', json={'note': 'x' * 121}).status_code == 400
+    assert client.post('/api/freezer-events', json={'note': 'ok', 'occurred_at': '2999-01-01T00:00'}).status_code == 400
+    assert client.post('/api/freezer-events', json={'note': 'ok', 'occurred_at': 'yesterday'}).status_code == 400
+    assert client.post('/api/freezer-events', json={'note': 'ok'}).status_code == 201
