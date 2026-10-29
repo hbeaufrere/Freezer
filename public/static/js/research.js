@@ -168,6 +168,7 @@ async function changeBoxType(box, boxType) {
 }
 
 function openResearchAddModal(row, col) {
+    renderEventStamps(document.getElementById('research-tube-events'), []);
     document.getElementById('researchTubeModalTitle').textContent = 'Add research tube';
     document.getElementById('research-tube-id').value = '';
     document.getElementById('research-tube-box-id').value = currentResearchBoxId;
@@ -189,6 +190,7 @@ function openResearchAddModal(row, col) {
 
 function openResearchEditModal(tube, row, col) {
     document.getElementById('researchTubeModalTitle').textContent = 'Edit research tube';
+    renderEventStamps(document.getElementById('research-tube-events'), tube.events);
     document.getElementById('research-tube-id').value = tube.id;
     document.getElementById('research-tube-box-id').value = tube.box_id;
     document.getElementById('research-tube-row').value = row ?? '';

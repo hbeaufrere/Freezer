@@ -249,6 +249,7 @@ function setRaptorHidden(id, hidden) {
 }
 
 function openRaptorAddModal(row, col) {
+    renderEventStamps(document.getElementById('raptor-tube-events'), []);
     document.getElementById('raptorTubeModalTitle').textContent = 'Add raptor sample';
     document.getElementById('raptor-tube-db-id').value = '';
     document.getElementById('raptor-tube-box-id').value = currentRaptorBoxId;
@@ -293,6 +294,7 @@ function openRaptorAddModal(row, col) {
 
 function openRaptorEditModal(tube, row, col) {
     document.getElementById('raptorTubeModalTitle').textContent = 'Edit raptor sample';
+    renderEventStamps(document.getElementById('raptor-tube-events'), tube.events);
     document.getElementById('raptor-tube-db-id').value = tube.id;
     document.getElementById('raptor-tube-box-id').value = tube.box_id;
     document.getElementById('raptor-tube-row').value = row;

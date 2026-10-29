@@ -8,6 +8,7 @@ const KIND_LABELS = {
     removed: ['Removed', 'kind-removed'], moved: ['Moved', 'kind-moved'], thawed: ['Freeze-thaw', 'kind-thawed'],
     retrieved: ['Retrieved', 'kind-retrieved'], consumed: ['Used up', 'kind-consumed'],
     box: ['Box', 'kind-box'], dropoff: ['Drop-off', 'kind-dropoff'], collected: ['Collected', 'kind-dropoff'],
+    event: ['Freezer event', 'kind-event'],
 };
 
 async function initActivityPage() {
@@ -37,7 +38,119 @@ async function initActivityPage() {
         actState.offset += actState.limit; loadActivity();
     });
 
-    await Promise.all([loadActivity(), loadActivityStats()]);
+    initFreezerEvents();
+    await Promise.all([loadActivity(), loadActivityStats(), loadFreezerEvents()]);
+}
+
+/* ---- Whole-freezer events --------------------------------- */
+
+function localDateTimeValue(d) {
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function initFreezerEvents() {
+    const note = document.getElementById('event-note');
+    note.addEventListener('input', () => {
+        document.getElementById('event-note-left').textContent = 120 - note.value.length;
+    });
+    document.getElementById('btn-event-new').addEventListener('click', () => openEventModal(null));
+    document.getElementById('btn-event-save').addEventListener('click', saveFreezerEvent);
+    document.getElementById('eventModal').addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter' && ev.target.id === 'event-note') { ev.preventDefault(); saveFreezerEvent(); }
+    });
+}
+
+async function openEventModal(event) {
+    document.getElementById('event-id').value = event ? event.id : '';
+    document.getElementById('event-modal-title').textContent = event ? 'Edit freezer event' : 'Record a freezer event';
+    document.getElementById('event-note').value = event ? event.note : '';
+    document.getElementById('event-note-left').textContent = 120 - (event ? event.note.length : 0);
+    document.getElementById('event-when').value = localDateTimeValue(event ? new Date(event.occurred_at) : new Date());
+    document.getElementById('btn-event-save').innerHTML = event
+        ? '<i class="bi bi-check-lg me-1"></i>Save' : '<i class="bi bi-check-lg me-1"></i>Record';
+    const preview = document.getElementById('event-preview');
+    if (event) {
+        preview.textContent = `Already noted on ${event.raptor_tubes} raptor tubes, ${event.research_tubes} research tubes `
+            + `and ${event.whole_boxes} whole boxes. Editing changes the words, not which samples carry them.`;
+    } else {
+        preview.textContent = 'Counting what is in the freezer…';
+        try {
+            const p = await API.get('/api/freezer-events/preview');
+            preview.textContent = `This will be noted on ${p.raptor_tubes} raptor tubes, ${p.research_tubes} research tubes `
+                + `and ${p.whole_boxes} whole boxes — everything in the freezer right now. Samples added later will not carry it.`;
+        } catch (err) { preview.textContent = ''; }
+    }
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('eventModal')).show();
+    setTimeout(() => document.getElementById('event-note').focus(), 300);
+}
+
+async function saveFreezerEvent() {
+    const id = document.getElementById('event-id').value;
+    const note = document.getElementById('event-note').value.trim();
+    if (!note) { showToast('Say what happened, in a few words.', 'error'); return; }
+    const when = document.getElementById('event-when').value;
+    const payload = { note, occurred_at: when ? new Date(when).toISOString() : '' };
+    const button = document.getElementById('btn-event-save');
+    button.disabled = true;
+    try {
+        const saved = id ? await API.put(`/api/freezer-events/${id}`, payload)
+                         : await API.post('/api/freezer-events', payload);
+        showToast(id ? 'Event updated'
+            : `Noted on ${saved.raptor_tubes + saved.research_tubes} tubes and ${saved.whole_boxes} whole boxes`);
+        bootstrap.Modal.getInstance(document.getElementById('eventModal')).hide();
+        await Promise.all([loadFreezerEvents(), loadActivity()]);
+    } catch (err) {
+        showToast(err.message, 'error');
+    } finally {
+        button.disabled = false;
+    }
+}
+
+async function loadFreezerEvents() {
+    const host = document.getElementById('event-list');
+    try {
+        const events = await API.get('/api/freezer-events');
+        host.textContent = '';
+        if (!events.length) {
+            host.innerHTML = '<div class="text-body-secondary small">No freezer events recorded. Good.</div>';
+            return;
+        }
+        events.forEach((e) => {
+            const row = document.createElement('div');
+            row.className = 'event-row';
+            const still = e.raptor_tubes + e.research_tubes;
+            row.innerHTML = `
+                <i class="bi bi-exclamation-triangle-fill event-row-icon"></i>
+                <div class="event-row-body">
+                    <div><span class="event-row-when">${escapeHtml(formatWhen(e.occurred_at))}</span>
+                         <span class="event-row-note">${escapeHtml(e.note)}</span></div>
+                    <div class="log-sub">Noted on ${still} tube${still === 1 ? '' : 's'} still in the freezer
+                        and ${e.whole_boxes} whole box${e.whole_boxes === 1 ? '' : 'es'}${e.recorded_by ? ` · recorded by ${escapeHtml(e.recorded_by)}` : ''}</div>
+                </div>
+                <span class="event-row-tools"></span>`;
+            const tools = row.querySelector('.event-row-tools');
+            const edit = document.createElement('button');
+            edit.type = 'button'; edit.className = 'btn btn-sm btn-outline-secondary border-0';
+            edit.title = 'Edit the note or time'; edit.innerHTML = '<i class="bi bi-pencil"></i>';
+            edit.addEventListener('click', () => openEventModal(e));
+            const del = document.createElement('button');
+            del.type = 'button'; del.className = 'btn btn-sm btn-outline-danger border-0';
+            del.title = 'Remove this event and its note from every sample'; del.innerHTML = '<i class="bi bi-trash"></i>';
+            del.addEventListener('click', async () => {
+                if (!confirm(`Remove "${e.note}"?\n\nThe note disappears from every sample that carries it.`)) return;
+                try {
+                    await API.del(`/api/freezer-events/${e.id}`);
+                    showToast('Event removed');
+                    await Promise.all([loadFreezerEvents(), loadActivity()]);
+                } catch (err) { showToast(err.message, 'error'); }
+            });
+            tools.append(edit, del);
+            host.appendChild(row);
+        });
+    } catch (err) {
+        host.innerHTML = `<div class="text-danger small">${escapeHtml(err.message)}</div>`;
+    }
 }
 
 async function loadActivityStats() {

@@ -108,6 +108,10 @@ function renderBoxGrid(container, boxData, options = {}) {
                 cell.innerHTML =
                     `<span class="cell-code">${escapeHtml(parts.code)}</span>` +
                     (parts.seq ? `<span class="cell-seq">${escapeHtml(parts.seq)}</span>` : '');
+                if (tube.events && tube.events.length) {
+                    cell.classList.add('has-event');
+                    cell.title += `\n⚠ ${tube.events.map((e) => `${String(e.occurred_at).slice(0, 10)} ${e.note}`).join('; ')}`;
+                }
 
                 cell.addEventListener('click', () => options.onTubeClick?.(tube, r, c));
             } else {
@@ -163,7 +167,10 @@ function renderPlainBox(container, boxData, options = {}) {
         item.type = 'button';
         item.className = 'plain-item';
         item.innerHTML = `
-            <span class="plain-item-id">${escapeHtml(tube.sample_id || 'Untitled sample')}</span>
+            <span class="plain-item-id">${escapeHtml(tube.sample_id || 'Untitled sample')}${
+                tube.events && tube.events.length
+                    ? ` <i class="bi bi-exclamation-triangle-fill event-mark" title="${escapeHtml(tube.events.map((e) => `${String(e.occurred_at).slice(0, 10)} ${e.note}`).join('; '))}"></i>`
+                    : ''}</span>
             <span class="plain-item-meta">
                 ${tube.description ? escapeHtml(tube.description) : '<em>No description</em>'}
             </span>
@@ -210,6 +217,12 @@ function renderBulkBox(container, boxData, options = {}) {
             ${depthBadge(boxData)}
             <span class="box-grid-count">${count} ${noun}, recorded as a whole${full}</span>
         </div>
+        ${(boxData.events || []).map((e) => `
+        <div class="event-stamp">
+            <i class="bi bi-exclamation-triangle-fill"></i>
+            <span class="event-stamp-date">${escapeHtml(String(e.occurred_at).slice(0, 10))}</span>
+            <span class="event-stamp-note">${escapeHtml(e.note)}</span>
+        </div>`).join('')}
         <form class="bulk-form" autocomplete="off">
             <div class="bulk-kind" role="group" aria-label="What the box holds">
                 <span class="box-type-label">Contents</span>

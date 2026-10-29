@@ -203,6 +203,26 @@ def get_box(box_id):
         ).fetchall()
 
     box_data['tubes'] = [dict(t) for t in tubes]
+
+    # Whole-freezer events stamped on these samples: short notes, dated, on
+    # the tube itself so they survive a move and go with a used-up tube.
+    link = 'raptor_tube_events' if box['section'] == 'raptor' else 'research_tube_events'
+    stamped = db.execute(
+        f"""select t.tube_id, e.id, e.occurred_at, e.note
+            from {link} t join freezer_events e on e.id = t.event_id
+            where t.tube_id = any(%s) order by e.occurred_at""",
+        ([t['id'] for t in box_data['tubes']],),
+    ).fetchall()
+    by_tube = defaultdict(list)
+    for s in stamped:
+        by_tube[s['tube_id']].append({'id': s['id'], 'occurred_at': s['occurred_at'], 'note': s['note']})
+    for t in box_data['tubes']:
+        t['events'] = by_tube.get(t['id'], [])
+    box_data['events'] = [dict(r) for r in db.execute(
+        """select e.id, e.occurred_at, e.note from box_events x
+           join freezer_events e on e.id = x.event_id where x.box_id = %s order by e.occurred_at""",
+        (box_id,),
+    ).fetchall()]
     return jsonify(box_data)
 
 
@@ -373,6 +393,8 @@ def set_box_type(box_id):
 
     with write(db):
         db.execute('update boxes set box_type = %s where id = %s', (box_type, box_id))
+        if box_type != 'bulk':
+            db.execute('delete from box_events where box_id = %s', (box_id,))
         record(db, 'box', box['section'], box_label=box['label'],
                detail={'grid': 'now a gridded box', 'plain': 'now a plain box', 'bulk': 'now a whole-box entry'}[box_type])
 
