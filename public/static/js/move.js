@@ -164,13 +164,62 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-/* The small "Move…" control shown next to a box's breadcrumb. */
-function moveBoxButton(box, section) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'btn btn-sm quiet-btn move-box-btn';
-    btn.innerHTML = '<i class="bi bi-arrows-move me-1"></i>Move box…';
-    btn.title = 'Move everything in this box to an empty slot';
-    btn.addEventListener('click', () => openMoveBoxDialog(box, section));
-    return btn;
+/* The tools shown next to a box's breadcrumb: move it, thaw it whole, or
+   clear it. Clear is the odd one out — deliberately quiet, deliberately
+   demanding, and the only write in the app that leaves no activity entry. */
+function boxToolButtons(box, section) {
+    const wrap = document.createElement('span');
+    wrap.className = 'box-tools';
+
+    const move = document.createElement('button');
+    move.type = 'button';
+    move.className = 'btn btn-sm quiet-btn move-box-btn';
+    move.innerHTML = '<i class="bi bi-arrows-move me-1"></i>Move box…';
+    move.title = 'Move everything in this box to an empty slot';
+    move.addEventListener('click', () => openMoveBoxDialog(box, section));
+    wrap.appendChild(move);
+
+    const tubes = (box.tubes || []).length;
+    if (box.box_type !== 'bulk' && tubes) {
+        const thaw = document.createElement('button');
+        thaw.type = 'button';
+        thaw.className = 'btn btn-sm quiet-btn';
+        thaw.innerHTML = '<i class="bi bi-thermometer-half me-1"></i>Freeze-thaw box';
+        thaw.title = 'Count one freeze-thaw cycle on every tube in this box';
+        thaw.addEventListener('click', async () => {
+            if (!confirm(`Count one freeze-thaw cycle on all ${tubes} tube${tubes === 1 ? '' : 's'} in ${box.label}?\n\n`
+                + 'For when the whole box came out of the freezer and went back.')) return;
+            try {
+                const r = await API.post(`/api/boxes/${box.id}/thaw`, {});
+                showToast(`Freeze-thaw cycle recorded on ${r.thawed} tube${r.thawed === 1 ? '' : 's'} in ${r.box}`);
+                document.dispatchEvent(new CustomEvent('boxchanged', { detail: { section, boxId: box.id } }));
+            } catch (err) { showToast(err.message, 'error'); }
+        });
+        wrap.appendChild(thaw);
+    }
+
+    const hasAnything = tubes || box.box_type === 'bulk';
+    if (hasAnything) {
+        const clear = document.createElement('button');
+        clear.type = 'button';
+        clear.className = 'btn reconcile-btn';
+        clear.innerHTML = '<i class="bi bi-eraser me-1"></i>Clear box';
+        clear.title = 'Erase everything in this box — reconciling only';
+        clear.addEventListener('click', async () => {
+            const what = box.box_type === 'bulk' ? 'its whole-box entry' : `${tubes} sample${tubes === 1 ? '' : 's'}`;
+            const typed = prompt(
+                `This erases ${what} from ${box.label} and leaves it an empty grid.\n\n`
+                + 'Nothing is written to the activity log: this is for a box that was entered wrongly. '
+                + 'If the samples actually left the freezer, use Log retrieval instead, so the record survives.\n\n'
+                + `Type the box label (${box.label}) to confirm:`);
+            if (typed === null) return;
+            try {
+                const r = await API.post(`/api/boxes/${box.id}/clear`, { confirm: typed });
+                showToast(r.was_whole_box ? `${r.box} cleared` : `${r.box} cleared — ${r.removed} sample(s) erased`);
+                document.dispatchEvent(new CustomEvent('boxchanged', { detail: { section, boxId: box.id } }));
+            } catch (err) { showToast(err.message, 'error'); }
+        });
+        wrap.appendChild(clear);
+    }
+    return wrap;
 }

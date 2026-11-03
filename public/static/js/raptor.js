@@ -208,7 +208,7 @@ async function openRaptorBox(boxId) {
             (box.rack_designation
                 ? `<span class="ms-1 text-body-secondary">(${escapeHtml(box.rack_designation)})</span>`
                 : '');
-        crumb.appendChild(moveBoxButton(box, 'raptor'));
+        crumb.appendChild(boxToolButtons(box, 'raptor'));
 
         const legendData = renderBoxGrid(document.getElementById('raptor-grid-area'), box, {
             onTubeClick: openRaptorEditModal,
@@ -731,5 +731,11 @@ document.addEventListener('rackmoved', async (event) => {
     await refreshRaptorSidebar();
     const followed = event.detail.boxMap[currentRaptorBoxId];
     if (followed) openRaptorBox(followed);
+    loadRaptorQuickStats();
+});
+document.addEventListener('boxchanged', async (event) => {
+    if (event.detail.section !== 'raptor') return;
+    await refreshRaptorSidebar();
+    openRaptorBox(event.detail.boxId);
     loadRaptorQuickStats();
 });

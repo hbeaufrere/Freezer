@@ -2307,7 +2307,7 @@ details.inv > summary:hover { background: var(--f-surface-2); }
 
 /* ---- Moving boxes and racks ------------------------------- */
 
-.breadcrumb-nav .move-box-btn { margin-left: auto; }
+.breadcrumb-nav .box-tools { margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem; }
 
 .rack-label { position: relative; }
 

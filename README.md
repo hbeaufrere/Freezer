@@ -370,6 +370,14 @@ by hand from the collect panel — a bag found on a Monday, a phone call — and
 it lands in the same list and is collected the same way. That path sends no
 email, since the lab is the one typing.
 
+**Clearing a box is the one write that leaves no trace.** It erases a box's
+contents and resets the slot, for a box that was entered wrongly, and it
+writes nothing to the activity log on purpose: the log should not say those
+samples ever existed. It demands the box label typed back, and its warning
+points at *Log retrieval* for anything that actually left the freezer.
+*Freeze-thaw box* is the opposite kind of tool: one cycle on every tube in
+the box, logged per tube, for when the whole box came out and went back.
+
 **Deleting a record is not retrieving a sample.** They look alike and are
 opposites: retrieval writes history, deletion erases it. So the delete control
 is a quiet grey button rather than a peer of *Log retrieval*, and its
