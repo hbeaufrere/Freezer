@@ -333,6 +333,11 @@ and the tube is deleted: a freezer record that still lists a sample somebody
 used up is worse than no record, because it sends the next person hunting for
 it. The log entry survives either way.
 
+**A box can be retrieved as one.** *Log retrieval (box)* on the box view
+opens the group sheet with every tube in the box ticked; for a whole-box
+entry, which has no tubes to tick, it logs one entry labelled with what the
+box held, and "not going back" clears the entry as it would delete a tube.
+
 **A group is one trip to the freezer.** Twenty tubes for one assay are
 found once, with the filters on the Statistics page, and should be logged
 once. Tick rows in either filter's results and the same sheet logs a
@@ -370,19 +375,20 @@ by hand from the collect panel — a bag found on a Monday, a phone call — and
 it lands in the same list and is collected the same way. That path sends no
 email, since the lab is the one typing.
 
-**Clearing a box is the one write that leaves no trace.** It erases a box's
-contents and resets the slot, for a box that was entered wrongly, and it
-writes nothing to the activity log on purpose: the log should not say those
-samples ever existed. It demands the box label typed back, and its warning
-points at *Log retrieval* for anything that actually left the freezer.
-*Freeze-thaw box* is the opposite kind of tool: one cycle on every tube in
-the box, logged per tube, for when the whole box came out and went back.
+**Deleting asks why, and the log keeps the answer.** Erasing a record — one
+tube, or a whole box through *Clear box* — asks for a reason (entry mistake,
+reconciliation of boxes, or other in the person's own words) and is logged
+as a deletion with that reason: never as a retrieval or a thaw, so the
+inventory can be corrected without the history pretending samples left the
+freezer. *Clear box* also demands the box label typed back. *Freeze-thaw
+box* is the opposite kind of tool: one cycle on every tube in the box, or
+on a whole-box entry's own count, for when the box came out and went back.
 
 **Deleting a record is not retrieving a sample.** They look alike and are
-opposites: retrieval writes history, deletion erases it. So the delete control
-is a quiet grey button rather than a peer of *Log retrieval*, and its
-confirmation says what it is for — reconciling the biobank when the database
-and the freezer disagree — and points at *Log retrieval* for anything that
+opposites: retrieval writes history, deletion corrects it. So the delete
+control is a quiet grey button rather than a peer of *Log retrieval*, and
+its dialog says what it is for — fixing the inventory when the database and
+the freezer disagree — and points at *Log retrieval* for anything that
 actually left the freezer.
 
 **Labels go out by barcode, not by print driver.** There is no workable web

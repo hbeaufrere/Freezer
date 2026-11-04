@@ -141,6 +141,57 @@
         </div>
     </div>
 
+    <!-- Erase a record: a tube, or a whole box. Asks why; the log keeps it. -->
+    <div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 class="modal-title fs-5" id="delete-title">Delete record</h2>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="move-what" id="delete-what"></p>
+                    <div class="delete-note">
+                        <i class="bi bi-info-circle me-1"></i>This is for fixing the inventory. It is logged as a
+                        deletion, not as a retrieval or a freeze-thaw. If the sample actually left the freezer,
+                        cancel and use <strong>Log retrieval</strong> instead.
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-label">Why? <span class="text-danger" aria-hidden="true">*</span></div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="delete-reason" id="delete-reason-mistake" value="entry_mistake">
+                            <label class="form-check-label" for="delete-reason-mistake">Entry mistake</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="delete-reason" id="delete-reason-reconcile" value="reconciliation">
+                            <label class="form-check-label" for="delete-reason-reconcile">Reconciliation of boxes</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="delete-reason" id="delete-reason-other" value="other">
+                            <label class="form-check-label" for="delete-reason-other">Other</label>
+                        </div>
+                        <div class="mt-2" id="delete-reason-text-wrap" hidden>
+                            <input type="text" class="form-control" id="delete-reason-text" maxlength="200"
+                                   placeholder="Say what happened">
+                        </div>
+                    </div>
+                    <div class="mb-2" id="delete-confirm-wrap" hidden>
+                        <label for="delete-confirm" class="form-label">
+                            Type <code id="delete-confirm-label"></code> to confirm
+                        </label>
+                        <input type="text" class="form-control" id="delete-confirm" autocomplete="off" autocapitalize="characters">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-danger" id="btn-delete-confirm">
+                        <i class="bi bi-trash me-1"></i>Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Move a box's contents, or a whole rack's, to an empty place -->
     <div class="modal fade" id="moveModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
@@ -178,6 +229,7 @@
                     <input type="hidden" id="retrieval-section">
                     <input type="hidden" id="retrieval-tube-id">
                     <input type="hidden" id="retrieval-tube-ids">
+                    <input type="hidden" id="retrieval-box-id">
 
                     <div class="mb-3">
                         <div class="form-label" id="retrieval-tube-heading">Tube</div>

@@ -25,7 +25,7 @@ move_bp = Blueprint('move', __name__)
 _BOX_STATE = """
     select b.id, b.label, b.section, b.drawer_id, b.position, b.grid_rows, b.grid_cols,
            b.box_type, b.bulk_sample_type, b.bulk_tube_count, b.bulk_study,
-           b.bulk_kind, b.bulk_fullness, b.bulk_date,
+           b.bulk_kind, b.bulk_fullness, b.bulk_date, b.bulk_freeze_thaw,
            (select count(*) from research_tubes rt where rt.box_id = b.id)
              + (select count(*) from raptor_tubes rp where rp.box_id = b.id) as tubes,
            d.rack_id, d.position as drawer_position, r.label as rack_label
@@ -53,14 +53,15 @@ def _carry_box(db, src, dst):
     db.execute('update box_events set box_id = %s where box_id = %s', (dst['id'], src['id']))
     db.execute(
         """update boxes set box_type = %s, bulk_sample_type = %s, bulk_tube_count = %s,
-               bulk_study = %s, bulk_kind = %s, bulk_fullness = %s, bulk_date = %s
+               bulk_study = %s, bulk_kind = %s, bulk_fullness = %s, bulk_date = %s, bulk_freeze_thaw = %s
            where id = %s""",
         (src['box_type'], src['bulk_sample_type'], src['bulk_tube_count'], src['bulk_study'],
-         src['bulk_kind'], src['bulk_fullness'], src['bulk_date'], dst['id']),
+         src['bulk_kind'], src['bulk_fullness'], src['bulk_date'], src['bulk_freeze_thaw'], dst['id']),
     )
     db.execute(
         """update boxes set box_type = 'grid', bulk_sample_type = null, bulk_tube_count = null,
-               bulk_study = null, bulk_kind = 'tubes', bulk_fullness = null, bulk_date = null
+               bulk_study = null, bulk_kind = 'tubes', bulk_fullness = null, bulk_date = null,
+               bulk_freeze_thaw = 0
            where id = %s""",
         (src['id'],),
     )

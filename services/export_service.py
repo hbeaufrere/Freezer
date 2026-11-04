@@ -156,7 +156,7 @@ def research_query(filters=None):
         select null as id, b.id as box_id, null as sample_id,
                concat_ws(' — ', b.bulk_sample_type, b.bulk_study) as description,
                coalesce(b.bulk_tube_count, 0) as tubes,
-               b.bulk_date as date_stored, null as freeze_thaw_cycles,
+               b.bulk_date as date_stored, b.bulk_freeze_thaw as freeze_thaw_cycles,
                sh.name, r.label, d.label, b.label,
                null, null, null,
                (select string_agg(to_char(e.occurred_at, 'YYYY-MM-DD') || ' ' || e.note, '; '

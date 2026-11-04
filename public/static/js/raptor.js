@@ -181,6 +181,7 @@ function onRaptorRetrievalLogged(event) {
         document.getElementById('raptor-freeze-thaw').value = detail.freezeThawCycles;
     }
 
+    if (detail.bulk) refreshRaptorSidebar();
     if (currentRaptorBoxId) openRaptorBox(currentRaptorBoxId);
     loadRaptorQuickStats();
 }
@@ -449,17 +450,18 @@ async function deleteRaptorTube() {
     if (!dbId) return;
 
     const tubeId = document.getElementById('raptor-tube-id-badge').textContent || 'this sample';
-    if (!confirm(reconcileWarning(tubeId))) return;
-
-    try {
-        await API.del(`/api/raptor/tubes/${dbId}`);
-        showToast('Sample removed');
-        bootstrap.Modal.getInstance(document.getElementById('raptorTubeModal')).hide();
-        await openRaptorBox(currentRaptorBoxId);
-        loadRaptorQuickStats();
-    } catch (err) {
-        showToast(err.message, 'error');
-    }
+    openDeleteDialog({
+        title: 'Delete record',
+        what: `Erase the record for ${tubeId}. The tube ID is not reused.`,
+        confirmLabel: null,
+        onConfirm: async (why) => {
+            await API.del(`/api/raptor/tubes/${dbId}`, why);
+            showToast('Record deleted');
+            bootstrap.Modal.getInstance(document.getElementById('raptorTubeModal'))?.hide();
+            await openRaptorBox(currentRaptorBoxId);
+            loadRaptorQuickStats();
+        },
+    });
 }
 
 /* "Other" only means anything if the tissue is written down, so say so. */

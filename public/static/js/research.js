@@ -41,6 +41,7 @@ function onResearchRetrievalLogged(event) {
         document.getElementById('research-freeze-thaw').value = detail.freezeThawCycles;
     }
 
+    if (detail.bulk) refreshResearchSidebar();
     if (currentResearchBoxId) openResearchBox(currentResearchBoxId);
     loadResearchQuickStats();
 }
@@ -272,17 +273,18 @@ async function deleteResearchTube() {
     if (!tubeId) return;
 
     const label = document.getElementById('research-sample-id').value.trim() || 'this sample';
-    if (!confirm(reconcileWarning(label))) return;
-
-    try {
-        await API.del(`/api/research/tubes/${tubeId}`);
-        showToast('Tube removed');
-        bootstrap.Modal.getInstance(document.getElementById('researchTubeModal')).hide();
-        await Promise.all([openResearchBox(currentResearchBoxId), refreshResearchSidebar()]);
-        loadResearchQuickStats();
-    } catch (err) {
-        showToast(err.message, 'error');
-    }
+    openDeleteDialog({
+        title: 'Delete record',
+        what: `Erase the record for ${label}.`,
+        confirmLabel: null,
+        onConfirm: async (why) => {
+            await API.del(`/api/research/tubes/${tubeId}`, why);
+            showToast('Record deleted');
+            bootstrap.Modal.getInstance(document.getElementById('researchTubeModal'))?.hide();
+            await Promise.all([openResearchBox(currentResearchBoxId), refreshResearchSidebar()]);
+            loadResearchQuickStats();
+        },
+    });
 }
 
 async function runResearchSearch() {

@@ -64,7 +64,7 @@ def clean_database(flask_app):
         # next test's writes behaved.
         db.execute("update boxes set box_type = 'grid', bulk_sample_type = null, "
                    "bulk_tube_count = null, bulk_study = null, bulk_kind = 'tubes', "
-                   "bulk_fullness = null, bulk_date = null")
+                   "bulk_fullness = null, bulk_date = null, bulk_freeze_thaw = 0")
         db.execute("delete from species where banding_code = 'ZZZZ'")
         db.commit()
     yield
@@ -109,6 +109,13 @@ class _FillingClient:
 
     def put(self, path, **kwargs):
         return self._inner.put(path, **self._fill(path, kwargs))
+
+    def delete(self, path, **kwargs):
+        # Erasing a tube record now asks why; tests that are not about the
+        # reason get a stock one, as a person would pick from the dialog.
+        if path.startswith(('/api/raptor/tubes/', '/api/research/tubes/')) and 'json' not in kwargs:
+            kwargs['json'] = {'reason': 'entry_mistake'}
+        return self._inner.delete(path, **kwargs)
 
     def __getattr__(self, name):
         return getattr(self._inner, name)

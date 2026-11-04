@@ -32,7 +32,7 @@ const API = {
     get(url) { return API._send(url, 'GET'); },
     post(url, data) { return API._send(url, 'POST', data ?? {}); },
     put(url, data) { return API._send(url, 'PUT', data ?? {}); },
-    del(url) { return API._send(url, 'DELETE'); },
+    del(url, data) { return API._send(url, 'DELETE', data); },
 };
 
 /* Escape text before it goes into innerHTML. Sample IDs, descriptions and
@@ -91,14 +91,61 @@ function depthLabel(position, total) {
 /* Deleting a record and retrieving a sample look alike and are not.
    Retrieving leaves an entry in the log; this leaves nothing at all, which is
    only ever what you want when the database and the freezer disagree. */
-function reconcileWarning(label) {
-    return `Delete the record for ${label}?\n\n`
-        + 'This is for reconciling the biobank when the database and the freezer '
-        + 'disagree. It erases the record outright and writes nothing to the '
-        + 'retrieval log.\n\n'
-        + 'If the sample was actually taken out of the freezer, cancel and use '
-        + '"Log retrieval" instead — that keeps the history.';
+/* The one dialog for erasing records: a tube, or a whole box. It asks why,
+   because the activity log keeps the answer, and it says plainly that this
+   is not how a sample leaves the freezer.
+
+   opts: { title, what, confirmLabel (box label to type back, or null),
+           onConfirm({reason, reason_text, confirm}) } */
+let deleteDialogAction = null;
+
+function openDeleteDialog(opts) {
+    document.getElementById('delete-title').textContent = opts.title;
+    document.getElementById('delete-what').textContent = opts.what;
+    const labelWrap = document.getElementById('delete-confirm-wrap');
+    labelWrap.hidden = !opts.confirmLabel;
+    document.getElementById('delete-confirm-label').textContent = opts.confirmLabel || '';
+    document.getElementById('delete-confirm').value = '';
+    document.getElementById('delete-confirm').dataset.expected = opts.confirmLabel || '';
+    document.querySelectorAll('input[name="delete-reason"]').forEach((r) => { r.checked = false; });
+    document.getElementById('delete-reason-text').value = '';
+    document.getElementById('delete-reason-text-wrap').hidden = true;
+    deleteDialogAction = opts.onConfirm;
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('deleteModal')).show();
 }
+
+document.addEventListener('DOMContentLoaded', () => {
+    const modal = document.getElementById('deleteModal');
+    if (!modal) return;
+    modal.querySelectorAll('input[name="delete-reason"]').forEach((r) => r.addEventListener('change', () => {
+        const other = modal.querySelector('input[name="delete-reason"]:checked')?.value === 'other';
+        document.getElementById('delete-reason-text-wrap').hidden = !other;
+        if (other) document.getElementById('delete-reason-text').focus();
+    }));
+    document.getElementById('btn-delete-confirm').addEventListener('click', async () => {
+        const reason = modal.querySelector('input[name="delete-reason"]:checked')?.value;
+        if (!reason) { showToast('Say why the record is being erased.', 'error'); return; }
+        const reasonText = document.getElementById('delete-reason-text').value.trim();
+        if (reason === 'other' && !reasonText) { showToast('Say what the other reason is.', 'error'); return; }
+        const confirmEl = document.getElementById('delete-confirm');
+        if (confirmEl.dataset.expected
+            && confirmEl.value.trim().toLowerCase() !== confirmEl.dataset.expected.toLowerCase()) {
+            showToast(`Type the box label (${confirmEl.dataset.expected}) to confirm.`, 'error');
+            confirmEl.focus();
+            return;
+        }
+        const button = document.getElementById('btn-delete-confirm');
+        button.disabled = true;
+        try {
+            await deleteDialogAction?.({ reason, reason_text: reasonText, confirm: confirmEl.value.trim() });
+            bootstrap.Modal.getInstance(modal).hide();
+        } catch (err) {
+            showToast(err.message, 'error');
+        } finally {
+            button.disabled = false;
+        }
+    });
+});
 
 function positionLabel(row, col) {
     // Samples in a plain box have no coordinates. Without this the arithmetic

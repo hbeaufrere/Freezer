@@ -211,11 +211,12 @@ function renderBulkBox(container, boxData, options = {}) {
     const other = boxData.bulk_kind === 'other';
     const noun = other ? (count === 1 ? 'item' : 'items') : (count === 1 ? 'tube' : 'tubes');
     const full = other && boxData.bulk_fullness != null ? ` · ${boxData.bulk_fullness}% full` : '';
+    const ft = boxData.bulk_freeze_thaw ? ` · ${boxData.bulk_freeze_thaw} freeze-thaw` : '';
     shell.innerHTML = `
         <div class="box-grid-head">
             <span class="box-grid-title">${escapeHtml(boxData.label || 'Box')}</span>
             ${depthBadge(boxData)}
-            <span class="box-grid-count">${count} ${noun}, recorded as a whole${full}</span>
+            <span class="box-grid-count">${count} ${noun}, recorded as a whole${full}${ft}</span>
         </div>
         ${(boxData.events || []).map((e) => `
         <div class="event-stamp">
