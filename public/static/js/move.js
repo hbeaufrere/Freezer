@@ -180,18 +180,40 @@ function boxToolButtons(box, section) {
     wrap.appendChild(move);
 
     const tubes = (box.tubes || []).length;
-    if (box.box_type !== 'bulk' && tubes) {
+    const bulkHasEntry = box.box_type === 'bulk' && (box.bulk_sample_type || box.bulk_tube_count || box.bulk_study);
+    if (tubes || bulkHasEntry) {
+        const retrieve = document.createElement('button');
+        retrieve.type = 'button';
+        retrieve.className = 'btn btn-sm quiet-btn';
+        retrieve.innerHTML = '<i class="bi bi-box-arrow-up me-1"></i>Log retrieval (box)';
+        retrieve.title = box.box_type === 'bulk'
+            ? 'Log a retrieval of this whole-box entry'
+            : `Log one retrieval for all ${tubes} tube${tubes === 1 ? '' : 's'} in this box`;
+        retrieve.addEventListener('click', () => {
+            if (box.box_type === 'bulk') openRetrievalModalWholeBox(section, box);
+            else openRetrievalModalBulk(section, box.tubes.map((t) => t.id),
+                box.tubes.map((t) => t.tube_id || t.sample_id || 'Untitled'));
+        });
+        wrap.appendChild(retrieve);
+    }
+    if (tubes || bulkHasEntry) {
         const thaw = document.createElement('button');
         thaw.type = 'button';
         thaw.className = 'btn btn-sm quiet-btn';
         thaw.innerHTML = '<i class="bi bi-thermometer-half me-1"></i>Freeze-thaw box';
-        thaw.title = 'Count one freeze-thaw cycle on every tube in this box';
+        thaw.title = bulkHasEntry
+            ? `Count one freeze-thaw cycle on this whole-box entry (now ${box.bulk_freeze_thaw || 0})`
+            : 'Count one freeze-thaw cycle on every tube in this box';
         thaw.addEventListener('click', async () => {
-            if (!confirm(`Count one freeze-thaw cycle on all ${tubes} tube${tubes === 1 ? '' : 's'} in ${box.label}?\n\n`
-                + 'For when the whole box came out of the freezer and went back.')) return;
+            const ask = bulkHasEntry
+                ? `Count one freeze-thaw cycle on the whole-box entry in ${box.label}? It is at ${box.bulk_freeze_thaw || 0} now.`
+                : `Count one freeze-thaw cycle on all ${tubes} tube${tubes === 1 ? '' : 's'} in ${box.label}?`;
+            if (!confirm(`${ask}\n\nFor when the whole box came out of the freezer and went back.`)) return;
             try {
                 const r = await API.post(`/api/boxes/${box.id}/thaw`, {});
-                showToast(`Freeze-thaw cycle recorded on ${r.thawed} tube${r.thawed === 1 ? '' : 's'} in ${r.box}`);
+                showToast(r.freeze_thaw_cycles !== undefined
+                    ? `Freeze-thaw cycle recorded — ${r.box} now at ${r.freeze_thaw_cycles}`
+                    : `Freeze-thaw cycle recorded on ${r.thawed} tube${r.thawed === 1 ? '' : 's'} in ${r.box}`);
                 document.dispatchEvent(new CustomEvent('boxchanged', { detail: { section, boxId: box.id } }));
             } catch (err) { showToast(err.message, 'error'); }
         });
@@ -205,19 +227,18 @@ function boxToolButtons(box, section) {
         clear.className = 'btn reconcile-btn';
         clear.innerHTML = '<i class="bi bi-eraser me-1"></i>Clear box';
         clear.title = 'Erase everything in this box — reconciling only';
-        clear.addEventListener('click', async () => {
+        clear.addEventListener('click', () => {
             const what = box.box_type === 'bulk' ? 'its whole-box entry' : `${tubes} sample${tubes === 1 ? '' : 's'}`;
-            const typed = prompt(
-                `This erases ${what} from ${box.label} and leaves it an empty grid.\n\n`
-                + 'Nothing is written to the activity log: this is for a box that was entered wrongly. '
-                + 'If the samples actually left the freezer, use Log retrieval instead, so the record survives.\n\n'
-                + `Type the box label (${box.label}) to confirm:`);
-            if (typed === null) return;
-            try {
-                const r = await API.post(`/api/boxes/${box.id}/clear`, { confirm: typed });
-                showToast(r.was_whole_box ? `${r.box} cleared` : `${r.box} cleared — ${r.removed} sample(s) erased`);
-                document.dispatchEvent(new CustomEvent('boxchanged', { detail: { section, boxId: box.id } }));
-            } catch (err) { showToast(err.message, 'error'); }
+            openDeleteDialog({
+                title: 'Clear box',
+                what: `Erase ${what} from ${box.label} and leave it an empty grid. Each erased record is logged as a deletion.`,
+                confirmLabel: box.label,
+                onConfirm: async (why) => {
+                    const r = await API.post(`/api/boxes/${box.id}/clear`, why);
+                    showToast(r.was_whole_box ? `${r.box} cleared` : `${r.box} cleared — ${r.removed} record(s) deleted`);
+                    document.dispatchEvent(new CustomEvent('boxchanged', { detail: { section, boxId: box.id } }));
+                },
+            });
         });
         wrap.appendChild(clear);
     }

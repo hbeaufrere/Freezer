@@ -13,6 +13,7 @@ function openRetrievalModal(section, tubeId, label) {
     document.getElementById('retrieval-section').value = section;
     document.getElementById('retrieval-tube-id').value = tubeId;
     document.getElementById('retrieval-tube-ids').value = '';
+    document.getElementById('retrieval-box-id').value = '';
     document.getElementById('retrieval-tube-heading').textContent = 'Tube';
     document.getElementById('retrieval-tube-label').textContent = label || '';
     document.getElementById('retrieval-help').textContent =
@@ -37,6 +38,7 @@ function openRetrievalModalBulk(section, tubeIds, labels) {
 
     document.getElementById('retrieval-section').value = section;
     document.getElementById('retrieval-tube-id').value = '';
+    document.getElementById('retrieval-box-id').value = '';
     document.getElementById('retrieval-tube-ids').value = JSON.stringify(tubeIds);
     document.getElementById('retrieval-tube-heading').textContent =
         `${tubeIds.length} tube${tubeIds.length === 1 ? '' : 's'}`;
@@ -56,6 +58,27 @@ function openRetrievalModalBulk(section, tubeIds, labels) {
     bootstrap.Modal.getOrCreateInstance(document.getElementById('retrievalModal')).show();
 }
 
+/* A whole-box entry has no tubes to tick, so the sheet takes the box. */
+function openRetrievalModalWholeBox(section, box) {
+    document.getElementById('retrieval-section').value = section;
+    document.getElementById('retrieval-tube-id').value = '';
+    document.getElementById('retrieval-tube-ids').value = '';
+    document.getElementById('retrieval-box-id').value = box.id;
+    document.getElementById('retrieval-tube-heading').textContent = 'Whole box';
+    const noun = box.bulk_kind === 'other' ? 'items' : 'tubes';
+    document.getElementById('retrieval-tube-label').textContent =
+        `${box.label} — ${[box.bulk_sample_type, `${box.bulk_tube_count || 0} ${noun}`, box.bulk_study].filter(Boolean).join(' · ')}`;
+    document.getElementById('retrieval-help').textContent =
+        'One log entry for the whole box. Tick "not going back" and the entry is cleared from the freezer.';
+    document.getElementById('retrieval-purpose').value = '';
+    document.getElementById('retrieval-notes').value = '';
+    document.getElementById('retrieval-consumed').checked = false;
+    let who = '';
+    try { who = localStorage.getItem(RETRIEVER_KEY) || ''; } catch (e) { /* private mode */ }
+    document.getElementById('retrieval-by').value = who;
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('retrievalModal')).show();
+}
+
 async function saveRetrieval() {
     const who = document.getElementById('retrieval-by').value.trim();
     if (!who) {
@@ -66,6 +89,7 @@ async function saveRetrieval() {
 
     const groupRaw = document.getElementById('retrieval-tube-ids').value;
     const group = groupRaw ? JSON.parse(groupRaw) : null;
+    const wholeBox = document.getElementById('retrieval-box-id').value;
     const payload = {
         section: document.getElementById('retrieval-section').value,
         retrieved_by: who,
@@ -74,15 +98,21 @@ async function saveRetrieval() {
         consumed: document.getElementById('retrieval-consumed').checked,
     };
     if (group) payload.tube_ids = group;
-    else payload.tube_id = parseInt(document.getElementById('retrieval-tube-id').value, 10);
+    else if (!wholeBox) payload.tube_id = parseInt(document.getElementById('retrieval-tube-id').value, 10);
 
     const button = document.getElementById('btn-retrieval-save');
     button.disabled = true;
     try {
-        const result = await API.post(group ? '/api/retrievals/bulk' : '/api/retrievals', payload);
+        const url = wholeBox ? `/api/boxes/${wholeBox}/retrieve`
+            : (group ? '/api/retrievals/bulk' : '/api/retrievals');
+        const result = await API.post(url, payload);
         try { localStorage.setItem(RETRIEVER_KEY, who); } catch (e) { /* private mode */ }
 
-        if (group) {
+        if (wholeBox) {
+            showToast(result.box_removed
+                ? `Retrieval logged — ${result.box_label} cleared from the freezer`
+                : `Retrieval logged for ${result.box_label}`);
+        } else if (group) {
             showToast(result.removed
                 ? `${result.logged} retrievals logged — ${result.removed} tubes removed from the freezer`
                 : `${result.logged} retrievals logged — each tube gains one freeze-thaw cycle`);
@@ -97,7 +127,12 @@ async function saveRetrieval() {
         // The page that opened this sheet still shows the tubes as they were
         // before. Tell it what happened so it can catch up.
         document.dispatchEvent(new CustomEvent('retrievallogged', {
-            detail: group ? {
+            detail: wholeBox ? {
+                section: payload.section,
+                boxId: parseInt(wholeBox, 10),
+                bulk: true,
+                tubeRemoved: Boolean(result.box_removed),
+            } : group ? {
                 section: payload.section,
                 tubeIds: group,
                 bulk: true,

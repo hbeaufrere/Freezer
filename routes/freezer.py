@@ -26,7 +26,7 @@ _BULK_SPACE = """
 _BOX_COLUMNS = f"""
     b.id, b.drawer_id, b.position, b.label, b.grid_rows, b.grid_cols, b.section,
     b.box_type, b.bulk_sample_type, b.bulk_tube_count, b.bulk_study,
-    b.bulk_kind, b.bulk_fullness, b.bulk_date,
+    b.bulk_kind, b.bulk_fullness, b.bulk_date, b.bulk_freeze_thaw,
     coalesce(rc.cnt, 0) + coalesce(rp.cnt, 0) + {_BULK_SPACE} as occupied,
     b.grid_rows * b.grid_cols as capacity
 """
@@ -157,7 +157,7 @@ def get_box(box_id):
     box = one_or_404(db.execute(
         """select b.id, b.position, b.label, b.grid_rows, b.grid_cols, b.section,
                   b.box_type, b.bulk_sample_type, b.bulk_tube_count, b.bulk_study,
-                  b.bulk_kind, b.bulk_fullness, b.bulk_date,
+                  b.bulk_kind, b.bulk_fullness, b.bulk_date, b.bulk_freeze_thaw,
                   b.grid_rows * b.grid_cols as capacity,
                   -- How deep this box sits, and how deep the drawer goes: the
                   -- page says "front of the drawer" rather than just "B1".
@@ -435,7 +435,7 @@ def set_bulk_contents(box_id):
                    bulk_kind = %s, bulk_fullness = %s, bulk_date = %s
                where id = %s
                returning id, box_type, bulk_sample_type, bulk_tube_count, bulk_study,
-                         bulk_kind, bulk_fullness, bulk_date""",
+                         bulk_kind, bulk_fullness, bulk_date, bulk_freeze_thaw""",
             (sample_type or None, count, study or None, kind, fullness, stored, box_id),
         ).fetchone()
         what = ' · '.join(filter(None, [
@@ -464,7 +464,17 @@ def thaw_box(box_id):
         'Box',
     )
     if box['box_type'] == 'bulk':
-        raise ApiError('A whole-box entry has no per-tube freeze-thaw count to add to.')
+        with write(db):
+            row = db.execute(
+                """update boxes set bulk_freeze_thaw = bulk_freeze_thaw + 1
+                   where id = %s returning bulk_freeze_thaw, bulk_sample_type, bulk_tube_count, bulk_study""",
+                (box_id,),
+            ).fetchone()
+            if not (row['bulk_sample_type'] or row['bulk_tube_count'] or row['bulk_study']):
+                raise ApiError(f'{box["label"]} has no whole-box entry to thaw.')
+            record(db, 'thawed', box['section'], box_label=box['label'],
+                   detail=f"whole box · freeze-thaw now {row['bulk_freeze_thaw']}")
+        return jsonify({'box': box['label'], 'thawed': 1, 'freeze_thaw_cycles': row['bulk_freeze_thaw']})
     table = 'raptor_tubes' if box['section'] == 'raptor' else 'research_tubes'
     with write(db):
         rows = db.execute(
@@ -480,36 +490,110 @@ def thaw_box(box_id):
     return jsonify({'box': box['label'], 'thawed': len(rows)})
 
 
+@freezer_bp.route('/api/boxes/<int:box_id>/retrieve', methods=['POST'])
+def retrieve_whole_box(box_id):
+    """Log a retrieval of a whole-box entry. A gridded box is retrieved tube
+    by tube through the group sheet; this is for the box that was never
+    itemised. One log entry, labelled with what the box held. If it is not
+    going back, the entry is cleared, as a consumed tube is deleted."""
+    db = get_db()
+    data = json_body()
+    require(data, 'retrieved_by')
+    box = one_or_404(db.execute(
+        """select id, label, section, box_type, bulk_sample_type, bulk_tube_count, bulk_study, bulk_kind
+           from boxes where id = %s""", (box_id,)).fetchone(), 'Box')
+    if box['box_type'] != 'bulk':
+        raise ApiError('This box is itemised; retrieve its tubes instead.')
+    if not (box['bulk_sample_type'] or box['bulk_tube_count'] or box['bulk_study']):
+        raise ApiError(f'{box["label"]} has no whole-box entry to retrieve.')
+    consumed = bool(data.get('consumed'))
+    noun = 'items' if box['bulk_kind'] == 'other' else 'tubes'
+    label = 'Whole box: ' + ' · '.join(filter(None, [
+        box['bulk_sample_type'], f"{box['bulk_tube_count'] or 0} {noun}", box['bulk_study']]))
+    with write(db):
+        entry = db.execute(
+            """insert into retrievals (section, tube_label, box_label, retrieved_by, purpose, notes, consumed)
+               values (%s, %s, %s, %s, %s, %s, %s) returning id""",
+            (box['section'], label, box['label'], text(data, 'retrieved_by'),
+             text(data, 'purpose'), text(data, 'notes'), consumed),
+        ).fetchone()
+        cycles = None
+        if consumed:
+            db.execute('delete from box_events where box_id = %s', (box_id,))
+            db.execute(
+                """update boxes set box_type = 'grid', bulk_sample_type = null, bulk_tube_count = null,
+                       bulk_study = null, bulk_kind = 'tubes', bulk_fullness = null, bulk_date = null,
+                       bulk_freeze_thaw = 0
+                   where id = %s""", (box_id,))
+        else:
+            cycles = db.execute(
+                'update boxes set bulk_freeze_thaw = bulk_freeze_thaw + 1 where id = %s returning bulk_freeze_thaw',
+                (box_id,)).fetchone()['bulk_freeze_thaw']
+    return jsonify({'id': entry['id'], 'tube_label': label, 'box_label': box['label'],
+                    'box_removed': consumed, 'freeze_thaw_cycles': cycles}), 201
+
+
 @freezer_bp.route('/api/boxes/<int:box_id>/clear', methods=['POST'])
 def clear_box(box_id):
-    """Erase everything in a box and leave it an empty grid. No activity
-    entry, on purpose: this is the reconcile tool for a box that was entered
-    wrongly, and the log should not say those samples ever existed. The
-    caller has to type the box's label back, so a slip of the finger cannot
-    do it.
-
-    Samples that actually left the freezer are not erased here; they are
-    retrieved, and the retrieval log keeps them."""
+    """Erase everything in a box and leave it an empty grid: the reconcile
+    tool for a box that was entered wrongly or counted twice. It is logged
+    as a deletion with the reason given — never as a retrieval or a thaw —
+    so the activity log says what happened without pretending samples left
+    the freezer. The caller types the box's label back, so a slip of the
+    finger cannot do it."""
+    from services.activity import record, snapshot
     db = get_db()
     data = json_body()
     box = one_or_404(
-        db.execute('select id, label, section, box_type from boxes where id = %s', (box_id,)).fetchone(),
+        db.execute('''select id, label, section, box_type, bulk_sample_type, bulk_tube_count, bulk_study
+                      from boxes where id = %s''', (box_id,)).fetchone(),
         'Box',
     )
     if text(data, 'confirm').strip().lower() != (box['label'] or '').strip().lower():
         raise ApiError(f'Type the box label ({box["label"]}) to confirm.')
+    why = deletion_reason(data)
     table = 'raptor_tubes' if box['section'] == 'raptor' else 'research_tubes'
     with write(db):
+        ids = [r['id'] for r in db.execute(f'select id from {table} where box_id = %s', (box_id,)).fetchall()]
+        snaps = [snapshot(db, box['section'], i) for i in ids]
         removed = db.execute(f'delete from {table} where box_id = %s', (box_id,)).rowcount
+        for snap in snaps:
+            record(db, 'removed', box['section'], **snap, detail=f'box {box["label"]} cleared — {why}')
+        if box['box_type'] == 'bulk' and (box['bulk_sample_type'] or box['bulk_tube_count'] or box['bulk_study']):
+            record(db, 'removed', box['section'], box_label=box['label'],
+                   detail=f'whole-box entry cleared ({box["bulk_sample_type"] or "?"}, '
+                          f'{box["bulk_tube_count"] or 0}) — {why}')
         db.execute('delete from box_events where box_id = %s', (box_id,))
         db.execute(
             """update boxes set box_type = 'grid', bulk_sample_type = null, bulk_tube_count = null,
-                   bulk_study = null, bulk_kind = 'tubes', bulk_fullness = null, bulk_date = null
+                   bulk_study = null, bulk_kind = 'tubes', bulk_fullness = null, bulk_date = null,
+                   bulk_freeze_thaw = 0
                where id = %s""",
             (box_id,),
         )
     return jsonify({'box': box['label'], 'removed': removed,
                     'was_whole_box': box['box_type'] == 'bulk'})
+
+
+DELETION_REASONS = {
+    'entry_mistake': 'entry mistake',
+    'reconciliation': 'reconciliation of boxes',
+    'other': 'other',
+}
+
+
+def deletion_reason(data):
+    """Why a record is being erased, in the words the log will keep. One of
+    the fixed reasons, or 'other' with the person's own words."""
+    reason = text(data, 'reason')
+    if reason not in DELETION_REASONS:
+        raise ApiError('Say why: entry mistake, reconciliation of boxes, or other.')
+    if reason == 'other':
+        why = ' '.join(text(data, 'reason_text').split())
+        if not why:
+            raise ApiError("Say what the other reason is.")
+        return f'other: {why[:200]}'
+    return DELETION_REASONS[reason]
 
 
 @freezer_bp.route('/api/boxes/<int:box_id>', methods=['DELETE'])

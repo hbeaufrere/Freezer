@@ -2559,6 +2559,8 @@ def test_adding_editing_and_removing_a_tube_is_logged_with_a_snapshot(client, bo
     kinds = [x['kind'] for x in _feed(client)]
     assert kinds == ['removed', 'edited', 'added']
     removed = _feed(client, kind='removed')[0]
+    assert removed['detail'] == 'record deleted — entry mistake'
+    assert client.delete(f'/api/raptor/tubes/{tube["id"]}', json={}).status_code in (400, 404)
     # Gone from the freezer, still named in the log.
     assert removed['tube_label'] == tube['tube_id'] and removed['position_label'] == 'B3'
     assert removed['actor'] is None
@@ -2718,27 +2720,40 @@ def test_a_whole_box_freeze_thaw_counts_every_tube_and_is_logged(client, boxes, 
     empty = client.post(f'/api/boxes/{boxes["research"]["id"]}/thaw', json={})
     assert empty.status_code == 400 and 'nothing to thaw' in empty.get_json()['error']
     client.put(f'/api/boxes/{boxes["research"]["id"]}/type', json={'box_type': 'bulk'})
-    bulk = client.post(f'/api/boxes/{boxes["research"]["id"]}/thaw', json={})
-    assert bulk.status_code == 400 and 'whole-box entry' in bulk.get_json()['error']
+    bare = client.post(f'/api/boxes/{boxes["research"]["id"]}/thaw', json={})
+    assert bare.status_code == 400 and 'no whole-box entry' in bare.get_json()['error']
+    client.put(f'/api/boxes/{boxes["research"]["id"]}/bulk', json={'sample_type': 'Liver', 'tube_count': 60})
+    whole = client.post(f'/api/boxes/{boxes["research"]["id"]}/thaw', json={})
+    assert whole.status_code == 200 and whole.get_json()['freeze_thaw_cycles'] == 1
+    assert client.get(f'/api/boxes/{boxes["research"]["id"]}').get_json()['bulk_freeze_thaw'] == 1
+    assert 'whole box · freeze-thaw now 1' in client.get('/api/activity?kind=thawed').get_json()['entries'][0]['detail']
+    # And in the research filter, as the F/T column.
+    row = next(r for r in client.get('/api/research/filter').get_json()['samples'] if r['kind'] == 'bulk_box')
+    assert row['freeze_thaw_cycles'] == 1
 
 
-def test_clearing_a_box_erases_it_without_a_trace_and_needs_the_label_typed(client, boxes, species_id):
+def test_clearing_a_box_is_logged_as_deletion_with_a_reason_and_needs_the_label(client, boxes, species_id):
     box = boxes['raptor']['id']
     label = client.get(f'/api/boxes/{box}').get_json()['label']
     for c in (1, 2):
         client.post('/api/raptor/tubes', json={'box_id': box, 'row_pos': 1, 'col_pos': c,
                                                'species_id': species_id, 'collection_date': '2026-04-01'})
-    before = client.get('/api/activity').get_json()['total']
-
-    wrong = client.post(f'/api/boxes/{box}/clear', json={'confirm': 'nope'})
+    wrong = client.post(f'/api/boxes/{box}/clear', json={'confirm': 'nope', 'reason': 'entry_mistake'})
     assert wrong.status_code == 400 and label in wrong.get_json()['error']
+    no_why = client.post(f'/api/boxes/{box}/clear', json={'confirm': label})
+    assert no_why.status_code == 400 and 'why' in no_why.get_json()['error'].lower()
+    vague = client.post(f'/api/boxes/{box}/clear', json={'confirm': label, 'reason': 'other'})
+    assert vague.status_code == 400
     assert len(client.get(f'/api/boxes/{box}').get_json()['tubes']) == 2
 
-    ok = client.post(f'/api/boxes/{box}/clear', json={'confirm': label.lower()})
+    ok = client.post(f'/api/boxes/{box}/clear', json={'confirm': label.lower(), 'reason': 'other',
+                                                        'reason_text': 'box found empty on the shelf'})
     assert ok.status_code == 200 and ok.get_json()['removed'] == 2
     assert client.get(f'/api/boxes/{box}').get_json()['tubes'] == []
-    # Nothing in the activity log says it happened.
-    assert client.get('/api/activity').get_json()['total'] == before
+    # Logged as deletions with the reason, one per record — not as retrievals.
+    removed = client.get('/api/activity?kind=removed').get_json()['entries']
+    assert len(removed) == 2 and all('cleared — other: box found empty on the shelf' in e['detail'] for e in removed)
+    assert client.get('/api/activity?kind=retrieved').get_json()['entries'] == []
 
 
 def test_clearing_a_whole_box_entry_resets_the_slot(client, boxes):
@@ -2747,8 +2762,37 @@ def test_clearing_a_whole_box_entry_resets_the_slot(client, boxes):
     client.put(f'/api/boxes/{box}/type', json={'box_type': 'bulk'})
     client.put(f'/api/boxes/{box}/bulk', json={'sample_type': 'Liver', 'tube_count': 60, 'study': 'PK'})
     client.post('/api/freezer-events', json={'note': 'Power cut'})
-    r = client.post(f'/api/boxes/{box}/clear', json={'confirm': label})
+    r = client.post(f'/api/boxes/{box}/clear', json={'confirm': label, 'reason': 'reconciliation'})
     assert r.status_code == 200 and r.get_json()['was_whole_box']
+    assert 'whole-box entry cleared' in client.get('/api/activity?kind=removed').get_json()['entries'][0]['detail']
     after = client.get(f'/api/boxes/{box}').get_json()
     assert (after['box_type'], after['bulk_sample_type'], after['bulk_tube_count'], after['events']) == ('grid', None, None, [])
     assert client.get('/api/freezer-events').get_json()[0]['whole_boxes'] == 0
+
+
+def test_a_whole_box_entry_can_be_retrieved_and_consumed(client, boxes):
+    box = boxes['research']['id']
+    label = client.get(f'/api/boxes/{box}').get_json()['label']
+    client.put(f'/api/boxes/{box}/type', json={'box_type': 'bulk'})
+    client.put(f'/api/boxes/{box}/bulk', json={'sample_type': 'Liver', 'tube_count': 60, 'study': 'Kestrel PK'})
+
+    kept = client.post(f'/api/boxes/{box}/retrieve', json={'retrieved_by': 'Alice', 'purpose': 'Histology'})
+    assert kept.status_code == 201, kept.get_json()
+    assert kept.get_json()['tube_label'] == 'Whole box: Liver · 60 tubes · Kestrel PK' and not kept.get_json()['box_removed']
+    assert kept.get_json()['freeze_thaw_cycles'] == 1
+    after_kept = client.get(f'/api/boxes/{box}').get_json()
+    assert after_kept['box_type'] == 'bulk' and after_kept['bulk_freeze_thaw'] == 1
+
+    gone = client.post(f'/api/boxes/{box}/retrieve', json={'retrieved_by': 'Alice', 'consumed': True}).get_json()
+    assert gone['box_removed']
+    after = client.get(f'/api/boxes/{box}').get_json()
+    assert after['box_type'] == 'grid' and after['bulk_sample_type'] is None
+
+    entries = client.get('/api/retrievals?section=research').get_json()['entries']
+    assert [(e['box_label'], e['consumed']) for e in entries] == [(label, True), (label, False)]
+    assert all(e['tube_label'].startswith('Whole box:') for e in entries)
+    feed = client.get('/api/activity?kind=retrieved').get_json()['entries']
+    assert [e['kind'] for e in feed] == ['consumed', 'retrieved']
+
+    again = client.post(f'/api/boxes/{box}/retrieve', json={'retrieved_by': 'Alice'})
+    assert again.status_code == 400 and 'itemised' in again.get_json()['error']

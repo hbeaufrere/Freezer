@@ -2431,3 +2431,12 @@ details.inv > summary:hover { background: var(--f-surface-2); }
 .event-row-tools { display: flex; gap: 0.1rem; flex: 0 0 auto; }
 
 .kind-event { background: color-mix(in srgb, var(--f-warn) 18%, transparent); color: #8a5a00; border-color: transparent; }
+
+.delete-note {
+    font-size: 0.82rem;
+    color: var(--f-ink-soft);
+    background: var(--f-surface-2);
+    border-radius: var(--f-radius-sm);
+    padding: 0.5rem 0.65rem;
+    margin-bottom: 0.9rem;
+}

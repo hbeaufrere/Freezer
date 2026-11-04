@@ -470,12 +470,14 @@ def reassign_tube(tube_id):
 
 @raptor_bp.route('/api/raptor/tubes/<int:tube_id>', methods=['DELETE'])
 def delete_tube(tube_id):
+    from routes.freezer import deletion_reason
     db = get_db()
+    why = deletion_reason(request.get_json(silent=True) or {})
     with write(db):
         snap = raptor_snapshot(db, tube_id)
         deleted = db.execute('delete from raptor_tubes where id = %s', (tube_id,)).rowcount
         if deleted:
-            record(db, 'removed', 'raptor', **snap, detail='record deleted to reconcile')
+            record(db, 'removed', 'raptor', **snap, detail=f'record deleted — {why}')
     if not deleted:
         raise ApiError('Tube not found.', 404)
     return jsonify({'success': True})
