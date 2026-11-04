@@ -74,7 +74,7 @@ async function openResearchBox(boxId) {
             `<span>&rsaquo;</span><span>${escapeHtml(box.rack_label)}</span>` +
             `<span>&rsaquo;</span><span>${escapeHtml(box.drawer_label)}</span>` +
             `<span>&rsaquo;</span><strong>${escapeHtml(box.label)}</strong>`;
-        crumb.appendChild(moveBoxButton(box, 'research'));
+        crumb.appendChild(boxToolButtons(box, 'research'));
 
         renderBoxTypeSwitch(box);
         renderBoxGrid(document.getElementById('research-grid-area'), box, {
@@ -357,5 +357,11 @@ document.addEventListener('rackmoved', async (event) => {
     await refreshResearchSidebar();
     const followed = event.detail.boxMap[currentResearchBoxId];
     if (followed) openResearchBox(followed);
+    loadResearchQuickStats();
+});
+document.addEventListener('boxchanged', async (event) => {
+    if (event.detail.section !== 'research') return;
+    await refreshResearchSidebar();
+    openResearchBox(event.detail.boxId);
     loadResearchQuickStats();
 });

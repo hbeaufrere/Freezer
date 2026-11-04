@@ -2699,3 +2699,56 @@ def test_freezer_event_notes_are_short_and_dated_sensibly(client):
     assert client.post('/api/freezer-events', json={'note': 'ok', 'occurred_at': '2999-01-01T00:00'}).status_code == 400
     assert client.post('/api/freezer-events', json={'note': 'ok', 'occurred_at': 'yesterday'}).status_code == 400
     assert client.post('/api/freezer-events', json={'note': 'ok'}).status_code == 201
+
+
+# ------------------------------------------------------------
+# Box-level tools: thaw the whole box, clear it
+# ------------------------------------------------------------
+
+def test_a_whole_box_freeze_thaw_counts_every_tube_and_is_logged(client, boxes, species_id):
+    for c in (1, 2, 3):
+        client.post('/api/raptor/tubes', json={'box_id': boxes['raptor']['id'], 'row_pos': 1, 'col_pos': c,
+                                               'species_id': species_id, 'collection_date': '2026-04-01'})
+    r = client.post(f'/api/boxes/{boxes["raptor"]["id"]}/thaw', json={})
+    assert r.status_code == 200 and r.get_json()['thawed'] == 3
+    assert [t['freeze_thaw_cycles'] for t in client.get(f'/api/boxes/{boxes["raptor"]["id"]}').get_json()['tubes']] == [1, 1, 1]
+    thawed = [e for e in client.get('/api/activity?kind=thawed').get_json()['entries']]
+    assert len(thawed) == 3 and all('whole box' in e['detail'] for e in thawed)
+
+    empty = client.post(f'/api/boxes/{boxes["research"]["id"]}/thaw', json={})
+    assert empty.status_code == 400 and 'nothing to thaw' in empty.get_json()['error']
+    client.put(f'/api/boxes/{boxes["research"]["id"]}/type', json={'box_type': 'bulk'})
+    bulk = client.post(f'/api/boxes/{boxes["research"]["id"]}/thaw', json={})
+    assert bulk.status_code == 400 and 'whole-box entry' in bulk.get_json()['error']
+
+
+def test_clearing_a_box_erases_it_without_a_trace_and_needs_the_label_typed(client, boxes, species_id):
+    box = boxes['raptor']['id']
+    label = client.get(f'/api/boxes/{box}').get_json()['label']
+    for c in (1, 2):
+        client.post('/api/raptor/tubes', json={'box_id': box, 'row_pos': 1, 'col_pos': c,
+                                               'species_id': species_id, 'collection_date': '2026-04-01'})
+    before = client.get('/api/activity').get_json()['total']
+
+    wrong = client.post(f'/api/boxes/{box}/clear', json={'confirm': 'nope'})
+    assert wrong.status_code == 400 and label in wrong.get_json()['error']
+    assert len(client.get(f'/api/boxes/{box}').get_json()['tubes']) == 2
+
+    ok = client.post(f'/api/boxes/{box}/clear', json={'confirm': label.lower()})
+    assert ok.status_code == 200 and ok.get_json()['removed'] == 2
+    assert client.get(f'/api/boxes/{box}').get_json()['tubes'] == []
+    # Nothing in the activity log says it happened.
+    assert client.get('/api/activity').get_json()['total'] == before
+
+
+def test_clearing_a_whole_box_entry_resets_the_slot(client, boxes):
+    box = boxes['research']['id']
+    label = client.get(f'/api/boxes/{box}').get_json()['label']
+    client.put(f'/api/boxes/{box}/type', json={'box_type': 'bulk'})
+    client.put(f'/api/boxes/{box}/bulk', json={'sample_type': 'Liver', 'tube_count': 60, 'study': 'PK'})
+    client.post('/api/freezer-events', json={'note': 'Power cut'})
+    r = client.post(f'/api/boxes/{box}/clear', json={'confirm': label})
+    assert r.status_code == 200 and r.get_json()['was_whole_box']
+    after = client.get(f'/api/boxes/{box}').get_json()
+    assert (after['box_type'], after['bulk_sample_type'], after['bulk_tube_count'], after['events']) == ('grid', None, None, [])
+    assert client.get('/api/freezer-events').get_json()[0]['whole_boxes'] == 0

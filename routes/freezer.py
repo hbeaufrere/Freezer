@@ -452,6 +452,66 @@ def row_label(db, box_id):
     return db.execute('select label from boxes where id = %s', (box_id,)).fetchone()['label']
 
 
+@freezer_bp.route('/api/boxes/<int:box_id>/thaw', methods=['POST'])
+def thaw_box(box_id):
+    """One freeze-thaw cycle on every tube in the box: the whole box came out
+    and went back. Logged per tube, like a group thaw, so each tube's history
+    says so."""
+    from services.activity import record, snapshot
+    db = get_db()
+    box = one_or_404(
+        db.execute('select id, label, section, box_type from boxes where id = %s', (box_id,)).fetchone(),
+        'Box',
+    )
+    if box['box_type'] == 'bulk':
+        raise ApiError('A whole-box entry has no per-tube freeze-thaw count to add to.')
+    table = 'raptor_tubes' if box['section'] == 'raptor' else 'research_tubes'
+    with write(db):
+        rows = db.execute(
+            f"""update {table} set freeze_thaw_cycles = freeze_thaw_cycles + 1
+                where box_id = %s returning id, freeze_thaw_cycles""",
+            (box_id,),
+        ).fetchall()
+        if not rows:
+            raise ApiError(f'{box["label"]} is empty; there is nothing to thaw.')
+        for r in rows:
+            record(db, 'thawed', box['section'], **snapshot(db, box['section'], r['id']),
+                   detail=f"freeze-thaw now {r['freeze_thaw_cycles']} · whole box {box['label']}")
+    return jsonify({'box': box['label'], 'thawed': len(rows)})
+
+
+@freezer_bp.route('/api/boxes/<int:box_id>/clear', methods=['POST'])
+def clear_box(box_id):
+    """Erase everything in a box and leave it an empty grid. No activity
+    entry, on purpose: this is the reconcile tool for a box that was entered
+    wrongly, and the log should not say those samples ever existed. The
+    caller has to type the box's label back, so a slip of the finger cannot
+    do it.
+
+    Samples that actually left the freezer are not erased here; they are
+    retrieved, and the retrieval log keeps them."""
+    db = get_db()
+    data = json_body()
+    box = one_or_404(
+        db.execute('select id, label, section, box_type from boxes where id = %s', (box_id,)).fetchone(),
+        'Box',
+    )
+    if text(data, 'confirm').strip().lower() != (box['label'] or '').strip().lower():
+        raise ApiError(f'Type the box label ({box["label"]}) to confirm.')
+    table = 'raptor_tubes' if box['section'] == 'raptor' else 'research_tubes'
+    with write(db):
+        removed = db.execute(f'delete from {table} where box_id = %s', (box_id,)).rowcount
+        db.execute('delete from box_events where box_id = %s', (box_id,))
+        db.execute(
+            """update boxes set box_type = 'grid', bulk_sample_type = null, bulk_tube_count = null,
+                   bulk_study = null, bulk_kind = 'tubes', bulk_fullness = null, bulk_date = null
+               where id = %s""",
+            (box_id,),
+        )
+    return jsonify({'box': box['label'], 'removed': removed,
+                    'was_whole_box': box['box_type'] == 'bulk'})
+
+
 @freezer_bp.route('/api/boxes/<int:box_id>', methods=['DELETE'])
 def delete_box(box_id):
     db = get_db()
