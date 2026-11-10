@@ -313,6 +313,7 @@ _KIND_GROUPS = {
     'added': ('added',), 'edited': ('edited', 'relabelled'), 'removed': ('removed',),
     'moved': ('moved',), 'thawed': ('thawed',), 'retrieved': ('retrieved', 'consumed'),
     'box': ('box',), 'dropoff': ('dropoff', 'collected'), 'event': ('event',),
+    'study': ('study',),
 }
 
 
@@ -326,7 +327,7 @@ def list_activity():
     query = (request.args.get('q') or '').strip()
 
     where, params = [], {'limit': limit, 'offset': offset}
-    if section in ('raptor', 'research', 'sites', 'freezer'):
+    if section in ('raptor', 'research', 'sites', 'freezer', 'study'):
         where.append('f.section = %(section)s')
         params['section'] = section
     if kind in _KIND_GROUPS:

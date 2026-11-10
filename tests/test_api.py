@@ -2796,3 +2796,173 @@ def test_a_whole_box_entry_can_be_retrieved_and_consumed(client, boxes):
 
     again = client.post(f'/api/boxes/{box}/retrieve', json={'retrieved_by': 'Alice'})
     assert again.status_code == 400 and 'itemised' in again.get_json()['error']
+
+
+# ------------------------------------------------------------
+# Research projects: CBC reference-interval studies
+# ------------------------------------------------------------
+
+def test_percentiles_follow_r_type_6_and_small_groups_are_preliminary():
+    from services.ri_stats import quantile6, summarize
+    x = [float(v) for v in range(1, 41)]
+    # R: quantile(1:40, c(.025, .975), type = 6) -> 1.025, 39.975
+    assert quantile6(x, 0.025) == pytest.approx(1.025) and quantile6(x, 0.975) == pytest.approx(39.975)
+    # Below 40 the rank falls off the ends: the limits are the extremes, never beyond them.
+    assert quantile6(x[:10], 0.025) == 1.0 and quantile6(x[:10], 0.975) == 10.0
+
+    s = summarize([(v, None) for v in x])
+    assert (s['n'], s['min'], s['max'], s['preliminary']) == (40, 1.0, 40.0, False)
+    assert s['mean'] == pytest.approx(20.5) and s['sd'] == pytest.approx(11.6905, abs=1e-3)
+    assert s['median'] == pytest.approx(20.5)
+    # Bootstrap limits stay inside the data and bracket sensibly; seeded, so repeatable.
+    assert 1.0 <= s['ci_low'][0] <= s['ci_low'][1] <= 40.0 and s['ci_high'][0] <= s['ci_high'][1] <= 40.0
+    assert summarize([(v, None) for v in x]) == s
+    small = summarize([(v, None) for v in x[:12]])
+    assert small['preliminary'] and small['ri_low'] == 1.0 and small['ri_high'] == 12.0
+    assert summarize([(5.0, None)])['sd'] is None and summarize([]) == {'n': 0}
+
+
+def test_dixon_flags_an_extreme_whose_gap_exceeds_a_third_of_the_range():
+    from services.ri_stats import summarize
+    high = summarize([(v, f'bird{v}') for v in (1.0, 2.0, 3.0, 4.0, 20.0)])
+    assert [(o['value'], o['side'], o['tag']) for o in high['outliers']] == [(20.0, 'high', 'bird20.0')]
+    # Flagged, and still in the statistics: outliers are retained.
+    assert high['max'] == 20.0 and high['n'] == 5
+    low = summarize([(v, None) for v in (-30.0, 10.0, 11.0, 12.0, 13.0)])
+    assert [(o['value'], o['side']) for o in low['outliers']] == [(-30.0, 'low')]
+    assert summarize([(v, None) for v in (1.0, 2.0, 3.0, 4.0, 5.0)])['outliers'] == []
+    assert summarize([(v, None) for v in (7.0, 7.0, 7.0)])['outliers'] == []
+
+
+VMACS_HEADER = ['VisitNo', 'PatientNo', 'Species', 'Breed', 'Sex', 'AgeYears', 'WeightKg', 'AdmitDate',
+                'CHEM_GLDH', 'CBC_PCV', 'CBC_TP', 'CBC_WBC', 'CBC_HETS', 'CBC_MORPH']
+
+
+def test_a_vmacs_row_becomes_panels_in_date_order_and_the_latest_is_proposed():
+    from services.cbc_parse import parse_vmacs_rows
+    rows = [
+        ['2600456', '95-35-12', 'AV', 'White-tailed Kite', 'F', '0', '0.31', '03Nov26',
+         '12', '46', '4.1', '9800', '5100', 'adequate'],
+        ['2600123', '95-35-12', 'AV', 'White-tailed Kite', 'F', '0', '0.29', '02Oct26',
+         '9 14', '38 44;hemolysed', '3.2 3.9', '15200 11000', '9900 6200', 'toxic normal'],
+    ]
+    p = parse_vmacs_rows(VMACS_HEADER, rows)
+    assert (p['patient_no'], p['breed'], p['sex']) == ('953512', 'White-tailed Kite', 'Female')
+    assert [a['key'] for a in p['analytes']] == ['PCV', 'TP', 'WBC', 'HETS', 'MORPH']
+    assert [a['label'] for a in p['analytes']][:4] == ['PCV', 'Plasma protein', 'WBC', 'Heterophils']
+    # Three panels: two in the October visit, one in November. Chemistry is ignored.
+    assert [(x['visit_no'], x['collected_on']) for x in p['panels']] == [
+        ('2600123', '2026-10-02'), ('2600123', '2026-10-02'), ('2600456', '2026-11-03')]
+    assert p['panels'][0]['results'] == {'PCV': 38.0, 'TP': 3.2, 'WBC': 15200.0, 'HETS': 9900.0, 'MORPH': 'toxic'}
+    assert p['panels'][1]['results']['PCV'] == 44.0          # the comment after ; is not a value
+    assert p['default_panel'] == 2 and p['panels'][2]['results']['PCV'] == 46.0
+    assert 'panel 1 of 2' in p['panels'][0]['label']
+
+
+def test_pasted_results_are_read_line_by_line():
+    from services.cbc_parse import parse_text
+    p = parse_text('PCV\t45\t%\nPlasma protein: 4.2 g/dL\nWBC 12500 /uL\n\nHeterophils   6100\nthrombocytes adequate\n')
+    r = p['panels'][0]['results']
+    assert r == {'PCV': 45.0, 'PLASMA_PROTEIN': 4.2, 'WBC': 12500.0, 'HETEROPHILS': 6100.0}
+    assert [(a['label'], a['unit']) for a in p['analytes']][:3] == [('PCV', '%'), ('Plasma protein', 'g/dL'), ('WBC', '/uL')]
+    assert parse_text('nothing here')['panels'] == []
+
+
+def _cbc(client, slug, patient, pcv, wbc, **extra):
+    return client.post(f'/api/studies/{slug}/cbcs', json={
+        'patient_no': patient, 'collected_on': '2026-11-03', 'sex': 'Unknown',
+        'results': {'PCV': pcv, 'WBC': wbc}, **extra})
+
+
+def test_a_study_keeps_a_table_and_recomputes_its_interval(client):
+    studies = {s['slug']: s for s in client.get('/api/studies').get_json()}
+    assert set(studies) == {'wtki-pre-release-ri', 'swha-pre-release-ri'}
+    assert studies['wtki-pre-release-ri']['species_name'] == 'White-tailed Kite'
+    slug = 'wtki-pre-release-ri'
+
+    for i, (pcv, wbc) in enumerate([(40, 9000), (42, 10000), (44, 11000), (45, 12000), (70, 9500)]):
+        r = _cbc(client, slug, f'95-35-{10 + i}', pcv, wbc, sex='Female' if i % 2 else 'Male', age='Juvenile',
+                 source='vmacs', analytes=[{'key': 'PCV', 'label': 'PCV', 'unit': '%'}])
+        assert r.status_code == 201, r.get_json()
+
+    data = client.get(f'/api/studies/{slug}').get_json()
+    assert data['n'] == 5 and data['preliminary'] is True
+    assert [a['key'] for a in data['study']['analytes']] == ['PCV', 'WBC']
+    assert data['study']['analytes'][0]['unit'] == '%'
+    assert data['rows'][0]['patient_no'] == '953510' and data['rows'][0]['age'] == 'Juvenile'
+    pcv = next(s for s in data['stats'] if s['key'] == 'PCV')
+    assert (pcv['n'], pcv['min'], pcv['max'], pcv['ri_low'], pcv['ri_high']) == (5, 40.0, 70.0, 40.0, 70.0)
+    assert pcv['mean'] == pytest.approx(48.2) and pcv['preliminary']
+    assert [(o['value'], o['side'], o['tag']['patient_no']) for o in pcv['outliers']] == [(70.0, 'high', '953514')]
+    assert next(s for s in data['stats'] if s['key'] == 'WBC')['outliers'] == []
+    # The other study is untouched.
+    assert client.get('/api/studies/swha-pre-release-ri').get_json()['n'] == 0
+
+
+def test_one_sample_per_bird_and_a_cbc_can_be_replaced_edited_or_removed(client):
+    slug = 'swha-pre-release-ri'
+    first = _cbc(client, slug, '123456', 41, 8000).get_json()
+    again = _cbc(client, slug, '12-34-56', 45, 9000)
+    assert again.status_code == 409 and again.get_json()['duplicate'] and 'one sample per bird' in again.get_json()['error']
+    replaced = _cbc(client, slug, '123456', 45, 9000, replace=True)
+    assert replaced.status_code == 201 and replaced.get_json()['replaced'] and replaced.get_json()['id'] == first['id']
+    assert client.get(f'/api/studies/{slug}').get_json()['rows'][0]['results']['PCV'] == 45.0
+
+    edited = client.put(f'/api/study-cbcs/{first["id"]}', json={
+        'patient_no': '123456', 'sex': 'Male', 'age': 'Adult', 'collected_on': '2026-11-05',
+        'results': {'PCV': 46, 'WBC': 9000, 'TP': 4.0}})
+    assert edited.status_code == 200 and edited.get_json()['sex'] == 'Male'
+    assert [a['key'] for a in client.get(f'/api/studies/{slug}').get_json()['study']['analytes']] == ['PCV', 'WBC', 'TP']
+
+    assert client.put(f'/api/study-cbcs/{first["id"]}', json={'sex': 'Hen', 'results': {'PCV': 1}}).status_code == 400
+    assert client.post(f'/api/studies/{slug}/cbcs', json={'patient_no': '1', 'results': {'MORPH': 'ok'}}).status_code == 400
+    assert client.post('/api/studies/nope/cbcs', json={'results': {'PCV': 1}}).status_code == 404
+
+    assert client.delete(f'/api/study-cbcs/{first["id"]}').status_code == 200
+    assert client.get(f'/api/studies/{slug}').get_json()['n'] == 0
+    feed = client.get('/api/activity?kind=study').get_json()['entries']
+    assert [e['detail'].split(' ·')[0] for e in feed] == [
+        'CBC removed from the study', 'CBC edited', 'CBC replaced by hand', 'CBC added by hand']
+
+
+def test_the_parse_endpoint_names_the_study_from_the_breed(client):
+    rows = [['2600456', '953512', 'AV', "Swainson's Hawk", 'M', '2', '0.9', '03Nov26', '', '44', '4.0', '9000', '5000', '']]
+    p = client.post('/api/studies/parse', json={'kind': 'vmacs', 'header': VMACS_HEADER, 'rows': rows,
+                                                'study': 'wtki-pre-release-ri'}).get_json()
+    assert p['study_slug'] == 'swha-pre-release-ri' and p['species_mismatch'] is True
+    assert (p['sex'], p['age'], p['source']) == ('Male', '2 y', 'vmacs')
+    empty = client.post('/api/studies/parse', json={'kind': 'vmacs', 'header': VMACS_HEADER,
+                                                    'rows': [['1', '2', 'AV', 'Barn Owl', '', '', '', '', '', '', '', '', '', '']]})
+    assert empty.status_code == 400 and 'No CBC results' in empty.get_json()['error']
+    t = client.post('/api/studies/parse', json={'kind': 'text', 'text': 'PCV 45', 'study': 'wtki-pre-release-ri'}).get_json()
+    assert t['study_slug'] == 'wtki-pre-release-ri' and t['source'] == 'paste'
+
+
+def test_the_excel_sheet_holds_values_with_age_and_sex_and_no_statistics(client):
+    from openpyxl import load_workbook
+    import io as _io
+    slug = 'wtki-pre-release-ri'
+    _cbc(client, slug, '953512', 44, 9000, sex='Female', age='Juvenile', wrmd_number='26-1042')
+    _cbc(client, slug, '953513', 46.5, 10000)
+    r = client.get(f'/api/studies/{slug}/xlsx')
+    assert r.status_code == 200 and 'WTKI pre-release RI - CBC data.xlsx' in r.headers['Content-Disposition']
+    ws = load_workbook(_io.BytesIO(r.data)).active
+    grid = [[c.value for c in row] for row in ws.iter_rows()]
+    assert grid[0] == ['Patient No', 'Visit No', 'WRMD No', 'Collection Date', 'Age', 'Sex', 'PCV', 'WBC']
+    assert grid[1][0] == '953512' and grid[1][2] == '26-1042' and grid[1][4:] == ['Juvenile', 'Female', 44, 9000]
+    assert grid[2][5:] == ['Unknown', 46.5, 10000] and len(grid) == 3
+    flat = ' '.join(str(v) for row in grid for v in row)
+    assert 'Mean' not in flat and 'SD' not in flat.split() and 'RI' not in flat.split()
+
+
+def test_the_study_pages_and_the_userscript_are_served_behind_the_login(client, anon):
+    assert client.get('/studies').status_code == 200
+    page = client.get('/studies/wtki-pre-release-ri')
+    assert page.status_code == 200 and b'WTKI pre-release RI' in page.data
+    assert client.get('/studies/nope').status_code == 404
+    assert client.get('/studies/import').status_code == 200
+    js = client.get('/studies/vmacs-cbc-import.user.js')
+    assert js.status_code == 200 and b'==UserScript==' in js.data
+    assert b'__APP_ORIGIN__' not in js.data and b'http://localhost' in js.data
+    assert anon.get('/studies').status_code == 302
+    assert anon.get('/api/studies').status_code == 401

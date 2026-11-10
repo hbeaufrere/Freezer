@@ -9,6 +9,7 @@ const KIND_LABELS = {
     retrieved: ['Retrieved', 'kind-retrieved'], consumed: ['Used up', 'kind-consumed'],
     box: ['Box', 'kind-box'], dropoff: ['Drop-off', 'kind-dropoff'], collected: ['Collected', 'kind-dropoff'],
     event: ['Freezer event', 'kind-event'],
+    study: ['Research', 'kind-moved'],
 };
 
 async function initActivityPage() {

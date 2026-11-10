@@ -88,9 +88,11 @@ def create_app():
     from routes.stats import stats_bp
     from routes.move import move_bp
     from routes.events import events_bp
+    from routes.studies import studies_bp
 
     for blueprint in (freezer_bp, research_bp, raptor_bp, stats_bp,
-                      export_bp, retrieval_bp, collection_bp, move_bp, events_bp):
+                      export_bp, retrieval_bp, collection_bp, move_bp, events_bp,
+                      studies_bp):
         app.register_blueprint(blueprint)
 
     # ------------------------------------------------------------
@@ -181,6 +183,23 @@ def create_app():
     @app.route('/stats')
     def stats_page():
         return render_template('stats.html')
+
+    @app.route('/studies')
+    def studies_page():
+        return render_template('studies.html')
+
+    @app.route('/studies/import')
+    def studies_import_page():
+        return render_template('studies_import.html')
+
+    @app.route('/studies/<slug>')
+    def study_page(slug):
+        from db import get_db
+        from routes.support import one_or_404
+        study = one_or_404(get_db().execute(
+            'select slug, name, species_code, species_name, description from studies where slug = %s',
+            (slug,)).fetchone(), 'Study')
+        return render_template('study.html', study=study)
 
     @app.route('/activity')
     def activity_page():

@@ -163,6 +163,13 @@
         </div>
     </div>
 </div>
+<div class="study-strip" id="study-strip" hidden>
+    <div class="collect-head">
+        <span class="collect-title"><i class="bi bi-clipboard-data me-1"></i>Research projects</span>
+        <a class="shelf-meta" href="/studies">all projects</a>
+    </div>
+    <div class="study-cards" id="study-cards"></div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -171,5 +178,21 @@
 <script src="/static/js/freezer-view.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', loadFreezerOverview);
+</script>
+<script>
+    /* The research projects, at the bottom of the overview: name, species, n. */
+    document.addEventListener('DOMContentLoaded', async () => {
+        try {
+            const studies = await API.get('/api/studies');
+            if (!studies.length) return;
+            document.getElementById('study-cards').innerHTML = studies.map((s) => `
+                <a class="study-card" href="/studies/${encodeURIComponent(s.slug)}">
+                    <span class="study-card-name">${escapeHtml(s.name)}</span>
+                    <span class="study-card-sub">${escapeHtml(s.species_name || '')}</span>
+                    <span class="study-card-n"><b>${s.n}</b> bird${s.n === 1 ? '' : 's'}${s.n < 40 ? ' · preliminary' : ''}</span>
+                </a>`).join('');
+            document.getElementById('study-strip').hidden = false;
+        } catch (err) { /* the overview works without it */ }
+    });
 </script>
 {% endblock %}
