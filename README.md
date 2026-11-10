@@ -183,7 +183,6 @@ routes/
   retrieval.py           Retrieval log and the activity feed
   move.py                Moving a box, drawer or rack to an empty place
   events.py              Whole-freezer events, stamped on the samples present
-  studies.py             Research projects: CBC reference-interval studies
   raptor.py              Raptor samples, species
   research.py            Research tubes
   stats.py               Dashboard aggregates
@@ -306,23 +305,6 @@ is a counter, not specimen records: the worst case is an inflated number the
 lab can reset, and the token is compared in constant time and never included
 in the site list the rest of the app loads. Replaying migrations does not
 rotate the tokens, so printed QR codes keep working.
-
-**Research projects run beside the freezer.** The first kind is a CBC
-reference-interval study (WTKI and SWHA pre-release): one hemogram per bird,
-with age and sex, and statistics recomputed from the table on every read —
-n, mean, SD, median, range, the nonparametric 2.5th–97.5th percentile
-interval (R's quantile type 6), bootstrap 90% CIs on each limit, and Dixon
-outliers by Reed's one-third criterion, flagged and retained. Fewer than 40
-birds is marked preliminary rather than switched to another method. The
-analytes are whatever the laboratory reports, in the order first seen.
-
-A CBC comes in three ways: from VMACS through a Tampermonkey script served
-at `/studies/vmacs-cbc-import.user.js` (it reads a saved report format for
-one patient and hands the rows over; it never writes to VMACS), from pasted
-results, or by hand. Every route ends in the same sheet, where the panel is
-checked before it is saved. The values-only Excel sheet is written into the
-study's folder by the browser, once the file has been picked (Chrome and
-Edge); the paper's statistics still come from R.
 
 **A freezer event is stamped on what was there, not on what came later.**
 A failure, a power cut, a door left open: one short dated note, recorded on

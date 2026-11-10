@@ -54,8 +54,6 @@ def clean_database(flask_app):
         db = get_db()
         db.execute('truncate retrievals, activity, freezer_events, raptor_tubes, research_tubes, raptor_id_sequence restart identity cascade')
         db.execute('truncate pending_dropoffs restart identity')
-        db.execute('truncate study_cbcs restart identity')
-        db.execute("update studies set analytes = '[]'::jsonb")
         db.execute('update drawers set note = null')
         # Research racks are seeded with no designation; tests that name one
         # must not leave the name for the next test to find.
